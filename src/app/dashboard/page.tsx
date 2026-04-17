@@ -13,7 +13,7 @@ import {
   fetchDashboardStats,
   validateInvoiceBatch,
   fetchInvoices,
-  fileInvoice,
+  fileInvoiceBulk,
   fetchValidationResults,
 } from "@/lib/api/client";
 import { monthOptions, formatTimestamp } from "@/lib/utils";
@@ -57,8 +57,8 @@ export default function DashboardPage() {
       const ids = submissions.map((s) => s.id);
       const validations = await fetchValidationResults(ids);
       const ready = validations.filter((v) => v.statusCode === "READY");
-      await Promise.all(ready.map((v) => fileInvoice(v)));
-      setSavedCount(ready.length);
+      const result = await fileInvoiceBulk(ready);
+      setSavedCount(result.summary.filed);
       await loadStats();
     } catch (err) {
       setError(String(err));

@@ -88,6 +88,43 @@ export function checkAmountMatchesSheet(
   return Math.abs(sheetAmount - invoiceTotal) <= tolerance;
 }
 
+// ── Safe validator wrapper (Rule 9) ──────────────────────────────────────────
+// Any unexpected error during validation must never crash the pipeline.
+// Instead, mark the invoice REVIEW_REQUIRED so a human can inspect it.
+
+export function safeValidationResult(
+  submission: InvoiceSubmission,
+  extracted: ExtractedInvoiceFields | null,
+  pdfAccessible: boolean,
+  duplicateDetected: boolean,
+  config: AppConfig = DEFAULT_CONFIG
+): InvoiceValidationResult {
+  try {
+    return buildValidationResult(submission, extracted, pdfAccessible, duplicateDetected, config);
+  } catch (err) {
+    return {
+      submissionId: submission.id,
+      pdfAccessible,
+      invoiceDateFound: false,
+      taxIncluded: false,
+      subtotalFound: false,
+      totalFound: false,
+      amountConsistent: false,
+      amountMatchesSheet: false,
+      duplicateDetected,
+      statusCode: "REVIEW_REQUIRED",
+      issues: ["VALIDATION_ERROR"],
+      extractedFields: extracted,
+      proposedFilename: buildFilename(config, {
+        payerName: submission.payerName,
+        originalFilename: "invoice.pdf",
+        closingMonth: submission.closingMonth,
+      }),
+      targetFolderPath: `請求書/${buildMonthFolderName(submission.closingMonth, config)}`,
+    };
+  }
+}
+
 // ── Main validator ────────────────────────────────────────────────────────────
 
 export function buildValidationResult(

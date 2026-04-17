@@ -84,6 +84,8 @@ export interface InvoiceValidationResult {
   extractedFields: ExtractedInvoiceFields | null;
   proposedFilename: string;
   targetFolderPath: string;
+  // Rule 10: human reviewer must explicitly approve before filing is allowed
+  humanApproved?: boolean;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────

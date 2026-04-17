@@ -16,6 +16,7 @@ import {
   validateInvoice,
   fileInvoice,
 } from "@/lib/api/client";
+import type { InvoiceValidationResult } from "@/types";
 import { monthOptions, formatCurrency } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
@@ -114,6 +115,19 @@ export default function InvoicesPage() {
     } finally {
       setSaving(null);
     }
+  };
+
+  // Rule 10: human reviewer explicitly approves a REVIEW_REQUIRED invoice
+  const handleApprove = (item: InvoiceListItem) => {
+    if (!item.validation) return;
+    const approved: InvoiceValidationResult = { ...item.validation, humanApproved: true };
+    const updated = { ...item, validation: approved };
+    setItems((prev) =>
+      prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+    );
+    setSelectedItem((prev) =>
+      prev?.submission.id === item.submission.id ? updated : prev
+    );
   };
 
   const filtered =
@@ -330,7 +344,17 @@ export default function InvoicesPage() {
                                 {t("action_validate")}
                               </Button>
                             )}
-                            {v?.statusCode === "READY" && !item.filedDocument && (
+                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(item)}
+                                title="Approve for filing after human review"
+                              >
+                                ✓ Approve
+                              </Button>
+                            )}
+                            {(v?.statusCode === "READY" || v?.humanApproved) && !item.filedDocument && (
                               <Button
                                 variant="primary"
                                 size="sm"

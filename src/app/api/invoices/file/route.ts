@@ -34,11 +34,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (validation.statusCode !== "READY") {
+  // Rule 10: only READY invoices, or ones explicitly approved by a human reviewer
+  const canFile = validation.statusCode === "READY" || validation.humanApproved === true;
+  if (!canFile) {
     return NextResponse.json(
       {
         error: "Cannot file invoice",
-        reason: `Status is ${validation.statusCode}, only READY invoices can be filed`,
+        reason: `Status is ${validation.statusCode}. Only READY invoices or human-approved invoices can be filed.`,
       },
       { status: 422 }
     );

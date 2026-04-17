@@ -86,6 +86,20 @@ export async function fileInvoice(
   return data.filedDocument;
 }
 
+export async function fileInvoiceBulk(
+  validations: InvoiceValidationResult[]
+): Promise<{
+  filed: FiledDocument[];
+  skipped: { submissionId: string; reason: string }[];
+  errors: { submissionId: string; error: string }[];
+  summary: { total: number; filed: number; skipped: number; errors: number };
+}> {
+  return apiFetch("/api/invoices/file/bulk", {
+    method: "POST",
+    body: JSON.stringify({ validations }),
+  });
+}
+
 // ── Validation results & filed documents ─────────────────────────────────────
 // These come from the storage API route
 
