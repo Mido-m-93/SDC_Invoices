@@ -60,14 +60,22 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               )}
               <Field label={t("field_attachment")} span>
                 {s.invoiceAttachment ? (
-                  <a
-                    href={s.invoiceAttachment}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#2d6a4f] underline text-xs font-mono break-all"
-                  >
-                    {s.invoiceAttachment}
-                  </a>
+                  <div className="space-y-2">
+                    <a
+                      href={s.invoiceAttachment}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#2d6a4f] underline text-xs font-mono break-all"
+                    >
+                      {s.invoiceAttachment}
+                    </a>
+                    <iframe
+                      src={s.invoiceAttachment}
+                      className="w-full rounded-lg border border-stone-200"
+                      style={{ height: 400 }}
+                      title="Invoice PDF"
+                    />
+                  </div>
                 ) : (
                   <span className="text-red-500 text-xs">{t("missing_attachment")}</span>
                 )}

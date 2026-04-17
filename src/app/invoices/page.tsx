@@ -14,6 +14,7 @@ import {
   fetchValidationResults,
   fetchFiledDocuments,
   validateInvoice,
+  fileInvoice,
 } from "@/lib/api/client";
 import { monthOptions, formatCurrency } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
@@ -29,9 +30,11 @@ export default function InvoicesPage() {
   const [items, setItems] = useState<InvoiceListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -91,9 +94,33 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleSave = async (item: InvoiceListItem) => {
+    if (!item.validation) return;
+    setSaving(item.submission.id);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      const fd = await fileInvoice(item.validation);
+      const updated = { ...item, filedDocument: fd };
+      setItems((prev) =>
+        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+      );
+      setSelectedItem((prev) =>
+        prev?.submission.id === item.submission.id ? updated : prev
+      );
+      setSavedMsg(`✓ ${item.submission.payerName} saved as "${fd.newFilename}"`);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const filtered =
     filterStatus === "ALL"
       ? items
+      : filterStatus === "SAVED"
+      ? items.filter((i) => i.filedDocument != null)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
 
   return (
@@ -121,6 +148,14 @@ export default function InvoicesPage() {
         {error && (
           <div className="mb-5 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 font-mono">
             {error}
+          </div>
+        )}
+
+        {/* Success banner */}
+        {savedMsg && (
+          <div className="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 text-sm text-emerald-700 flex items-center justify-between">
+            <span>{savedMsg}</span>
+            <button onClick={() => setSavedMsg(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">×</button>
           </div>
         )}
 
@@ -161,6 +196,10 @@ export default function InvoicesPage() {
                     <Th>{t("col_closing_month")}</Th>
                     <Th>{t("col_project_type")}</Th>
                     <Th>{t("col_claimed_amount")}</Th>
+                    <Th>PDF Date</Th>
+                    <Th>Subtotal</Th>
+                    <Th>Tax</Th>
+                    <Th>PDF Total</Th>
                     <Th>{t("col_status")}</Th>
                     <Th>{t("col_issues")}</Th>
                     <Th>{t("col_attachment")}</Th>
@@ -194,6 +233,32 @@ export default function InvoicesPage() {
                         {/* Amount */}
                         <td className="px-4 py-3 text-stone-700 font-mono text-xs whitespace-nowrap">
                           {formatCurrency(s.claimedAmountTaxIncluded)}
+                        </td>
+
+                        {/* PDF Date */}
+                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
+                          {v?.extractedFields?.invoiceDate ?? <span className="text-stone-300">—</span>}
+                        </td>
+
+                        {/* Subtotal */}
+                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-600">
+                          {v?.extractedFields?.subtotal != null
+                            ? `¥${v.extractedFields.subtotal.toLocaleString("ja-JP")}`
+                            : <span className="text-stone-300">—</span>}
+                        </td>
+
+                        {/* Tax */}
+                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-600">
+                          {v?.extractedFields?.taxAmount != null
+                            ? `¥${v.extractedFields.taxAmount.toLocaleString("ja-JP")}`
+                            : <span className="text-stone-300">—</span>}
+                        </td>
+
+                        {/* PDF Total */}
+                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-800 font-semibold">
+                          {v?.extractedFields?.total != null
+                            ? `¥${v.extractedFields.total.toLocaleString("ja-JP")}`
+                            : <span className="text-stone-300 font-normal">—</span>}
                         </td>
 
                         {/* Status */}
@@ -265,10 +330,18 @@ export default function InvoicesPage() {
                                 {t("action_validate")}
                               </Button>
                             )}
-                            {v?.statusCode === "READY" && (
-                              <Button variant="primary" size="sm">
+                            {v?.statusCode === "READY" && !item.filedDocument && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                loading={saving === s.id}
+                                onClick={() => handleSave(item)}
+                              >
                                 {t("action_save")}
                               </Button>
+                            )}
+                            {item.filedDocument && (
+                              <span className="text-xs text-emerald-600 font-medium">✓ Saved</span>
                             )}
                           </div>
                         </td>

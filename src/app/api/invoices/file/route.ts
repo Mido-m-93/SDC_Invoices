@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const config = await storageSvc.loadConfig().catch(() => DEFAULT_CONFIG);
 
     // Ensure target folder exists
-    const folderName = buildMonthFolderName("", config); // closingMonth from validation
+    const folderName = validation.targetFolderPath || buildMonthFolderName("", config);
     const folderId = await driveSvc.ensureMonthFolder({
       rootFolderId: ROOT_FOLDER_ID,
       folderName,
