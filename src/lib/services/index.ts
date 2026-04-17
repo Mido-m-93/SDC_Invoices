@@ -1,0 +1,148 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// lib/services/index.ts — Service factory
+//
+// Each service can be independently switched between mock and real using
+// dedicated environment flags. Mock is the default for every service unless
+// the corresponding flag is explicitly set to "false".
+//
+// Per-service flags (all default to mock):
+//   NEXT_PUBLIC_USE_MOCK_SHEETS      = "false" → use RealSheetsService
+//   NEXT_PUBLIC_USE_MOCK_DRIVE       = "false" → use RealDriveService      (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_VALIDATION  = "false" → use RealValidationService  (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_STORAGE     = "false" → use RealStorageService     (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_DASHBOARD   = "false" → use RealDashboardService   (not yet implemented)
+//
+// The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
+// Each service must be opted into real mode individually.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import "server-only";
+
+import type {
+  ISheetsService,
+  IDriveService,
+  IValidationService,
+  IStorageService,
+  IDashboardService,
+} from "./types";
+
+import {
+  MockSheetsService,
+  MockDriveService,
+  MockValidationService,
+  MockStorageService,
+  MockDashboardService,
+} from "./mock";
+
+import { RealSheetsService } from "./real/SheetsService";
+
+// ── Per-service mock flag helper ─────────────────────────────────────────────
+// Returns true (use mock) unless the flag is EXACTLY the string "false".
+// Undefined, missing, "true", "1", or any other value → stays on mock.
+function isMock(flagName: string): boolean {
+  return process.env[flagName] !== "false";
+}
+
+// ── Singletons — each service is created once and cached ────────────────────
+let _sheets: ISheetsService | undefined;
+let _drive: IDriveService | undefined;
+let _validation: IValidationService | undefined;
+let _storage: IStorageService | undefined;
+let _dashboard: IDashboardService | undefined;
+
+// ── Sheets ───────────────────────────────────────────────────────────────────
+export function getSheetsService(): ISheetsService {
+  if (!_sheets) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_SHEETS")) {
+      _sheets = new MockSheetsService();
+    } else {
+      // RealSheetsService validates its own required env vars in the constructor
+      // and throws a descriptive error if any are missing.
+      _sheets = new RealSheetsService();
+    }
+  }
+  return _sheets;
+}
+
+// ── Drive ────────────────────────────────────────────────────────────────────
+export function getDriveService(): IDriveService {
+  if (!_drive) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_DRIVE")) {
+      _drive = new MockDriveService();
+    } else {
+      // Real implementation not yet built — fail clearly rather than silently.
+      throw new Error(
+        "[DriveService] Real implementation is not yet available. " +
+        "Remove NEXT_PUBLIC_USE_MOCK_DRIVE=false or keep it unset to use the mock."
+      );
+    }
+  }
+  return _drive;
+}
+
+// ── Validation ───────────────────────────────────────────────────────────────
+export function getValidationService(): IValidationService {
+  if (!_validation) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")) {
+      _validation = new MockValidationService();
+    } else {
+      throw new Error(
+        "[ValidationService] Real implementation is not yet available. " +
+        "Remove NEXT_PUBLIC_USE_MOCK_VALIDATION=false or keep it unset to use the mock."
+      );
+    }
+  }
+  return _validation;
+}
+
+// ── Storage (Firestore) ───────────────────────────────────────────────────────
+export function getStorageService(): IStorageService {
+  if (!_storage) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")) {
+      _storage = new MockStorageService();
+    } else {
+      throw new Error(
+        "[StorageService] Real Firestore implementation is not yet available. " +
+        "Remove NEXT_PUBLIC_USE_MOCK_STORAGE=false or keep it unset to use the mock."
+      );
+    }
+  }
+  return _storage;
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+export function getDashboardService(): IDashboardService {
+  if (!_dashboard) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_DASHBOARD")) {
+      _dashboard = new MockDashboardService();
+    } else {
+      throw new Error(
+        "[DashboardService] Real implementation is not yet available. " +
+        "Remove NEXT_PUBLIC_USE_MOCK_DASHBOARD=false or keep it unset to use the mock."
+      );
+    }
+  }
+  return _dashboard;
+}
+
+// ── Startup diagnostic (server-side only) ────────────────────────────────────
+// Import and call this once in a server component or API route to log
+// which services are running in real vs mock mode.
+export function logServiceModes(): void {
+  if (typeof window !== "undefined") return; // guard: server only
+
+  const services: [string, string][] = [
+    ["Sheets",     "NEXT_PUBLIC_USE_MOCK_SHEETS"],
+    ["Drive",      "NEXT_PUBLIC_USE_MOCK_DRIVE"],
+    ["Validation", "NEXT_PUBLIC_USE_MOCK_VALIDATION"],
+    ["Storage",    "NEXT_PUBLIC_USE_MOCK_STORAGE"],
+    ["Dashboard",  "NEXT_PUBLIC_USE_MOCK_DASHBOARD"],
+  ];
+
+  console.log("\n[SDC Invoice Tool] Service modes:");
+  for (const [name, flag] of services) {
+    const mode = isMock(flag) ? "MOCK" : "REAL";
+    console.log(`  ${name.padEnd(12)} → ${mode}`);
+  }
+  console.log("");
+}
