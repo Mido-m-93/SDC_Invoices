@@ -97,7 +97,9 @@ function normalizeRow(
   const get = (key: keyof InvoiceSubmission | "email") =>
     Object.entries(COLUMN_MAP)
       .filter(([, v]) => v === key)
-      .map(([k]) => normalized[k] ?? "")
+      // Normalize the COLUMN_MAP key the same way we normalized the Excel headers
+      // so ideographic spaces (U+3000) and other Unicode whitespace don't cause mismatches
+      .map(([k]) => normalized[normalizeHeader(k)] ?? "")
       .find((v) => v !== "") ?? "";
 
   return {
