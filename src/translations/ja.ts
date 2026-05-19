@@ -35,6 +35,7 @@ const ja = {
   col_payer_name: "請求者名",
   col_name: "名前",
   col_email: "メールアドレス",
+  col_submitted_at: "提出日時",
   col_which_month: "対象月",
   col_invoice_category: "請求書種別",
   col_invoice_amount: "請求金額",

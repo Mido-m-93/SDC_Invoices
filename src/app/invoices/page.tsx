@@ -323,6 +323,7 @@ export default function InvoicesPage() {
                   <tr className="border-b border-stone-100 bg-stone-50">
                     <Th>{t("col_name")}</Th>
                     <Th>{t("col_email")}</Th>
+                    <Th>{t("col_submitted_at")}</Th>
                     <Th>{t("col_which_month")}</Th>
                     <Th>{t("col_invoice_category")}</Th>
                     <Th>{t("col_invoice_amount")}</Th>
@@ -354,6 +355,11 @@ export default function InvoicesPage() {
                         {/* Email */}
                         <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
                           {s.email || <span className="text-stone-300">—</span>}
+                        </td>
+
+                        {/* Submitted at */}
+                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
+                          {s.submittedAt || <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Month */}

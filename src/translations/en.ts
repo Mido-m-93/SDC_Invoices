@@ -35,6 +35,7 @@ const en = {
   col_payer_name: "Payer Name",
   col_name: "Name",
   col_email: "Email Address",
+  col_submitted_at: "Submitted",
   col_which_month: "Which month?",
   col_invoice_category: "Invoice Category",
   col_invoice_amount: "Invoice Amount",

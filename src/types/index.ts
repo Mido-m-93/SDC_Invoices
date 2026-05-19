@@ -42,6 +42,7 @@ export interface RawSheetRow {
 export interface InvoiceSubmission {
   id: string;                          // generated UUID
   submissionRowNumber: number;         // 1-based row index in spreadsheet
+  submittedAt?: string;                // Start time (when the form was submitted)
   email: string;                       // （Email Address） from form
   payerName: string;                   // Name
   closingMonth: string;                // Which month does this invoice cover?

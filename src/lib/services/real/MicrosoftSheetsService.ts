@@ -48,6 +48,7 @@ async function graphGet<T>(path: string, token: string): Promise<T> {
 // ── Column mapping: Microsoft Forms → InvoiceSubmission ──────────────────────
 // Keys are normalized (trimmed, \r\n→space, collapsed spaces) before matching.
 const COLUMN_MAP: Record<string, keyof InvoiceSubmission | "email"> = {
+  "Start time":                                               "submittedAt",
   "Email":                                                    "email",
   "Name":                                                     "payerName",
   "メールアドレス（Email Address）":                          "email",
@@ -91,6 +92,7 @@ function normalizeRow(
   return {
     id: generateId(),
     submissionRowNumber: rowIndex + 2,
+    submittedAt:                get("submittedAt") || undefined,
     email:                      get("email"),
     payerName:                  get("payerName"),
     closingMonth:               get("closingMonth"),

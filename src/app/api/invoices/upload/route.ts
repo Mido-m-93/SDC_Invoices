@@ -82,6 +82,7 @@ type FieldName = keyof InvoiceSubmission | "email";
 // Matches your exact Microsoft Forms column headers (bilingual Japanese/English).
 // Most-specific rules first to avoid false matches.
 const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
+  { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
   { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
   { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
   { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
@@ -127,6 +128,7 @@ function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, 
   return {
     id: generateId(),
     submissionRowNumber: rowIndex + 2,
+    submittedAt:              get("submittedAt") || undefined,
     email:                    get("email"),
     payerName:                get("payerName"),
     closingMonth:             convertExcelDate(get("closingMonth")),

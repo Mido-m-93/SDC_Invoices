@@ -28,25 +28,29 @@ export async function GET(req: NextRequest) {
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
 
+    // Build a row-number → submittedAt map so we can overlay the submission date
+    // onto every row in the response. submittedAt comes from the Excel "Start time"
+    // column and is not stored in the DB, so we re-derive it on every load.
+    const submittedAtByRow = new Map(
+      allFresh.map((s) => [s.submissionRowNumber, s.submittedAt])
+    );
+
     // Find genuinely new rows (row number not yet in storage).
     // We never remove existing rows — only append — so old data is never wiped.
     const newRows = freshForMonth
       .filter((s) => !storedRowNumbers.has(s.submissionRowNumber))
-      .map((s) => ({ ...s, id: s.id }));
+      .map((s) => ({ ...s, id: storedIdByRow.get(s.submissionRowNumber) ?? s.id }));
+
+    const withDates = (rows: typeof stored) =>
+      rows.map((s) => ({ ...s, submittedAt: submittedAtByRow.get(s.submissionRowNumber) ?? s.submittedAt }));
 
     if (newRows.length === 0) {
-      return NextResponse.json({ month, count: stored.length, submissions: stored });
+      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored) });
     }
 
-    // For rows that already exist, preserve their stored IDs so that validation
-    // results and filed documents remain linked. New rows keep their generated IDs.
-    const allToSave = [
-      ...stored,
-      ...newRows.map((s) => ({ ...s, id: storedIdByRow.get(s.submissionRowNumber) ?? s.id })),
-    ];
-
+    const allToSave = [...stored, ...newRows];
     await getStorageService().saveSubmissions(allToSave, month);
-    return NextResponse.json({ month, count: allToSave.length, submissions: allToSave });
+    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave) });
   } catch (err) {
     console.error("[GET /api/invoices]", err);
     return NextResponse.json(
