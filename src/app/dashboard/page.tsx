@@ -121,14 +121,26 @@ export default function DashboardPage() {
         return;
       }
       const ids = submissions.map((s) => s.id);
-      const validations = await fetchValidationResults(ids);
-      const ready = validations.filter((v) => v.statusCode === "READY");
+      let validations = await fetchValidationResults(ids);
+
+      // Auto-validate any submissions that haven't been validated yet
+      const validatedIds = new Set(validations.map((v) => v.submissionId));
+      const unvalidated = submissions.filter((s) => !validatedIds.has(s.id));
+      if (unvalidated.length > 0) {
+        const newResults = await validateInvoiceBatch(unvalidated, month, user ?? undefined);
+        validations = [...validations, ...newResults];
+      }
+
+      const ready = validations.filter(
+        (v) => v.statusCode === "READY" || v.humanApproved === true
+      );
       if (ready.length === 0) {
         setError(
           language === "ja"
-            ? "保存可能な請求書がありません。先にバリデーションを実行してください。"
-            : "No READY invoices to save. Run validation first."
+            ? "保存可能な請求書がありません。添付ファイルや金額をご確認ください。"
+            : "No invoices are ready to save. Check that attachments and amounts are correct."
         );
+        await loadStats();
         return;
       }
       const result = await fileInvoiceBulk(ready);
