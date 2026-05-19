@@ -32,8 +32,19 @@ export function currentISOTimestamp(): string {
 // Parses any common date/month string into "YYYY-MM". Returns "unknown" if
 // the format is unrecognisable. Handles: "2026年5月", "2026-05", "2026-05-01",
 // "5/8/26" (MM/DD/YY), "5/8/2026" (MM/DD/YYYY), "05/2026" (MM/YYYY).
+// Converts an Excel serial date number (e.g. 46173) to a JS Date in UTC.
+export function excelSerialToDate(serial: number): Date {
+  return new Date(Math.round((serial - 25569) * 86400 * 1000));
+}
+
 export function parseSnapshotMonth(raw: string | undefined): string {
   if (!raw) return "unknown";
+  // Excel serial date: integer or decimal in the range 40000–60000 (~2009–2064)
+  const num = Number(raw);
+  if (!isNaN(num) && num > 40000 && num < 60000) {
+    const d = excelSerialToDate(Math.floor(num));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
   const jpMatch = raw.match(/(\d{4})年(\d{1,2})月/);
   if (jpMatch) return `${jpMatch[1]}-${jpMatch[2].padStart(2, "0")}`;
   const isoMatch = raw.match(/^(\d{4})-(\d{2})/);

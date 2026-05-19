@@ -6,7 +6,7 @@ import "server-only";
 import * as XLSX from "xlsx";
 import type { ISheetsService } from "../types";
 import type { InvoiceSubmission } from "@/types";
-import { generateId } from "@/lib/utils";
+import { generateId, excelSerialToDate } from "@/lib/utils";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -73,6 +73,17 @@ function normalizeHeader(h: string): string {
   return h.replace(/\r\n/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Convert an Excel serial number string to a readable value.
+// Dates (no fractional part): "2026年5月14日"  → used for closingMonth
+// Datetimes (with fractional): ISO string       → used for submittedAt
+function convertSerial(raw: string, mode: "date" | "datetime"): string {
+  const num = Number(raw);
+  if (isNaN(num) || num < 40000 || num > 60000) return raw;
+  const d = excelSerialToDate(mode === "date" ? Math.floor(num) : num);
+  if (mode === "datetime") return d.toISOString();
+  return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+}
+
 function normalizeRow(
   raw: Record<string, string>,
   rowIndex: number
@@ -92,10 +103,10 @@ function normalizeRow(
   return {
     id: generateId(),
     submissionRowNumber: rowIndex + 2,
-    submittedAt:                get("submittedAt") || undefined,
+    submittedAt:                convertSerial(get("submittedAt"), "datetime") || undefined,
     email:                      get("email"),
     payerName:                  get("payerName"),
-    closingMonth:               get("closingMonth"),
+    closingMonth:               convertSerial(get("closingMonth"), "date"),
     invoiceAttachment:          get("invoiceAttachment"),
     notes:                      get("notes"),
     internalDepartment:         get("internalDepartment"),
