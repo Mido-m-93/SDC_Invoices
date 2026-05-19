@@ -33,6 +33,18 @@ const ja = {
   // ── Invoice list ───────────────────────────────────────────────────────────
   invoice_list_title: "請求書一覧",
   col_payer_name: "請求者名",
+  col_name: "名前",
+  col_email: "メールアドレス",
+  col_which_month: "対象月",
+  col_invoice_category: "請求書種別",
+  col_invoice_amount: "請求金額",
+  col_internal_dept: "内部部門",
+  col_external_project: "外部案件",
+  col_notes: "特記事項",
+  col_pdf_date: "PDF日付",
+  col_subtotal: "小計",
+  col_tax: "消費税",
+  col_pdf_total: "PDF合計",
   col_closing_month: "締め月",
   col_project_type: "案件種別",
   col_claimed_amount: "請求金額（税込）",
@@ -42,8 +54,15 @@ const ja = {
   col_actions: "操作",
   action_view: "詳細",
   action_validate: "確認",
+  action_approve: "承認",
   action_save: "保存",
   action_open_link: "添付を開く",
+  btn_upload_excel: "CSVアップロード",
+  btn_reading: "読み込み中…",
+  col_mapping_title: "カラムマッピング",
+  unmapped: "（未マップ）",
+  no_file: "ファイルなし",
+  items_shown: "件表示",
   no_issues: "問題なし",
   none: "なし",
 
@@ -127,6 +146,10 @@ const ja = {
   config_duplicate_mode: "重複検出モード",
   config_amount_tolerance: "金額許容誤差",
   config_save: "設定を保存",
+
+  // ── Vendors ───────────────────────────────────────────────────────────────
+  nav_vendors: "取引先",
+  nav_contracts: "契約",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "閉じる",

@@ -7,6 +7,8 @@ interface Props {
   value: number | string;
   accent?: "default" | "green" | "amber" | "red" | "blue" | "slate";
   icon?: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
 }
 
 const accentMap = {
@@ -59,16 +61,20 @@ export default function StatCard({
   value,
   accent = "default",
   icon,
+  onClick,
+  active = false,
 }: Props) {
   const a = accentMap[accent];
 
   return (
     <div
+      onClick={onClick}
       className={clsx(
         "rounded-xl border p-5 shadow-sm",
         "flex min-h-[132px] flex-col justify-between gap-3",
         a.bg,
-        a.border,
+        active ? "border-[#1a1a2e] ring-2 ring-[#1a1a2e]/10" : a.border,
+        onClick && "cursor-pointer hover:shadow-md transition-shadow",
       )}
     >
       <div className="flex items-start justify-between gap-3">

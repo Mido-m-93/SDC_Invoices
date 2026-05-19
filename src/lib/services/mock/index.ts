@@ -11,33 +11,48 @@ import type {
   IValidationService,
   IStorageService,
   IDashboardService,
+  IVendorService,
+  IContractService,
 } from "../types";
 import type {
   InvoiceSubmission,
   InvoiceValidationResult,
+  ExtractedInvoiceFields,
   FiledDocument,
   ProcessingRun,
   ProcessingLog,
   AppConfig,
+  Vendor,
+  Contract,
 } from "@/types";
+import { safeValidationResult, parseCurrencyString } from "@/lib/validation/invoiceValidator";
 import {
-  MOCK_SUBMISSIONS,
-  MOCK_VALIDATION_RESULTS,
-  MOCK_FILED_DOCUMENTS,
-  MOCK_RUNS,
-  MOCK_LOGS,
-  getMockDashboardStats,
-} from "./mockData";
+  loadUploadedSubmissions,
+  saveUploadedSubmissions,
+  saveValidationResult,
+  loadValidationResults,
+  saveFiledDocument,
+  loadFiledDocuments,
+  saveRun,
+  loadRuns,
+  appendLog,
+  loadLogs,
+  loadVendors,
+  saveVendor,
+  deleteVendor,
+  loadContracts,
+  saveContract,
+  deleteContract,
+} from "./fileStore";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 
 const delay = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
 // ── Mock Sheets Service ───────────────────────────────────────────────────────
 export class MockSheetsService implements ISheetsService {
-  async loadSubmissions(_month: string): Promise<InvoiceSubmission[]> {
-    await delay(800);
-    // In mock mode, ignore month and return all sample submissions
-    return [...MOCK_SUBMISSIONS];
+  async loadSubmissions(month: string): Promise<InvoiceSubmission[]> {
+    await delay(300);
+    return loadUploadedSubmissions(month);
   }
 }
 
@@ -89,98 +104,162 @@ export class MockDriveService implements IDriveService {
 
 // ── Mock Validation Service ───────────────────────────────────────────────────
 export class MockValidationService implements IValidationService {
-  async validate(
-    submission: InvoiceSubmission
-  ): Promise<InvoiceValidationResult> {
+  async validate(submission: InvoiceSubmission): Promise<InvoiceValidationResult> {
     await delay(500);
-    const result = MOCK_VALIDATION_RESULTS[submission.id];
-    if (result) return result;
 
-    // Fallback for any submission not in mock data
-    return {
-      submissionId: submission.id,
-      pdfAccessible: false,
-      invoiceDateFound: false,
-      taxIncluded: false,
-      subtotalFound: false,
-      totalFound: false,
-      amountConsistent: false,
-      amountMatchesSheet: false,
-      duplicateDetected: false,
-      statusCode: "REVIEW_REQUIRED",
-      issues: ["REVIEW_REQUIRED"],
-      extractedFields: null,
-      proposedFilename: `${submission.payerName}_invoice.pdf`,
-      targetFolderPath: `請求書/${submission.closingMonth}`,
+    if (!submission.invoiceAttachment) {
+      const base = safeValidationResult(submission, null, false, false);
+      return enrichWithRisk(base, submission);
+    }
+
+    const claimedTotal = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 100000;
+    const subtotal = Math.round(claimedTotal / 1.1);
+    const taxAmount = claimedTotal - subtotal;
+
+    const mockExtracted: ExtractedInvoiceFields = {
+      invoiceDate: submission.closingMonth
+        ? `${submission.closingMonth.slice(0, 7)}-01`
+        : "2024-01-01",
+      subtotal,
+      taxAmount,
+      total: claimedTotal,
+      taxRate: 0.1,
+      payeeName: submission.payerName,
+      payerNameOnDoc: null,
+      rawText: "消費税",
     };
+
+    const base = safeValidationResult(submission, mockExtracted, true, false);
+    return enrichWithRisk(base, submission);
   }
 
-  async validateBatch(
-    submissions: InvoiceSubmission[]
-  ): Promise<InvoiceValidationResult[]> {
+  async validateBatch(submissions: InvoiceSubmission[]): Promise<InvoiceValidationResult[]> {
     return Promise.all(submissions.map((s) => this.validate(s)));
   }
 }
 
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, "");
+}
+
+function enrichWithRisk(
+  result: InvoiceValidationResult,
+  submission: InvoiceSubmission
+): InvoiceValidationResult {
+  const vendors = loadVendors();
+  const contracts = loadContracts();
+  const payerNorm = normalizeForMatch(submission.payerName);
+
+  const vendor = vendors.find(
+    (v) =>
+      v.status === "active" &&
+      [v.name, ...v.aliases].some((n) => normalizeForMatch(n) === payerNorm)
+  );
+
+  const vendorMatched = !!vendor;
+  let contractMatched = false;
+  let contractId: string | undefined;
+  let activeContract: Contract | undefined;
+
+  if (vendor) {
+    const today = new Date().toISOString().slice(0, 10);
+    activeContract = contracts.find(
+      (c) =>
+        c.vendorId === vendor.id &&
+        c.status === "active" &&
+        c.startDate <= today &&
+        c.endDate >= today
+    );
+    contractMatched = !!activeContract;
+    contractId = activeContract?.id;
+  }
+
+  // Risk scoring
+  let riskLevel: import("@/types").RiskLevel;
+  let reviewerRecommendation: string;
+
+  if (vendorMatched && !contractMatched) {
+    // Known vendor but no active contract — blocked
+    riskLevel = "BLOCKED";
+    reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
+  } else if (!vendorMatched) {
+    // Unknown vendor — needs review
+    riskLevel = "NEEDS_REVIEW";
+    reviewerRecommendation = "Accounting Lead";
+  } else if (
+    activeContract &&
+    submission.claimedAmountTaxIncluded &&
+    activeContract.expectedMonthlyAmount > 0
+  ) {
+    const claimed = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 0;
+    const tolerance = activeContract.expectedMonthlyAmount * 0.1; // 10% tolerance
+    if (Math.abs(claimed - activeContract.expectedMonthlyAmount) > tolerance) {
+      riskLevel = "NEEDS_REVIEW";
+      reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
+    } else {
+      riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
+      reviewerRecommendation = vendor!.defaultReviewer || "Accounting";
+    }
+  } else {
+    riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
+    reviewerRecommendation = vendor?.defaultReviewer || "Accounting";
+  }
+
+  return { ...result, vendorMatched, contractMatched, contractId, riskLevel, reviewerRecommendation };
+}
+
 // ── Mock Storage Service ──────────────────────────────────────────────────────
 export class MockStorageService implements IStorageService {
-  // In-memory store for mock state
-  private validationResults = new Map<string, InvoiceValidationResult>(
-    Object.entries(MOCK_VALIDATION_RESULTS)
-  );
-  private filedDocuments = new Map<string, FiledDocument>(
-    Object.entries(MOCK_FILED_DOCUMENTS)
-  );
-  private runs: ProcessingRun[] = [...MOCK_RUNS];
-  private logs: ProcessingLog[] = [...MOCK_LOGS];
   private config: AppConfig = { ...DEFAULT_CONFIG };
 
+  async saveSubmissions(submissions: InvoiceSubmission[], month: string): Promise<void> {
+    saveUploadedSubmissions(submissions, month);
+  }
+
+  async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {
+    return loadUploadedSubmissions(month);
+  }
+
+  async listAvailableMonths(): Promise<string[]> {
+    const all = loadUploadedSubmissions();
+    const seen = new Set<string>();
+    for (const s of all) {
+      const m = s.closingMonth?.match(/(\d{4})[^\d](\d{1,2})/);
+      if (m) seen.add(`${m[1]}-${m[2].padStart(2, "0")}`);
+    }
+    return Array.from(seen).sort().reverse();
+  }
+
   async saveValidationResult(result: InvoiceValidationResult): Promise<void> {
-    await delay(100);
-    this.validationResults.set(result.submissionId, result);
+    saveValidationResult(result);
   }
 
   async saveFiledDocument(doc: FiledDocument): Promise<void> {
-    await delay(100);
-    this.filedDocuments.set(doc.submissionId, doc);
+    saveFiledDocument(doc);
   }
 
-  async loadValidationResults(
-    submissionIds: string[]
-  ): Promise<InvoiceValidationResult[]> {
-    await delay(200);
-    return submissionIds
-      .map((id) => this.validationResults.get(id))
-      .filter(Boolean) as InvoiceValidationResult[];
+  async loadValidationResults(submissionIds: string[]): Promise<InvoiceValidationResult[]> {
+    return loadValidationResults(submissionIds);
   }
 
   async loadFiledDocuments(submissionIds: string[]): Promise<FiledDocument[]> {
-    await delay(200);
-    return submissionIds
-      .map((id) => this.filedDocuments.get(id))
-      .filter(Boolean) as FiledDocument[];
+    return loadFiledDocuments(submissionIds);
   }
 
   async loadRuns(): Promise<ProcessingRun[]> {
-    await delay(200);
-    return [...this.runs];
+    return loadRuns();
   }
 
   async saveRun(run: ProcessingRun): Promise<void> {
-    await delay(100);
-    const idx = this.runs.findIndex((r) => r.id === run.id);
-    if (idx >= 0) this.runs[idx] = run;
-    else this.runs.unshift(run);
+    saveRun(run);
   }
 
   async appendLog(log: ProcessingLog): Promise<void> {
-    await delay(50);
-    this.logs.push(log);
+    appendLog(log);
   }
 
   async loadLogs(runId: string): Promise<ProcessingLog[]> {
-    await delay(200);
-    return this.logs.filter((l) => l.runId === runId);
+    return loadLogs(runId);
   }
 
   async loadConfig(): Promise<AppConfig> {
@@ -197,7 +276,43 @@ export class MockStorageService implements IStorageService {
 // ── Mock Dashboard Service ────────────────────────────────────────────────────
 export class MockDashboardService implements IDashboardService {
   async getStats(month: string) {
-    await delay(400);
-    return getMockDashboardStats(month);
+    await delay(300);
+    const submissions = loadUploadedSubmissions(month);
+    return {
+      selectedMonth: month,
+      totalRows: submissions.length,
+      ready: 0,
+      reviewRequired: 0,
+      saved: 0,
+      errors: 0,
+      missingAttachment: submissions.filter((s) => !s.invoiceAttachment).length,
+      alreadyProcessed: 0,
+    };
+  }
+}
+
+// ── Mock Vendor Service ───────────────────────────────────────────────────────
+export class MockVendorService implements IVendorService {
+  async listVendors(): Promise<Vendor[]> {
+    return loadVendors();
+  }
+  async saveVendor(vendor: Vendor): Promise<void> {
+    saveVendor(vendor);
+  }
+  async deleteVendor(id: string): Promise<void> {
+    deleteVendor(id);
+  }
+}
+
+// ── Mock Contract Service ─────────────────────────────────────────────────────
+export class MockContractService implements IContractService {
+  async listContracts(): Promise<Contract[]> {
+    return loadContracts();
+  }
+  async saveContract(contract: Contract): Promise<void> {
+    saveContract(contract);
+  }
+  async deleteContract(id: string): Promise<void> {
+    deleteContract(id);
   }
 }

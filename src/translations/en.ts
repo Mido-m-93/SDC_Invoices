@@ -33,6 +33,18 @@ const en = {
   // ── Invoice list ───────────────────────────────────────────────────────────
   invoice_list_title: "Invoice List",
   col_payer_name: "Payer Name",
+  col_name: "Name",
+  col_email: "Email Address",
+  col_which_month: "Which month?",
+  col_invoice_category: "Invoice Category",
+  col_invoice_amount: "Invoice Amount",
+  col_internal_dept: "Internal Dept.",
+  col_external_project: "External Project",
+  col_notes: "Notes",
+  col_pdf_date: "PDF Date",
+  col_subtotal: "Subtotal",
+  col_tax: "Tax",
+  col_pdf_total: "PDF Total",
   col_closing_month: "Closing Month",
   col_project_type: "Project Type",
   col_claimed_amount: "Claimed Amount (Tax Incl.)",
@@ -42,8 +54,15 @@ const en = {
   col_actions: "Actions",
   action_view: "View",
   action_validate: "Validate",
+  action_approve: "Approve",
   action_save: "Save",
   action_open_link: "Open Attachment",
+  btn_upload_excel: "Upload Excel",
+  btn_reading: "Reading…",
+  col_mapping_title: "Column mapping",
+  unmapped: "(unmapped)",
+  no_file: "No file",
+  items_shown: "items shown",
   no_issues: "None",
   none: "—",
 
@@ -127,6 +146,10 @@ const en = {
   config_duplicate_mode: "Duplicate Detection Mode",
   config_amount_tolerance: "Amount Tolerance",
   config_save: "Save Settings",
+
+  // ── Vendors ───────────────────────────────────────────────────────────────
+  nav_vendors: "Vendors",
+  nav_contracts: "Contracts",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "Close",

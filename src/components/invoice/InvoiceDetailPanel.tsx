@@ -113,6 +113,40 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
             </Section>
           )}
 
+          {/* ── Risk assessment ──────────────────────────────────────── */}
+          {v && (v.riskLevel || v.vendorMatched !== undefined) && (
+            <Section title="Risk Assessment">
+              <div className="space-y-3">
+                {v.riskLevel && (
+                  <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
+                    v.riskLevel === "OK" ? "bg-green-50 border border-green-200" :
+                    v.riskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
+                    "bg-amber-50 border border-amber-200"
+                  }`}>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Risk Level</span>
+                    <span className={`text-sm font-bold ${
+                      v.riskLevel === "OK" ? "text-green-700" :
+                      v.riskLevel === "BLOCKED" ? "text-red-700" :
+                      "text-amber-700"
+                    }`}>
+                      {v.riskLevel === "OK" ? "✓ OK" : v.riskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
+                    </span>
+                  </div>
+                )}
+                <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
+                  <ValidationCheck label="Vendor Registered" pass={v.vendorMatched ?? false} />
+                  <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
+                </div>
+                {v.reviewerRecommendation && (
+                  <div className="flex items-center gap-2 text-xs text-stone-500 px-1">
+                    <span className="font-medium">Recommended Reviewer:</span>
+                    <span className="text-stone-700 font-semibold">{v.reviewerRecommendation}</span>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
+
           {/* ── Validation results ───────────────────────────────────── */}
           {v && (
             <Section title={t("section_validation")}>

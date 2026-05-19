@@ -160,6 +160,7 @@ function normalizeRow(
     submissionRowNumber:        rowIndex,
 
     // Mapped fields
+    email:                      "",
     payerName:                  get("名前"),
     closingMonth:               get("請求書の対象月末(締め日)を選択して下さい"),
     invoiceAttachment:          get("請求書の添付"),

@@ -12,6 +12,8 @@ import type {
   ProcessingLog,
   DashboardStats,
   AppConfig,
+  Vendor,
+  Contract,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -80,6 +82,15 @@ export interface IValidationService {
 
 // ── Firestore / storage service ───────────────────────────────────────────────
 export interface IStorageService {
+  /** Save invoice submissions snapshot for a given month */
+  saveSubmissions(submissions: InvoiceSubmission[], month: string): Promise<void>;
+
+  /** Load saved submissions for a given month */
+  loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]>;
+
+  /** List all months that have at least one saved submission */
+  listAvailableMonths(): Promise<string[]>;
+
   /** Save a validation result */
   saveValidationResult(result: InvoiceValidationResult): Promise<void>;
 
@@ -116,4 +127,18 @@ export interface IStorageService {
 // ── Dashboard service ─────────────────────────────────────────────────────────
 export interface IDashboardService {
   getStats(month: string): Promise<DashboardStats>;
+}
+
+// ── Vendor service ────────────────────────────────────────────────────────────
+export interface IVendorService {
+  listVendors(): Promise<Vendor[]>;
+  saveVendor(vendor: Vendor): Promise<void>;
+  deleteVendor(id: string): Promise<void>;
+}
+
+// ── Contract service ──────────────────────────────────────────────────────────
+export interface IContractService {
+  listContracts(): Promise<Contract[]>;
+  saveContract(contract: Contract): Promise<void>;
+  deleteContract(id: string): Promise<void>;
 }

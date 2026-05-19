@@ -42,18 +42,19 @@ export interface RawSheetRow {
 export interface InvoiceSubmission {
   id: string;                          // generated UUID
   submissionRowNumber: number;         // 1-based row index in spreadsheet
-  payerName: string;                   // 名前
-  closingMonth: string;                // 請求書の対象月末(締め日)を選択して下さい
-  invoiceAttachment: string;           // 請求書の添付 (URL or file reference)
-  notes: string;                       // その他特記事項
-  internalDepartment: string;          // ※内部案件の場合のみ 部門を選択して下さい。
-  externalProjectName: string;         // ※外部案件の場合のみ 案件名を選択してください。
-  projectType: string;                 // 請求書の内訳(内部案件or外部案件)
-  claimedAmountTaxIncluded: string;    // 請求金額(税込)  — kept as string (currency varies)
-  invoiceProjectStatus: string;        // 請求書の案件を
-  paymentStatus: string;               // 支払
-  paymentAmount: string;               // 金額
-  paymentProcessingStatus: string;     // 支払処理
+  email: string;                       // （Email Address） from form
+  payerName: string;                   // Name
+  closingMonth: string;                // Which month does this invoice cover?
+  invoiceAttachment: string;           // PDF upload field
+  notes: string;                       // Additional Notes (if any)
+  internalDepartment: string;          // For Internal Projects Only
+  externalProjectName: string;         // For External Projects Only
+  projectType: string;                 // Invoice Category
+  claimedAmountTaxIncluded: string;    // Invoice Amount(local currency)
+  invoiceProjectStatus: string;
+  paymentStatus: string;
+  paymentAmount: string;
+  paymentProcessingStatus: string;
 }
 
 // ── Extracted fields from the actual invoice PDF/document ────────────────────
@@ -86,6 +87,15 @@ export interface InvoiceValidationResult {
   targetFolderPath: string;
   // Rule 10: human reviewer must explicitly approve before filing is allowed
   humanApproved?: boolean;
+  // Sprint 2: vendor/contract/risk enrichment
+  riskLevel?: RiskLevel;
+  reviewerRecommendation?: string;
+  vendorMatched?: boolean;
+  contractMatched?: boolean;
+  contractId?: string;
+  // Audit trail
+  validatedBy?: string;
+  approvedBy?: string;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────
@@ -157,6 +167,36 @@ export interface AppConfig {
   duplicateDetectionMode: "none" | "filename" | "hash";
   // Amount comparison tolerance (absolute, in sheet currency)
   amountToleranceAbsolute: number;
+}
+
+// ── Risk level ───────────────────────────────────────────────────────────────
+export type RiskLevel = "OK" | "NEEDS_REVIEW" | "BLOCKED";
+
+// ── Vendor master ─────────────────────────────────────────────────────────────
+export interface Vendor {
+  id: string;
+  name: string;
+  aliases: string[];
+  taxRegistrationNumber: string;
+  bankAccountLast4: string;
+  defaultReviewer: string;
+  defaultProject: string;
+  status: "active" | "inactive";
+  createdAt: string;
+}
+
+// ── Contract master ───────────────────────────────────────────────────────────
+export interface Contract {
+  id: string;
+  vendorId: string;
+  projectName: string;
+  startDate: string;
+  endDate: string;
+  expectedMonthlyAmount: number;
+  currency: string;
+  paymentTerms: string;
+  status: "active" | "expired" | "cancelled";
+  createdAt: string;
 }
 
 // ── Dashboard summary stats ───────────────────────────────────────────────────

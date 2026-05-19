@@ -40,6 +40,11 @@ async function apiFetch<T>(
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
+export async function fetchAvailableMonths(): Promise<string[]> {
+  const data = await apiFetch<{ months: string[] }>("/api/invoices/months");
+  return data.months;
+}
+
 export async function fetchInvoices(month: string): Promise<InvoiceSubmission[]> {
   const data = await apiFetch<{ submissions: InvoiceSubmission[] }>(
     `/api/invoices?month=${encodeURIComponent(month)}`
@@ -48,26 +53,29 @@ export async function fetchInvoices(month: string): Promise<InvoiceSubmission[]>
 }
 
 export async function validateInvoice(
-  submission: InvoiceSubmission
+  submission: InvoiceSubmission,
+  validatedBy?: string
 ): Promise<InvoiceValidationResult> {
   const data = await apiFetch<{ results: InvoiceValidationResult[] }>(
     "/api/invoices/validate",
     {
       method: "POST",
-      body: JSON.stringify({ submission }),
+      body: JSON.stringify({ submission, validatedBy }),
     }
   );
   return data.results[0];
 }
 
 export async function validateInvoiceBatch(
-  submissions: InvoiceSubmission[]
+  submissions: InvoiceSubmission[],
+  month?: string,
+  validatedBy?: string
 ): Promise<InvoiceValidationResult[]> {
   const data = await apiFetch<{ results: InvoiceValidationResult[] }>(
     "/api/invoices/validate",
     {
       method: "POST",
-      body: JSON.stringify({ submissions }),
+      body: JSON.stringify({ submissions, month, validatedBy }),
     }
   );
   return data.results;
@@ -149,6 +157,21 @@ export async function fetchLogs(runId: string): Promise<ProcessingLog[]> {
     `/api/logs?runId=${encodeURIComponent(runId)}`
   );
   return data.logs;
+}
+
+// ── Excel file upload ─────────────────────────────────────────────────────────
+
+export async function uploadInvoiceExcel(
+  file: File
+): Promise<{ submissions: InvoiceSubmission[]; snapshotMonth: string; detectedHeaders: string[]; headerMapping: Record<string, string>; rawPreview: string }> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch("/api/invoices/upload", { method: "POST", body });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(`Upload failed (${res.status}): ${err.error ?? res.statusText}`);
+  }
+  return res.json() as Promise<{ submissions: InvoiceSubmission[]; snapshotMonth: string; detectedHeaders: string[]; headerMapping: Record<string, string>; rawPreview: string }>;
 }
 
 // ── App config ────────────────────────────────────────────────────────────────

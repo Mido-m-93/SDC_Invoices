@@ -9,7 +9,7 @@
 //   NEXT_PUBLIC_USE_MOCK_SHEETS      = "false" → use RealSheetsService
 //   NEXT_PUBLIC_USE_MOCK_DRIVE       = "false" → use RealDriveService      (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_VALIDATION  = "false" → use RealValidationService  (not yet implemented)
-//   NEXT_PUBLIC_USE_MOCK_STORAGE     = "false" → use RealStorageService     (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_STORAGE     = "false" → use SupabaseStorageService (+ Vendor/Contract)
 //   NEXT_PUBLIC_USE_MOCK_DASHBOARD   = "false" → use RealDashboardService   (not yet implemented)
 //
 // The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
@@ -24,6 +24,8 @@ import type {
   IValidationService,
   IStorageService,
   IDashboardService,
+  IVendorService,
+  IContractService,
 } from "./types";
 
 import {
@@ -32,9 +34,15 @@ import {
   MockValidationService,
   MockStorageService,
   MockDashboardService,
+  MockVendorService,
+  MockContractService,
 } from "./mock";
 
 import { RealSheetsService } from "./real/SheetsService";
+import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
+import { SupabaseStorageService } from "./real/SupabaseStorageService";
+import { SupabaseVendorService } from "./real/SupabaseVendorService";
+import { SupabaseContractService } from "./real/SupabaseContractService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -49,15 +57,18 @@ let _drive: IDriveService | undefined;
 let _validation: IValidationService | undefined;
 let _storage: IStorageService | undefined;
 let _dashboard: IDashboardService | undefined;
+let _vendor: IVendorService | undefined;
+let _contract: IContractService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
   if (!_sheets) {
     if (isMock("NEXT_PUBLIC_USE_MOCK_SHEETS")) {
       _sheets = new MockSheetsService();
+    } else if (process.env.AZURE_TENANT_ID) {
+      // Microsoft Forms → OneDrive Excel via Graph API
+      _sheets = new MicrosoftSheetsService();
     } else {
-      // RealSheetsService validates its own required env vars in the constructor
-      // and throws a descriptive error if any are missing.
       _sheets = new RealSheetsService();
     }
   }
@@ -95,17 +106,12 @@ export function getValidationService(): IValidationService {
   return _validation;
 }
 
-// ── Storage (Firestore) ───────────────────────────────────────────────────────
+// ── Storage (Supabase) ────────────────────────────────────────────────────────
 export function getStorageService(): IStorageService {
   if (!_storage) {
-    if (isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")) {
-      _storage = new MockStorageService();
-    } else {
-      throw new Error(
-        "[StorageService] Real Firestore implementation is not yet available. " +
-        "Remove NEXT_PUBLIC_USE_MOCK_STORAGE=false or keep it unset to use the mock."
-      );
-    }
+    _storage = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockStorageService()
+      : new SupabaseStorageService();
   }
   return _storage;
 }
@@ -123,6 +129,26 @@ export function getDashboardService(): IDashboardService {
     }
   }
   return _dashboard;
+}
+
+// ── Vendor ───────────────────────────────────────────────────────────────────
+export function getVendorService(): IVendorService {
+  if (!_vendor) {
+    _vendor = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockVendorService()
+      : new SupabaseVendorService();
+  }
+  return _vendor;
+}
+
+// ── Contract ──────────────────────────────────────────────────────────────────
+export function getContractService(): IContractService {
+  if (!_contract) {
+    _contract = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockContractService()
+      : new SupabaseContractService();
+  }
+  return _contract;
 }
 
 // ── Startup diagnostic (server-side only) ────────────────────────────────────

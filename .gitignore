@@ -39,3 +39,6 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Dev mock data store (CSV uploads, cleared on redeploy)
+tmp-invoice-store.json

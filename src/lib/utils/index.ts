@@ -28,6 +28,27 @@ export function currentISOTimestamp(): string {
 }
 
 // ── Month helpers ─────────────────────────────────────────────────────────────
+
+// Parses any common date/month string into "YYYY-MM". Returns "unknown" if
+// the format is unrecognisable. Handles: "2026年5月", "2026-05", "2026-05-01",
+// "5/8/26" (MM/DD/YY), "5/8/2026" (MM/DD/YYYY), "05/2026" (MM/YYYY).
+export function parseSnapshotMonth(raw: string | undefined): string {
+  if (!raw) return "unknown";
+  const jpMatch = raw.match(/(\d{4})年(\d{1,2})月/);
+  if (jpMatch) return `${jpMatch[1]}-${jpMatch[2].padStart(2, "0")}`;
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+  const usShort = raw.match(/^(\d{1,2})\/\d{1,2}\/(\d{2})$/);
+  if (usShort) return `${2000 + Number(usShort[2])}-${usShort[1].padStart(2, "0")}`;
+  const usFull = raw.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/);
+  if (usFull) return `${usFull[2]}-${usFull[1].padStart(2, "0")}`;
+  const mmYyyy = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (mmYyyy) return `${mmYyyy[2]}-${mmYyyy[1].padStart(2, "0")}`;
+  const generic = raw.match(/(\d{4})[^\d](\d{1,2})/);
+  if (generic) return `${generic[1]}-${generic[2].padStart(2, "0")}`;
+  return "unknown";
+}
+
 export function monthOptions(count = 12): string[] {
   const now = new Date();
   const months: string[] = [];

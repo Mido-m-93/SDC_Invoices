@@ -8,6 +8,8 @@ import PageHeader from "@/components/ui/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
+import StatusBadge from "@/components/ui/StatusBadge";
+import InvoiceDetailPanel from "@/components/invoice/InvoiceDetailPanel";
 import { useLanguage } from "@/translations";
 import {
   fetchDashboardStats,
@@ -15,13 +17,19 @@ import {
   fetchInvoices,
   fileInvoiceBulk,
   fetchValidationResults,
+  fetchFiledDocuments,
+  fetchAvailableMonths,
 } from "@/lib/api/client";
-import { monthOptions, formatTimestamp } from "@/lib/utils";
-import type { DashboardStats } from "@/types";
+import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import type { DashboardStats, InvoiceListItem } from "@/types";
+import clsx from "clsx";
 
 export default function DashboardPage() {
   const { t, language } = useLanguage();
+  const { user } = useCurrentUser();
   const [month, setMonth] = useState(monthOptions(1)[0]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -29,6 +37,10 @@ export default function DashboardPage() {
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceListItem[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -44,6 +56,50 @@ export default function DashboardPage() {
     }
   }, [month]);
 
+  const loadInvoiceList = useCallback(async () => {
+    setInvoicesLoading(true);
+    try {
+      const submissions = await fetchInvoices(month);
+      const ids = submissions.map((s) => s.id);
+      const [validations, filedDocs] = await Promise.all([
+        fetchValidationResults(ids),
+        fetchFiledDocuments(ids),
+      ]);
+      const validationMap = Object.fromEntries(validations.map((v) => [v.submissionId, v]));
+      const filedMap = Object.fromEntries(filedDocs.map((fd) => [fd.submissionId, fd]));
+      setInvoiceItems(
+        submissions.map((s) => ({
+          submission: s,
+          validation: validationMap[s.id] ?? null,
+          filedDocument: filedMap[s.id] ?? null,
+        }))
+      );
+    } catch {
+      // silently fail — stats are still shown
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }, [month]);
+
+  const handleCardClick = (filter: string) => {
+    if (activeFilter === filter) {
+      setActiveFilter(null);
+      return;
+    }
+    setActiveFilter(filter);
+    if (invoiceItems.length === 0) loadInvoiceList();
+  };
+
+  // On mount: fetch available months and auto-select the most recent one with data
+  useEffect(() => {
+    fetchAvailableMonths().then((months) => {
+      setAvailableMonths(months);
+      if (months.length > 0 && !months.includes(monthOptions(1)[0])) {
+        setMonth(months[0]);
+      }
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadStats();
   }, [loadStats]);
@@ -54,9 +110,25 @@ export default function DashboardPage() {
     setError(null);
     try {
       const submissions = await fetchInvoices(month);
+      if (submissions.length === 0) {
+        setError(
+          language === "ja"
+            ? "請求書データがありません。先に請求書一覧でCSVをアップロードしてください。"
+            : "No invoices loaded. Please upload a CSV on the Invoices page first."
+        );
+        return;
+      }
       const ids = submissions.map((s) => s.id);
       const validations = await fetchValidationResults(ids);
       const ready = validations.filter((v) => v.statusCode === "READY");
+      if (ready.length === 0) {
+        setError(
+          language === "ja"
+            ? "保存可能な請求書がありません。先にバリデーションを実行してください。"
+            : "No READY invoices to save. Run validation first."
+        );
+        return;
+      }
       const result = await fileInvoiceBulk(ready);
       setSavedCount(result.summary.filed);
       await loadStats();
@@ -72,8 +144,16 @@ export default function DashboardPage() {
     setError(null);
     try {
       const submissions = await fetchInvoices(month);
-      await validateInvoiceBatch(submissions);
-      await loadStats();
+      if (submissions.length === 0) {
+        setError(
+          language === "ja"
+            ? "請求書データがありません。先に請求書一覧でCSVをアップロードしてください。"
+            : "No invoices loaded. Please upload a CSV on the Invoices page first."
+        );
+        return;
+      }
+      await validateInvoiceBatch(submissions, month, user ?? undefined);
+      await Promise.all([loadStats(), loadInvoiceList()]);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -87,7 +167,7 @@ export default function DashboardPage() {
         <PageHeader
           title={t("dashboard_title")}
           subtitle={t("dashboard_subtitle")}
-          actions={<MonthSelector value={month} onChange={setMonth} />}
+          actions={<MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />}
         />
 
         {/* Action bar */}
@@ -123,8 +203,13 @@ export default function DashboardPage() {
 
         {/* Error banner */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 font-mono">
-            {error}
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 flex items-center justify-between gap-4">
+            <span className="font-mono">{error}</span>
+            <Link href="/invoices" className="shrink-0">
+              <Button variant="secondary" size="sm">
+                {language === "ja" ? "請求書一覧へ →" : "Go to Invoices →"}
+              </Button>
+            </Link>
           </div>
         )}
 
@@ -143,49 +228,56 @@ export default function DashboardPage() {
           </div>
         ) : stats ? (
           <>
+            {/* Empty state — no invoices loaded yet */}
+            {stats.totalRows === 0 && !loading && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-6 py-5 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    {language === "ja" ? "請求書データがまだ読み込まれていません" : "No invoice data loaded yet"}
+                  </p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    {language === "ja"
+                      ? "請求書一覧ページでCSVファイルをアップロードしてください。"
+                      : "Go to the Invoices page and upload your CSV file to get started."}
+                  </p>
+                </div>
+                <Link href="/invoices" className="shrink-0">
+                  <Button variant="secondary" size="sm" icon={<UploadIcon />}>
+                    {language === "ja" ? "CSVをアップロード" : "Upload CSV"}
+                  </Button>
+                </Link>
+              </div>
+            )}
+
             <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                label={t("total_rows")}
-                value={stats.totalRows}
-                icon={<ListIcon />}
-              />
-              <StatCard
-                label={t("ready")}
-                value={stats.ready}
-                accent="green"
-                icon={<CheckCircleIcon />}
-              />
-              <StatCard
-                label={t("review_required")}
-                value={stats.reviewRequired}
-                accent="amber"
-                icon={<AlertIcon />}
-              />
-              <StatCard
-                label={t("saved")}
-                value={stats.saved}
-                accent="blue"
-                icon={<FolderIcon />}
-              />
-              <StatCard
-                label={t("errors")}
-                value={stats.errors}
-                accent="red"
-                icon={<XCircleIcon />}
-              />
-              <StatCard
-                label={t("missing_attachment")}
-                value={stats.missingAttachment}
-                accent="red"
-                icon={<AttachIcon />}
-              />
-              <StatCard
-                label={t("already_processed")}
-                value={stats.alreadyProcessed}
-                accent="slate"
-                icon={<ArchiveIcon />}
-              />
+              <StatCard label={t("total_rows")} value={stats.totalRows} icon={<ListIcon />}
+                active={activeFilter === "ALL"} onClick={() => handleCardClick("ALL")} />
+              <StatCard label={t("ready")} value={stats.ready} accent="green" icon={<CheckCircleIcon />}
+                active={activeFilter === "READY"} onClick={() => handleCardClick("READY")} />
+              <StatCard label={t("review_required")} value={stats.reviewRequired} accent="amber" icon={<AlertIcon />}
+                active={activeFilter === "REVIEW_REQUIRED"} onClick={() => handleCardClick("REVIEW_REQUIRED")} />
+              <StatCard label={t("saved")} value={stats.saved} accent="blue" icon={<FolderIcon />}
+                active={activeFilter === "SAVED"} onClick={() => handleCardClick("SAVED")} />
+              <StatCard label={t("errors")} value={stats.errors} accent="red" icon={<XCircleIcon />}
+                active={activeFilter === "ERRORS"} onClick={() => handleCardClick("ERRORS")} />
+              <StatCard label={t("missing_attachment")} value={stats.missingAttachment} accent="red" icon={<AttachIcon />}
+                active={activeFilter === "MISSING_ATTACHMENT"} onClick={() => handleCardClick("MISSING_ATTACHMENT")} />
+              <StatCard label={t("already_processed")} value={stats.alreadyProcessed} accent="slate" icon={<ArchiveIcon />}
+                active={activeFilter === "ALREADY_PROCESSED"} onClick={() => handleCardClick("ALREADY_PROCESSED")} />
             </div>
+
+            {/* Invoice drawer — shown when a card is active */}
+            {activeFilter && (
+              <InvoiceDrawer
+                filter={activeFilter}
+                items={invoiceItems}
+                loading={invoicesLoading}
+                language={language}
+                t={t}
+                onView={setSelectedItem}
+                onClose={() => setActiveFilter(null)}
+              />
+            )}
 
             {lastUpdated && (
               <p className="text-xs text-stone-400">
@@ -220,7 +312,120 @@ export default function DashboardPage() {
           !error && <div className="text-sm text-stone-400">{t("no_data")}</div>
         )}
       </div>
+
+      {selectedItem && (
+        <InvoiceDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </AppShell>
+  );
+}
+
+// ── Invoice drawer ─────────────────────────────────────────────────────────────
+
+const ERROR_FILTER_CODES = new Set([
+  "PDF_LINK_ERROR", "DATE_MISSING", "TAX_MISSING",
+  "AMOUNT_MISMATCH", "PROJECT_INFO_MISSING", "SAVE_ERROR",
+]);
+
+function filterItems(items: InvoiceListItem[], filter: string): InvoiceListItem[] {
+  if (filter === "ALL") return items;
+  if (filter === "READY") return items.filter((i) => i.validation?.statusCode === "READY");
+  if (filter === "REVIEW_REQUIRED") return items.filter((i) => i.validation?.statusCode === "REVIEW_REQUIRED");
+  if (filter === "SAVED") return items.filter((i) => i.filedDocument != null);
+  if (filter === "MISSING_ATTACHMENT") return items.filter((i) =>
+    i.validation?.statusCode === "MISSING_ATTACHMENT" || (!i.validation && !i.submission.invoiceAttachment)
+  );
+  if (filter === "ERRORS") return items.filter((i) =>
+    i.validation && ERROR_FILTER_CODES.has(i.validation.statusCode)
+  );
+  if (filter === "ALREADY_PROCESSED") return items.filter((i) =>
+    ["ALREADY_PROCESSED", "DUPLICATE_FILE"].includes(i.validation?.statusCode ?? "")
+  );
+  return items;
+}
+
+function InvoiceDrawer({
+  filter, items, loading, language, t, onView, onClose,
+}: {
+  filter: string;
+  items: InvoiceListItem[];
+  loading: boolean;
+  language: string;
+  t: (k: Parameters<ReturnType<typeof useLanguage>["t"]>[0]) => string;
+  onView: (item: InvoiceListItem) => void;
+  onClose: () => void;
+}) {
+  const filtered = filterItems(items, filter);
+
+  return (
+    <div className="mt-2 mb-6 bg-white rounded-xl border border-stone-200 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50">
+        <p className="text-sm font-semibold text-stone-700">
+          {filter === "ALL" ? (language === "ja" ? "すべての請求書" : "All Invoices") : filter.replace(/_/g, " ")}
+          <span className="ml-2 text-xs font-normal text-stone-400">({filtered.length})</span>
+        </p>
+        <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-lg leading-none">×</button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-24 text-stone-400 text-sm">
+          {language === "ja" ? "読み込み中..." : "Loading..."}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex items-center justify-center h-24 text-stone-400 text-sm">
+          {language === "ja" ? "該当する請求書がありません" : "No invoices match this filter"}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-stone-100">
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_name")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_which_month")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_invoice_category")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_invoice_amount")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_attachment")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider">{t("col_status")}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-stone-400 uppercase tracking-wider"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-50">
+              {filtered.map((item) => {
+                const s = item.submission;
+                return (
+                  <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-stone-900 whitespace-nowrap">
+                      <span className="text-xs text-stone-400 font-mono mr-1.5">#{s.submissionRowNumber}</span>
+                      {s.payerName}
+                    </td>
+                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.closingMonth || "—"}</td>
+                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.projectType || "—"}</td>
+                    <td className="px-4 py-2.5 text-stone-700 font-mono text-xs whitespace-nowrap">{formatCurrency(s.claimedAmountTaxIncluded)}</td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {s.invoiceAttachment
+                        ? <span className="text-stone-500 font-mono truncate block max-w-[140px]" title={s.invoiceAttachment}>📎 {s.invoiceAttachment}</span>
+                        : <span className="text-red-400">✗ {language === "ja" ? "なし" : "None"}</span>
+                      }
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {item.validation
+                        ? <StatusBadge code={item.validation.statusCode} size="sm" />
+                        : <span className="text-xs text-stone-300">—</span>
+                      }
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Button variant="ghost" size="sm" onClick={() => onView(item)}>
+                        {t("action_view")}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -369,6 +574,15 @@ function AttachIcon() {
       strokeLinecap="round"
     >
       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
     </svg>
   );
 }
