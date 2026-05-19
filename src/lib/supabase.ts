@@ -8,7 +8,15 @@ export function getSupabaseClient(): SupabaseClient {
   if (!_client) {
     _client = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        global: {
+          // Disable Next.js fetch caching so every Supabase read always
+          // returns fresh data instead of a stale cached response.
+          fetch: (url: RequestInfo | URL, options: RequestInit = {}) =>
+            fetch(url, { ...options, cache: "no-store" }),
+        },
+      }
     );
   }
   return _client;

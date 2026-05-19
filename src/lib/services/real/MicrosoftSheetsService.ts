@@ -18,6 +18,7 @@ async function getAccessToken(): Promise<string> {
     `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
     {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id:     CLIENT_ID,
@@ -37,6 +38,7 @@ async function getAccessToken(): Promise<string> {
 async function graphGet<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
   });
   if (!res.ok) {
     const body = await res.text();
@@ -138,7 +140,7 @@ export class MicrosoftSheetsService implements ISheetsService {
     // Download the raw file to bypass Graph API Excel caching
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/content`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
     if (!res.ok) {
       const body = await res.text();
