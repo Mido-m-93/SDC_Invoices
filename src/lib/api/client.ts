@@ -81,6 +81,20 @@ export async function validateInvoiceBatch(
   return data.results;
 }
 
+export async function approveInvoice(
+  submissionId: string,
+  approvedBy?: string
+): Promise<InvoiceValidationResult> {
+  const data = await apiFetch<{ result: InvoiceValidationResult }>(
+    "/api/invoices/approve",
+    {
+      method: "POST",
+      body: JSON.stringify({ submissionId, approvedBy }),
+    }
+  );
+  return data.result;
+}
+
 export async function fileInvoice(
   validation: InvoiceValidationResult
 ): Promise<FiledDocument> {

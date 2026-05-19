@@ -19,6 +19,7 @@ import {
   fetchValidationResults,
   fetchFiledDocuments,
   fetchAvailableMonths,
+  approveInvoice,
 } from "@/lib/api/client";
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -41,6 +42,7 @@ export default function DashboardPage() {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceListItem[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -161,6 +163,25 @@ export default function DashboardPage() {
     }
   };
 
+  const handleApprove = async (item: InvoiceListItem) => {
+    setApprovingId(item.submission.id);
+    try {
+      const updated = await approveInvoice(item.submission.id, user ?? undefined);
+      setInvoiceItems((prev) =>
+        prev.map((i) =>
+          i.submission.id === item.submission.id
+            ? { ...i, validation: updated }
+            : i
+        )
+      );
+      await loadStats();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl">
@@ -275,6 +296,8 @@ export default function DashboardPage() {
                 language={language}
                 t={t}
                 onView={setSelectedItem}
+                onApprove={handleApprove}
+                approvingId={approvingId}
                 onClose={() => setActiveFilter(null)}
               />
             )}
@@ -345,7 +368,7 @@ function filterItems(items: InvoiceListItem[], filter: string): InvoiceListItem[
 }
 
 function InvoiceDrawer({
-  filter, items, loading, language, t, onView, onClose,
+  filter, items, loading, language, t, onView, onApprove, approvingId, onClose,
 }: {
   filter: string;
   items: InvoiceListItem[];
@@ -353,6 +376,8 @@ function InvoiceDrawer({
   language: string;
   t: (k: Parameters<ReturnType<typeof useLanguage>["t"]>[0]) => string;
   onView: (item: InvoiceListItem) => void;
+  onApprove: (item: InvoiceListItem) => void;
+  approvingId: string | null;
   onClose: () => void;
 }) {
   const filtered = filterItems(items, filter);
@@ -414,9 +439,21 @@ function InvoiceDrawer({
                       }
                     </td>
                     <td className="px-4 py-2.5">
-                      <Button variant="ghost" size="sm" onClick={() => onView(item)}>
-                        {t("action_view")}
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => onView(item)}>
+                          {t("action_view")}
+                        </Button>
+                        {item.validation?.statusCode === "REVIEW_REQUIRED" && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            loading={approvingId === item.submission.id}
+                            onClick={() => onApprove(item)}
+                          >
+                            {t("action_approve")}
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
