@@ -27,9 +27,13 @@ export async function GET(req: NextRequest) {
     const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
 
     const allFresh = await getSheetsService().loadSubmissions(month);
+    console.log(`[stats] stored=${stored.length} allFresh=${allFresh.length} month=${month}`);
+    console.log(`[stats] fresh closingMonths:`, allFresh.map(s => `row${s.submissionRowNumber}:${s.closingMonth}→${parseSnapshotMonth(s.closingMonth)}`));
+
     const newRows = allFresh
       .filter((s) => parseSnapshotMonth(s.closingMonth) === month)
       .filter((s) => !storedRowNumbers.has(s.submissionRowNumber));
+    console.log(`[stats] newRows=${newRows.length}`);
 
     let submissions = stored;
     if (newRows.length > 0) {

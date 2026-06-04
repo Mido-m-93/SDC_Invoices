@@ -83,13 +83,25 @@ export default function DashboardPage() {
     }
   }, [month]);
 
+  const handleLoadInvoices = useCallback(async () => {
+    // Run stats sync and months refresh in parallel
+    const [, months] = await Promise.all([
+      loadStats(),
+      fetchAvailableMonths().catch(() => [] as string[]),
+    ]);
+    if (months.length > 0) setAvailableMonths(months);
+    // Always refresh the invoice list so the drawer shows the latest rows
+    loadInvoiceList();
+  }, [loadStats, loadInvoiceList]);
+
   const handleCardClick = (filter: string) => {
     if (activeFilter === filter) {
       setActiveFilter(null);
       return;
     }
     setActiveFilter(filter);
-    if (invoiceItems.length === 0) loadInvoiceList();
+    // Always reload so the drawer reflects any rows added since the last load
+    loadInvoiceList();
   };
 
   // On mount: fetch available months and auto-select the most recent one with data
@@ -209,7 +221,7 @@ export default function DashboardPage() {
             variant="primary"
             size="md"
             loading={loading}
-            onClick={loadStats}
+            onClick={handleLoadInvoices}
             icon={<RefreshIcon />}
           >
             {t("load_invoices")}

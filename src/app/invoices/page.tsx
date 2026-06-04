@@ -20,7 +20,7 @@ import {
   fetchAvailableMonths,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
-import { monthOptions, formatCurrency } from "@/lib/utils";
+import { monthOptions, formatCurrency, formatTimestamp } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 
@@ -29,7 +29,7 @@ const STATUS_FILTERS: Array<"ALL" | InvoiceStatusCode> = [
 ];
 
 export default function InvoicesPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useCurrentUser();
   const [month, setMonth] = useState(monthOptions(1)[0]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -214,7 +214,7 @@ export default function InvoicesPage() {
 
   return (
     <AppShell>
-      <div className="px-8 py-8">
+      <div>
         <PageHeader
           title={t("invoice_list_title")}
           actions={
@@ -316,8 +316,7 @@ export default function InvoicesPage() {
             {t("no_data")}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="overflow-hidden rounded-xl border border-stone-200">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
@@ -327,14 +326,7 @@ export default function InvoicesPage() {
                     <Th>{t("col_which_month")}</Th>
                     <Th>{t("col_invoice_category")}</Th>
                     <Th>{t("col_invoice_amount")}</Th>
-                    <Th>{t("col_internal_dept")}</Th>
-                    <Th>{t("col_external_project")}</Th>
                     <Th>{t("col_attachment")}</Th>
-                    <Th>{t("col_notes")}</Th>
-                    <Th>{t("col_pdf_date")}</Th>
-                    <Th>{t("col_subtotal")}</Th>
-                    <Th>{t("col_tax")}</Th>
-                    <Th>{t("col_pdf_total")}</Th>
                     <Th>{t("col_status")}</Th>
                     <Th>{t("col_issues")}</Th>
                     <Th>{t("col_actions")}</Th>
@@ -359,7 +351,7 @@ export default function InvoicesPage() {
 
                         {/* Submitted at */}
                         <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.submittedAt || <span className="text-stone-300">—</span>}
+                          {s.submittedAt ? formatTimestamp(s.submittedAt, language) : <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Month */}
@@ -375,16 +367,6 @@ export default function InvoicesPage() {
                         {/* Amount */}
                         <td className="px-4 py-3 text-stone-700 font-mono text-xs whitespace-nowrap">
                           {formatCurrency(s.claimedAmountTaxIncluded)}
-                        </td>
-
-                        {/* Internal Dept */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.internalDepartment || <span className="text-stone-300">—</span>}
-                        </td>
-
-                        {/* External Project */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.externalProjectName || <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Attachment */}
@@ -403,37 +385,6 @@ export default function InvoicesPage() {
                           ) : (
                             <span className="text-xs text-red-400">✗ {t("no_file")}</span>
                           )}
-                        </td>
-
-                        {/* Notes */}
-                        <td className="px-4 py-3 text-stone-500 text-xs max-w-[140px] truncate">
-                          {s.notes || <span className="text-stone-300">—</span>}
-                        </td>
-
-                        {/* PDF Date */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {v?.extractedFields?.invoiceDate ?? <span className="text-stone-300">—</span>}
-                        </td>
-
-                        {/* Subtotal */}
-                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-600">
-                          {v?.extractedFields?.subtotal != null
-                            ? `¥${v.extractedFields.subtotal.toLocaleString("ja-JP")}`
-                            : <span className="text-stone-300">—</span>}
-                        </td>
-
-                        {/* Tax */}
-                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-600">
-                          {v?.extractedFields?.taxAmount != null
-                            ? `¥${v.extractedFields.taxAmount.toLocaleString("ja-JP")}`
-                            : <span className="text-stone-300">—</span>}
-                        </td>
-
-                        {/* PDF Total */}
-                        <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-stone-800 font-semibold">
-                          {v?.extractedFields?.total != null
-                            ? `¥${v.extractedFields.total.toLocaleString("ja-JP")}`
-                            : <span className="text-stone-300 font-normal">—</span>}
                         </td>
 
                         {/* Status */}
@@ -529,7 +480,6 @@ export default function InvoicesPage() {
                   })}
                 </tbody>
               </table>
-            </div>
 
             <div className="px-4 py-3 border-t border-stone-100 bg-stone-50">
               <p className="text-xs text-stone-400">

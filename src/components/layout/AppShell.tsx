@@ -22,7 +22,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useCurrentUser();
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen bg-white text-stone-900">
       <aside className="fixed inset-y-0 left-0 z-40 w-[220px] bg-[#1a3d2b] text-white">
         <div className="border-b border-white/10 px-5 py-6">
           <p className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-white/40">
@@ -90,7 +90,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="ml-[220px] min-h-screen bg-blue-50">
+      <main className="ml-[220px] min-h-screen bg-white">
         <div className="min-h-screen px-6 py-8 lg:px-10">{children}</div>
       </main>
     </div>
