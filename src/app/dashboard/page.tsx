@@ -454,13 +454,13 @@ function ReminderStatusSection({
     : [];
 
   return (
-    <div className="mb-6 bg-white rounded-xl border border-stone-200 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50">
+    <div className="mb-6 bg-white rounded-xl border border-stone-200 overflow-visible">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50 rounded-t-xl">
         <div className="flex items-center gap-2">
           <BellIcon />
           <p className="text-sm font-semibold text-stone-700">{t("reminder_section_title")}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {summary?.lastSent && (
             <span className="text-xs text-stone-400">
               {t("reminder_last_sent")}: {new Date(summary.lastSent).toLocaleDateString(language === "ja" ? "ja-JP" : "en-US")}
@@ -473,25 +473,31 @@ function ReminderStatusSection({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a3d2b] text-white text-xs font-medium hover:bg-[#1a3d2b]/90 disabled:opacity-50 transition"
             >
               {sending ? t("reminder_sending") : t("reminder_send_all")}
-              <span className="text-white/60">▾</span>
+              <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="opacity-60 mt-px">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
             {typeOpen && !sending && (
-              <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-stone-200 rounded-lg shadow-lg py-1 min-w-[180px]">
-                {([
-                  ["all", t("reminder_send_type_all")],
-                  ["missing_invoice", t("reminder_send_type_missing")],
-                  ["stale_review", t("reminder_send_type_stale")],
-                  ["due_date_approaching", t("reminder_send_type_due")],
-                ] as [ReminderType | "all", string][]).map(([type, label]) => (
-                  <button
-                    key={type}
-                    onClick={() => { setTypeOpen(false); onSend(type); }}
-                    className="w-full text-left px-4 py-2 text-xs text-stone-700 hover:bg-stone-50 transition"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* backdrop to close on outside click */}
+                <div className="fixed inset-0 z-20" onClick={() => setTypeOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-stone-200 rounded-xl shadow-xl py-1.5 min-w-[200px]">
+                  {([
+                    ["all",                   t("reminder_send_type_all")],
+                    ["missing_invoice",       t("reminder_send_type_missing")],
+                    ["stale_review",          t("reminder_send_type_stale")],
+                    ["due_date_approaching",  t("reminder_send_type_due")],
+                  ] as [ReminderType | "all", string][]).map(([type, label]) => (
+                    <button
+                      key={type}
+                      onClick={() => { setTypeOpen(false); onSend(type); }}
+                      className="w-full text-left px-4 py-2 text-xs text-stone-700 hover:bg-stone-50 transition"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -505,17 +511,17 @@ function ReminderStatusSection({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               {chips.map((chip) => (
                 <div key={chip.type} className={`rounded-lg px-3 py-2.5 border ${
-                  chip.color === "red" ? "bg-red-50 border-red-200" :
+                  chip.color === "red"   ? "bg-red-50 border-red-200" :
                   chip.color === "amber" ? "bg-amber-50 border-amber-200" :
                   "bg-emerald-50 border-emerald-200"
                 }`}>
                   <p className={`text-xs font-medium mb-0.5 ${
-                    chip.color === "red" ? "text-red-700" :
+                    chip.color === "red"   ? "text-red-700" :
                     chip.color === "amber" ? "text-amber-700" :
                     "text-emerald-700"
                   }`}>{chip.label}</p>
                   <p className={`text-lg font-bold ${
-                    chip.color === "red" ? "text-red-900" :
+                    chip.color === "red"   ? "text-red-900" :
                     chip.color === "amber" ? "text-amber-900" :
                     "text-emerald-900"
                   }`}>{chip.value}</p>

@@ -11,6 +11,7 @@ import type {
   InvoiceStatusCode,
 } from "@/types";
 import { generateId } from "@/lib/utils";
+import { TeamsNotificationService } from "./TeamsNotificationService";
 
 const STALE_STATUS_CODES: InvoiceStatusCode[] = [
   "REVIEW_REQUIRED",
@@ -201,66 +202,112 @@ export class SupabaseReminderService implements IReminderService {
     return alerts.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
   }
 
+  /** Resolve the live notification service: prefer Teams if webhook URL is in app_config */
+  private async resolveNotificationSvc(): Promise<INotificationService> {
+    try {
+      const db = getSupabase();
+      const { data } = await db
+        .from("app_config")
+        .select("teams_webhook_url")
+        .eq("id", "main")
+        .single();
+      const url = data?.teams_webhook_url as string | undefined;
+      if (url && url.startsWith("https://")) {
+        return new TeamsNotificationService(url);
+      }
+    } catch {
+      // fall through to injected service
+    }
+    return this.notificationSvc;
+  }
+
   async sendReminders(
     month: string,
     type: ReminderType | "all"
   ): Promise<{ sent: number; failed: number; skipped: number }> {
     const db = getSupabase();
-    const types: ReminderType[] =
-      type === "all"
-        ? ["missing_invoice", "stale_review", "due_date_approaching", "due_date_overdue"]
-        : [type];
+    // Always read webhook URL fresh from DB so config-page changes take effect immediately
+    const notifSvc = await this.resolveNotificationSvc();
 
     let sent = 0;
     let failed = 0;
     let skipped = 0;
 
-    for (const t of types) {
-      let payload: unknown = null;
-
-      if (t === "missing_invoice") {
-        const gaps = await this.detectGaps(month);
-        if (!gaps.length) { skipped++; continue; }
-        payload = { gaps, month };
-      } else if (t === "stale_review") {
-        const stale = await this.detectStaleReviews(3);
-        if (!stale.length) { skipped++; continue; }
-        payload = { stale };
-      } else if (t === "due_date_approaching") {
-        const due = (await this.detectDueDateIssues(5)).filter((d) => d.daysUntilDue >= 0);
-        if (!due.length) { skipped++; continue; }
-        payload = { due };
-      } else if (t === "due_date_overdue") {
-        const overdue = (await this.detectDueDateIssues(0)).filter((d) => d.daysUntilDue < 0);
-        if (!overdue.length) { skipped++; continue; }
-        payload = { overdue };
-      }
-
-      const ok = await this.notificationSvc.sendReminder({ type: t, payload });
-      const log: ReminderLog = {
-        id: generateId(),
-        reminderType: t,
-        targetMonth: month,
-        sentAt: new Date().toISOString(),
-        channel: "teams",
-        status: ok ? "sent" : "failed",
-        message: ok ? `Sent ${t}` : `Failed to send ${t}`,
-      };
-
-      await db.from("reminder_logs").insert({
-        id: log.id,
-        reminder_type: log.reminderType,
-        target_month: log.targetMonth,
-        sent_at: log.sentAt,
-        channel: log.channel,
-        status: log.status,
-        message: log.message,
-      });
-
+    // "all" → always send one summary card with all counts (even if 0)
+    if (type === "all") {
+      const [gaps, stale, dueAll] = await Promise.all([
+        this.detectGaps(month),
+        this.detectStaleReviews(3),
+        this.detectDueDateIssues(5),
+      ]);
+      const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
+      const overdue = dueAll.filter((d) => d.daysUntilDue < 0);
+      const payload = { month, gaps, stale, approaching, overdue };
+      const ok = await notifSvc.sendReminder({ type: "missing_invoice" as ReminderType, payload: { _summary: true, ...payload } });
       if (ok) sent++; else failed++;
+      await this._logReminder(db, "missing_invoice", month, "teams", ok, "Monthly summary");
+      return { sent, failed, skipped };
     }
 
+    // Individual types always send (with data or "all clear")
+    let payload: unknown = null;
+
+    if (type === "missing_invoice") {
+      const gaps = await this.detectGaps(month);
+      payload = { gaps, month };
+    } else if (type === "stale_review") {
+      const stale = await this.detectStaleReviews(3);
+      payload = { stale };
+    } else if (type === "due_date_approaching") {
+      const due = (await this.detectDueDateIssues(5)).filter((d) => d.daysUntilDue >= 0);
+      payload = { due };
+    } else if (type === "due_date_overdue") {
+      const overdue = (await this.detectDueDateIssues(0)).filter((d) => d.daysUntilDue < 0);
+      payload = { overdue };
+    }
+
+    const ok = await notifSvc.sendReminder({ type, payload });
+    await this._logReminder(db, type, month, "teams", ok, ok ? `Sent ${type}` : `Failed to send ${type}`);
+    if (ok) sent++; else failed++;
+
     return { sent, failed, skipped };
+  }
+
+  private async _logReminder(
+    _db: ReturnType<typeof getSupabase>,
+    type: ReminderType,
+    month: string,
+    channel: "teams" | "mock",
+    ok: boolean,
+    message: string
+  ) {
+    // Use direct REST fetch — avoids Supabase JS client WebSocket issues in Next.js
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !key) return;
+
+      await fetch(`${url}/rest/v1/reminder_logs`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          reminder_type: type,
+          target_month: month,
+          sent_at: new Date().toISOString(),
+          channel,
+          status: ok ? "sent" : "failed",
+          message,
+        }),
+        cache: "no-store",
+      });
+    } catch (err) {
+      console.error("[ReminderService] log insert failed:", err);
+    }
   }
 
   async getSummary(month: string): Promise<ReminderSummary> {
@@ -299,25 +346,33 @@ export class SupabaseReminderService implements IReminderService {
   }
 
   async getLogs(month: string): Promise<ReminderLog[]> {
-    const db = getSupabase();
-    const { data } = await db
-      .from("reminder_logs")
-      .select("*")
-      .eq("target_month", month)
-      .order("sent_at", { ascending: false })
-      .limit(50);
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !key) return [];
 
-    return (data ?? []).map((r) => ({
-      id: r.id,
-      reminderType: r.reminder_type as ReminderType,
-      targetMonth: r.target_month,
-      vendorId: r.vendor_id ?? undefined,
-      submissionId: r.submission_id ?? undefined,
-      contractId: r.contract_id ?? undefined,
-      sentAt: r.sent_at,
-      channel: r.channel as "teams" | "mock",
-      status: r.status as "sent" | "failed" | "skipped",
-      message: r.message,
-    }));
+      const res = await fetch(
+        `${url}/rest/v1/reminder_logs?target_month=eq.${encodeURIComponent(month)}&order=sent_at.desc&limit=50`,
+        {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+          cache: "no-store",
+        }
+      );
+      const data: Record<string, unknown>[] = await res.json();
+      return (Array.isArray(data) ? data : []).map((r) => ({
+        id: r.id as string,
+        reminderType: r.reminder_type as ReminderType,
+        targetMonth: r.target_month as string,
+        vendorId: r.vendor_id as string | undefined,
+        submissionId: r.submission_id as string | undefined,
+        contractId: r.contract_id as string | undefined,
+        sentAt: r.sent_at as string,
+        channel: r.channel as "teams" | "mock",
+        status: r.status as "sent" | "failed" | "skipped",
+        message: r.message as string,
+      }));
+    } catch {
+      return [];
+    }
   }
 }
