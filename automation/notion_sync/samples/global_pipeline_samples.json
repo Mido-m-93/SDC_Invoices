@@ -1,0 +1,72 @@
+[
+  {
+    "source_db": "global_pipeline",
+    "original_id": "gl-sample-0001",
+    "original_url": "https://www.notion.so/gl-sample-0001",
+    "project_name": "Acme Inc. Talent Pipeline Build",
+    "company": "Acme Inc.",
+    "status": "Proposal",
+    "properties": {
+      "Contract_Start": null,
+      "Contract_End": null,
+      "Expected_Close": "2026-06-15",
+      "Last_Discussion": "2026-04-08",
+      "Revenue_千円": 8000,
+      "Revenue_月_千円": 2000,
+      "PJ_Term_months": 4,
+      "PJ_Number": "GL-2026-0042",
+      "Industry": "Tech",
+      "Probability": "Middle",
+      "Strategic_Fit": "High",
+      "Sales_In_Charge": "Taka",
+      "Next_Step": "Send formal proposal",
+      "New_Continuing": "New",
+      "Notes": "KeyPerson: Head of HR / Location: SF / StatusRaw: Proposal requested"
+    }
+  },
+  {
+    "source_db": "global_pipeline",
+    "original_id": "gl-sample-0002",
+    "original_url": "https://www.notion.so/gl-sample-0002",
+    "project_name": "Bravo Corp Global Expansion",
+    "company": "Bravo Corp",
+    "status": "Lead",
+    "properties": {
+      "Expected_Close": null,
+      "Last_Discussion": "2026-03-28",
+      "Revenue_千円": null,
+      "Industry": "Finance",
+      "Probability": "Low",
+      "Strategic_Fit": "Middle",
+      "Sales_In_Charge": "Taka",
+      "Next_Step": "Wait for referral intro",
+      "New_Continuing": "New",
+      "Notes": "KeyPerson: CEO / Location: NYC / StatusRaw: Referral pending"
+    }
+  },
+  {
+    "source_db": "global_pipeline",
+    "original_id": "gl-sample-0003",
+    "original_url": "https://www.notion.so/gl-sample-0003",
+    "project_name": "Charlie Co Delivery Phase 2",
+    "company": "Charlie Co",
+    "status": "Delivery",
+    "properties": {
+      "Contract_Start": "2026-01-01",
+      "Contract_End": "2026-06-30",
+      "Expected_Close": "2025-12-20",
+      "Last_Discussion": "2026-04-15",
+      "Revenue_千円": 18000,
+      "Revenue_月_千円": 3000,
+      "PJ_Term_months": 6,
+      "PJ_Number": "GL-2026-0008",
+      "Industry": "Manufacturing",
+      "Probability": "High",
+      "Strategic_Fit": "High",
+      "Sales_In_Charge": "Taka",
+      "Next_Step": "Monthly sync call",
+      "New_Continuing": "Continuing",
+      "Notes": "KeyPerson: COO / Location: Tokyo / StatusRaw: Delivery in progress"
+    }
+  }
+]

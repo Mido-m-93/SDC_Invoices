@@ -1,0 +1,40 @@
+[
+  {
+    "id": "mf-tx-10001",
+    "type": "receipt",
+    "invoice_id": "mf-inv-00002",
+    "partner_id": "mf-prt-0003",
+    "date": "2026-03-28",
+    "amount": 3300000,
+    "currency": "JPY",
+    "bank_account": "みずほ-本店-普通-1234567",
+    "account_item": "売掛金",
+    "memo": "D株式会社 売掛入金"
+  },
+  {
+    "id": "mf-tx-20001",
+    "type": "payment",
+    "partner_id": "mf-prt-0001",
+    "date": "2026-04-10",
+    "due_date": "2026-04-30",
+    "amount": 500000,
+    "currency": "JPY",
+    "category": "外注費",
+    "account_item": "外注工賃",
+    "memo": "外注先A 4月分",
+    "status": "paid"
+  },
+  {
+    "id": "mf-tx-20002",
+    "type": "payment",
+    "partner_id": "mf-prt-0006",
+    "date": null,
+    "due_date": "2026-04-15",
+    "amount": 200000,
+    "currency": "JPY",
+    "category": "その他",
+    "account_item": "支払手数料",
+    "memo": "Charlie Co 立替分",
+    "status": "overdue"
+  }
+]

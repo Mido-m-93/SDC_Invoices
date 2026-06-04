@@ -1,0 +1,225 @@
+# Notion DB統合設定
+# 3つの旧DBから新Unified v2へ統合同期するためのマッピング定義
+
+# ==========================================
+# DB IDs（Phase 1の探索で取得済み）
+# ==========================================
+databases:
+  jp_pipeline:
+    title: "JP_Sales Pipeline Management Offical"
+    database_id: "05c01a8de849439a8bd9066185db20d0"
+    data_source_id: "b83da729-f0a5-483d-a65e-2d4cf4725371"
+    access: "read_only"
+
+  global_pipeline:
+    title: "Global_Sales Pipeline Management vNew"
+    database_id: "1bd5a7e135d280fca881caef9cc14bf4"
+    data_source_id: "1bd5a7e1-35d2-81d0-9e12-000b75b54815"
+    access: "read_only"
+
+  old_unified:
+    title: "🗂 RC Unified Pipeline"
+    database_id: "32b5a7e135d281dd995bc71d0764ece3"
+    data_source_id: "32b5a7e1-35d2-81a6-87bc-000ba48b2550"
+    access: "read_only"
+
+  # 新統合先DB（create_unified_v2.py が作成後にIDをここに書き戻す）
+  new_unified_v2:
+    title: "🧪 Test_Unified_Pipeline v2"
+    database_id: "ec158860-92c7-4b69-92ac-f5d1994a0508"
+    data_source_id: "dbeaedd1-6635-4607-92b1-1ca54c9df7e6"
+    parent_page_id: "30e5a7e1-35d2-809a-bf76-d7d3bdfe4340"  # Unified v1 と同じ階層
+    access: "read_write"
+
+# ==========================================
+# ステータス正規化マッピング
+# 各DBの「生ステータス」→ 新Unified v2の標準ステータス
+# ==========================================
+status_normalization:
+  # 新Unified v2の標準ステータス（🗂 RC Unified Pipelineの体系を採用）
+  canonical:
+    - "Lead"
+    - "Pending"
+    - "Discovery"
+    - "Proposal"
+    - "Negotiation"
+    - "Closing"
+    - "Contracted"
+    - "Delivery"
+    - "Delivered"
+    - "Lost"
+
+  # JP Pipeline 日本語ステータス
+  jp_pipeline:
+    "塩漬け": "Pending"
+    "リード": "Lead"
+    "提案": "Proposal"
+    "交渉・課題確認": "Negotiation"
+    "契約準備": "Closing"
+    "成約": "Contracted"
+    "デリバリー中": "Delivery"
+    "案件終了": "Delivered"
+    "失注": "Lost"
+
+  # Global Pipeline の36個のStatusを5グループに集約
+  # 「本質的にリードだがまだ分類不十分」は全てLeadに寄せる
+  global_pipeline:
+    # 明確にマッピング可能
+    "Lead": "Lead"
+    "Pending": "Pending"
+    "Proposal requested": "Proposal"
+    "Overview explained": "Discovery"
+    "suggestion": "Proposal"
+    "Check the assignment": "Discovery"
+    "negotiation": "Negotiation"
+    "Contract preparation": "Closing"
+    "Closing": "Closing"
+    "Case Closed": "Delivered"
+    "Delivery in progress": "Delivery"
+    "Lost bet": "Lost"
+    # メモ化された雑多なStatusは全てLeadに寄せる（手動確認キュー行き）
+    "under estimate": "Lead"
+    "Sending the CV's": "Lead"
+    "Follow-up sent no clear response yet": "Lead"
+    "Early follow-up – email exchanged awaiting outcome": "Lead"
+    "Invited preparation suggested as next step": "Lead"
+    "Very early inquiry / under discovery": "Discovery"
+    "High potential": "Lead"
+    "Collaborative": "Lead"
+    "Follow-up planned": "Lead"
+    "Access granted": "Lead"
+    "Meeting with CEOs expected": "Lead"
+    "Rekindled interest": "Lead"
+    "Strong interest": "Lead"
+    "Referral pending": "Lead"
+    "Referred to Tetsuma": "Lead"
+    "Potential partner": "Lead"
+    "High priority": "Lead"
+    "Follow-up pending": "Lead"
+    "Exploratory / Internal strategy consideration": "Discovery"
+    "Active and included in the cluster of Taka’s key clients": "Lead"
+    "Lead is active included under Taka's client list one of the strongest opportunities from the U.S. trip": "Lead"
+    "To be shared with Pitzmin": "Lead"
+    "Multiple leads": "Lead"
+    "Salting": "Pending"
+
+  # 旧Unifiedは既に正規化済み（そのまま）
+  old_unified: {}  # identity mapping
+
+# ==========================================
+# プロパティ（列）マッピング
+# 各DBの列名 → 新Unified v2の列名
+# ==========================================
+property_mapping:
+  jp_pipeline:
+    "プロジェクト名": "Project Name"
+    "社名": "Company"  # relation → text展開が必要
+    "ステータス": "Status"
+    "契約ステータス": "Contract_Status"  # JP独自情報を保持
+    "契約日": "Contract_Start"
+    "契約終了日": "Contract_End"
+    "成約目途": "Expected_Close"
+    "最終コンタクト": "Last_Discussion"
+    "Revenue  (千円) ": "Revenue_千円"
+    "Revenue  (千円/月)": "Revenue_月_千円"
+    "PJ Term(Month)": "PJ_Term_months"
+    "Industry": "Industry"
+    "Probability": "Probability"  # 低/中/高 → Low/Middle/High
+    "Strategic Fit": "Strategic_Fit"
+    "Key Person": "Notes"  # 余剰情報はNotesに集約
+    "Next Action": "Next_Step"
+    "新規・継続": "New_Continuing"
+    "アカウントマネージャー": "Sales_In_Charge"
+    "先方担当者氏名": "Notes"  # 2件目以降は"Notes"に追記
+
+  global_pipeline:
+    "Project Name": "Project Name"
+    "Company Name": "Company"
+    "Status": "Status"
+    "Contract date": "Contract_Start"
+    "Contract End Date": "Contract_End"
+    "Expected date": "Expected_Close"
+    "Final Contact": "Last_Discussion"
+    "Revenue  (千円) ": "Revenue_千円"
+    "Revenue  (千円/月)": "Revenue_月_千円"
+    "PJ Term(Month)": "PJ_Term_months"
+    "PJ #": "PJ_Number"
+    "Industry": "Industry"
+    "Probability": "Probability"
+    "Strategic Fit": "Strategic_Fit"
+    "Key Person": "Notes"
+    "account manager": "Sales_In_Charge"
+    "Location": "Notes"
+    "Opportunity": "Next_Step"
+    "New/Continuing": "New_Continuing"
+
+  old_unified:
+    # 既にスキーマが揃っているので identity mapping（そのままコピー）
+    "Project Name": "Project Name"
+    "Company": "Company"
+    "Status": "Status"
+    "Contract_Start": "Contract_Start"
+    "Contract_End": "Contract_End"
+    "Expected_Close": "Expected_Close"
+    "Last_Discussion": "Last_Discussion"
+    "Revenue_千円": "Revenue_千円"
+    "Revenue_月_千円": "Revenue_月_千円"
+    "PJ_Term_months": "PJ_Term_months"
+    "PJ_Number": "PJ_Number"
+    "Industry": "Industry"
+    "Probability": "Probability"
+    "Strategic_Fit": "Strategic_Fit"
+    "Sales_In_Charge": "Sales_In_Charge"
+    "Next_Step": "Next_Step"
+    "New_Continuing": "New_Continuing"
+    "Cash_In_Start": "Cash_In_Start"
+    "Cash_In_End": "Cash_In_End"
+    "Invoice_Dates": "Invoice_Dates"
+    "Payment_Dates": "Payment_Dates"
+    "Payment_Terms": "Payment_Terms"
+    "Priority": "Priority"
+    "Region": "Region"
+    "Project_Type": "Project_Type"
+    "Notes": "Notes"
+
+# ==========================================
+# 重複検出
+# 同一案件判定のfuzzy matchしきい値
+# ==========================================
+deduplication:
+  enabled: true
+  # Company + Project Name の組み合わせで判定
+  method: "token_set_ratio"  # partial_ratio はAI/RPA等の短語に緩すぎ
+  company_threshold: 92
+  project_threshold: 88
+  # 両方超えたら同一とみなす
+  both_required: true
+  # 8文字未満のproject_nameはdedup対象外（"AI"等の汎用短語での誤集約防止）
+  min_name_length: 8
+  # 両側のcompanyが非空の時のみdedup（Company空はほぼ別案件扱い）
+  require_non_empty_company: true
+  # 重複時の優先順位（先にあるほうを残す）
+  priority_order:
+    - "old_unified"    # 最も整備されている
+    - "jp_pipeline"    # 契約ステータスなどの独自情報あり
+    - "global_pipeline"  # データ品質低
+
+# ==========================================
+# 同期動作
+# ==========================================
+sync:
+  # 新Unified v2に書き込む際、Source_DBに出身DBを必ず記録
+  require_source_db: true
+  # 旧DBページへの参照URLを Original_URL 列に保持
+  preserve_original_url: true
+  # 差分検出：new/updated/unchanged/deleted
+  # deletedは旧DBで削除されたレコード。新Unified v2ではアーカイブ扱い（削除しない）
+  on_deleted: "archive"  # "archive" or "ignore" or "delete"
+
+# ==========================================
+# ログ
+# ==========================================
+logging:
+  level: "INFO"  # DEBUG / INFO / WARNING / ERROR
+  dir: "logs"
+  retention_days: 30

@@ -1,0 +1,170 @@
+databases:
+  jp_pipeline:
+    title: JP_Sales Pipeline Management Offical
+    database_id: 05c01a8de849439a8bd9066185db20d0
+    data_source_id: b83da729-f0a5-483d-a65e-2d4cf4725371
+    access: read_only
+  global_pipeline:
+    title: Global_Sales Pipeline Management vNew
+    database_id: 1bd5a7e135d280fca881caef9cc14bf4
+    data_source_id: 1bd5a7e1-35d2-81d0-9e12-000b75b54815
+    access: read_only
+  old_unified:
+    title: 🗂 RC Unified Pipeline
+    database_id: 32b5a7e135d281dd995bc71d0764ece3
+    data_source_id: 32b5a7e1-35d2-81a6-87bc-000ba48b2550
+    access: read_only
+  new_unified_v2:
+    title: 🧪 Test_Unified_Pipeline v2
+    database_id: ec158860-92c7-4b69-92ac-f5d1994a0508
+    data_source_id: dbeaedd1-6635-4607-92b1-1ca54c9df7e6
+    parent_page_id: 30e5a7e1-35d2-809a-bf76-d7d3bdfe4340
+    access: read_write
+status_normalization:
+  canonical:
+  - Lead
+  - Pending
+  - Discovery
+  - Proposal
+  - Negotiation
+  - Closing
+  - Contracted
+  - Delivery
+  - Delivered
+  - Lost
+  jp_pipeline:
+    塩漬け: Pending
+    リード: Lead
+    提案: Proposal
+    交渉・課題確認: Negotiation
+    契約準備: Closing
+    成約: Contracted
+    デリバリー中: Delivery
+    案件終了: Delivered
+    失注: Lost
+  global_pipeline:
+    Lead: Lead
+    Pending: Pending
+    Proposal requested: Proposal
+    Overview explained: Discovery
+    suggestion: Proposal
+    Check the assignment: Discovery
+    negotiation: Negotiation
+    Contract preparation: Closing
+    Closing: Closing
+    Case Closed: Delivered
+    Delivery in progress: Delivery
+    Lost bet: Lost
+    under estimate: Lead
+    Sending the CV's: Lead
+    Follow-up sent no clear response yet: Lead
+    Early follow-up – email exchanged awaiting outcome: Lead
+    Invited preparation suggested as next step: Lead
+    Very early inquiry / under discovery: Discovery
+    High potential: Lead
+    Collaborative: Lead
+    Follow-up planned: Lead
+    Access granted: Lead
+    Meeting with CEOs expected: Lead
+    Rekindled interest: Lead
+    Strong interest: Lead
+    Referral pending: Lead
+    Referred to Tetsuma: Lead
+    Potential partner: Lead
+    High priority: Lead
+    Follow-up pending: Lead
+    Exploratory / Internal strategy consideration: Discovery
+    Active and included in the cluster of Taka’s key clients: Lead
+    Lead is active included under Taka's client list one of the strongest opportunities from the U.S. trip: Lead
+    To be shared with Pitzmin: Lead
+    Multiple leads: Lead
+    Salting: Pending
+  old_unified: {}
+property_mapping:
+  jp_pipeline:
+    プロジェクト名: Project Name
+    社名: Company
+    ステータス: Status
+    契約ステータス: Contract_Status
+    契約日: Contract_Start
+    契約終了日: Contract_End
+    成約目途: Expected_Close
+    最終コンタクト: Last_Discussion
+    'Revenue  (千円) ': Revenue_千円
+    Revenue  (千円/月): Revenue_月_千円
+    PJ Term(Month): PJ_Term_months
+    Industry: Industry
+    Probability: Probability
+    Strategic Fit: Strategic_Fit
+    Key Person: Notes
+    Next Action: Next_Step
+    新規・継続: New_Continuing
+    アカウントマネージャー: Sales_In_Charge
+    先方担当者氏名: Notes
+  global_pipeline:
+    Project Name: Project Name
+    Company Name: Company
+    Status: Status
+    Contract date: Contract_Start
+    Contract End Date: Contract_End
+    Expected date: Expected_Close
+    Final Contact: Last_Discussion
+    'Revenue  (千円) ': Revenue_千円
+    Revenue  (千円/月): Revenue_月_千円
+    PJ Term(Month): PJ_Term_months
+    'PJ #': PJ_Number
+    Industry: Industry
+    Probability: Probability
+    Strategic Fit: Strategic_Fit
+    Key Person: Notes
+    account manager: Sales_In_Charge
+    Location: Notes
+    Opportunity: Next_Step
+    New/Continuing: New_Continuing
+  old_unified:
+    Project Name: Project Name
+    Company: Company
+    Status: Status
+    Contract_Start: Contract_Start
+    Contract_End: Contract_End
+    Expected_Close: Expected_Close
+    Last_Discussion: Last_Discussion
+    Revenue_千円: Revenue_千円
+    Revenue_月_千円: Revenue_月_千円
+    PJ_Term_months: PJ_Term_months
+    PJ_Number: PJ_Number
+    Industry: Industry
+    Probability: Probability
+    Strategic_Fit: Strategic_Fit
+    Sales_In_Charge: Sales_In_Charge
+    Next_Step: Next_Step
+    New_Continuing: New_Continuing
+    Cash_In_Start: Cash_In_Start
+    Cash_In_End: Cash_In_End
+    Invoice_Dates: Invoice_Dates
+    Payment_Dates: Payment_Dates
+    Payment_Terms: Payment_Terms
+    Priority: Priority
+    Region: Region
+    Project_Type: Project_Type
+    Notes: Notes
+deduplication:
+  enabled: true
+  method: token_set_ratio
+  company_threshold: 92
+  project_threshold: 88
+  both_required: true
+  min_name_length: 8
+  require_non_empty_company: true
+  priority_order:
+  - old_unified
+  - jp_pipeline
+  - global_pipeline
+sync:
+  require_source_db: true
+  preserve_original_url: true
+  on_deleted: archive
+logging:
+  level: INFO
+  dir: logs
+  retention_days: 30
