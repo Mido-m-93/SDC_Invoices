@@ -122,6 +122,9 @@ export type LogStep =
   | "DUPLICATE_CHECK"
   | "FILE_UPLOADED"
   | "LOG_STORED"
+  | "REMINDER_SENT"
+  | "REMINDER_FAILED"
+  | "REMINDER_SKIPPED"
   | "ERROR";
 
 export interface ProcessingLog {
@@ -168,6 +171,12 @@ export interface AppConfig {
   duplicateDetectionMode: "none" | "filename" | "hash";
   // Amount comparison tolerance (absolute, in sheet currency)
   amountToleranceAbsolute: number;
+  // ── Phase 7: Reminder / notification settings ────────────────────────────
+  teamsWebhookUrl?: string;
+  staleReviewThresholdDays: number;   // days before stale review reminder fires
+  dueDateThresholdDays: number;       // days before due date to send alert
+  escalationRecipient?: string;       // Teams mention / email for overdue escalation
+  paymentTermsDays: number;           // closingMonth end-of-month + N days = due date
 }
 
 // ── Risk level ───────────────────────────────────────────────────────────────
@@ -217,4 +226,61 @@ export interface InvoiceListItem {
   submission: InvoiceSubmission;
   validation: InvoiceValidationResult | null;
   filedDocument: FiledDocument | null;
+}
+
+// ── Phase 7: Reminder types ───────────────────────────────────────────────────
+export type ReminderType =
+  | "missing_invoice"
+  | "stale_review"
+  | "due_date_approaching"
+  | "due_date_overdue";
+
+export type ReminderChannel = "teams" | "mock";
+export type ReminderStatus = "sent" | "failed" | "skipped";
+
+export interface ReminderLog {
+  id: string;
+  reminderType: ReminderType;
+  targetMonth: string;       // YYYY-MM
+  vendorId?: string;
+  submissionId?: string;
+  contractId?: string;
+  sentAt: string;            // ISO timestamp
+  channel: ReminderChannel;
+  status: ReminderStatus;
+  message: string;
+}
+
+export interface ReminderGap {
+  vendorId: string;
+  vendorName: string;
+  contractId: string;
+  contractName: string;
+  expectedAmount: number;
+  currency: string;
+}
+
+export interface StaleReview {
+  submissionId: string;
+  payerName: string;
+  statusCode: InvoiceStatusCode;
+  staleDays: number;
+  reviewer?: string;
+}
+
+export interface DueDateAlert {
+  submissionId: string;
+  payerName: string;
+  dueDate: string;           // ISO date YYYY-MM-DD
+  daysUntilDue: number;      // negative = overdue
+  amount: string;
+}
+
+export interface ReminderSummary {
+  missingInvoice: { count: number; total: number };
+  staleReview: { count: number; oldestDays: number };
+  dueDateApproaching: { count: number };
+  dueDateOverdue: { count: number };
+  lastSent: string | null;
+  recentLogs: ReminderLog[];
 }

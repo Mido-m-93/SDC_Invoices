@@ -162,6 +162,43 @@ const ja = {
   unknown: "不明",
   row: "行",
   warning_no_payment: "⚠ このツールは支払いを実行しません",
+
+  // ── Phase 7: Reminders ────────────────────────────────────────────────────
+  reminder_section_title: "リマインダー状況",
+  reminder_send_all: "リマインダーを送信",
+  reminder_sending: "送信中...",
+  reminder_sent: "送信完了",
+  reminder_send_type_all: "全タイプ送信",
+  reminder_send_type_missing: "未提出リマインダー",
+  reminder_send_type_stale: "不備・承認待ちリマインダー",
+  reminder_send_type_due: "期日アラート送信",
+  reminder_missing_invoice: "未提出",
+  reminder_stale_review: "不備・承認待ち",
+  reminder_due_approaching: "期日接近",
+  reminder_due_overdue: "期日超過",
+  reminder_of_total: "/ {total}件",
+  reminder_stale_days: "最長{days}日滞留",
+  reminder_no_issues: "問題なし",
+  reminder_all_submitted: "全員提出済み",
+  reminder_last_sent: "最終送信",
+  reminder_never_sent: "未送信",
+  reminder_history: "送信履歴",
+  reminder_result: "{sent}件送信 · {failed}件失敗 · {skipped}件スキップ",
+  reminder_loading: "リマインダー状況を確認中...",
+
+  // ── Phase 7: Config - Notifications ───────────────────────────────────────
+  config_notifications_title: "通知設定",
+  config_teams_webhook: "Teams Webhook URL",
+  config_teams_webhook_placeholder: "https://outlook.office.com/webhook/...",
+  config_teams_test_send: "テスト送信",
+  config_teams_test_ok: "✓ Teamsに送信しました",
+  config_teams_test_fail: "✗ 送信失敗",
+  config_reminder_settings_title: "リマインダー設定",
+  config_stale_threshold: "不備滞留アラート閾値（日数）",
+  config_due_threshold: "期日接近アラート閾値（日数）",
+  config_payment_terms: "支払期日の基準（締め月末日から何日後）",
+  config_escalation_recipient: "エスカレーション通知先",
+  config_escalation_placeholder: "メールアドレス または Teamsのメンション",
 } as const;
 
 export default ja;

@@ -6,11 +6,12 @@
 // the corresponding flag is explicitly set to "false".
 //
 // Per-service flags (all default to mock):
-//   NEXT_PUBLIC_USE_MOCK_SHEETS      = "false" → use RealSheetsService
-//   NEXT_PUBLIC_USE_MOCK_DRIVE       = "false" → use RealDriveService      (not yet implemented)
-//   NEXT_PUBLIC_USE_MOCK_VALIDATION  = "false" → use RealValidationService  (not yet implemented)
-//   NEXT_PUBLIC_USE_MOCK_STORAGE     = "false" → use SupabaseStorageService (+ Vendor/Contract)
-//   NEXT_PUBLIC_USE_MOCK_DASHBOARD   = "false" → use RealDashboardService   (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService
+//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService      (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_VALIDATION     = "false" → use RealValidationService  (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
+//   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_NOTIFICATION   = "false" → use TeamsNotificationService
 //
 // The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
 // Each service must be opted into real mode individually.
@@ -26,6 +27,8 @@ import type {
   IDashboardService,
   IVendorService,
   IContractService,
+  INotificationService,
+  IReminderService,
 } from "./types";
 
 import {
@@ -37,12 +40,16 @@ import {
   MockVendorService,
   MockContractService,
 } from "./mock";
+import { MockNotificationService } from "./mock/notificationService";
+import { MockReminderService } from "./mock/reminderService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
 import { SupabaseStorageService } from "./real/SupabaseStorageService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
 import { SupabaseContractService } from "./real/SupabaseContractService";
+import { TeamsNotificationService } from "./real/TeamsNotificationService";
+import { SupabaseReminderService } from "./real/SupabaseReminderService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -59,6 +66,8 @@ let _storage: IStorageService | undefined;
 let _dashboard: IDashboardService | undefined;
 let _vendor: IVendorService | undefined;
 let _contract: IContractService | undefined;
+let _notification: INotificationService | undefined;
+let _reminder: IReminderService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
@@ -151,6 +160,36 @@ export function getContractService(): IContractService {
   return _contract;
 }
 
+// ── Notification (Phase 7) ────────────────────────────────────────────────────
+export function getNotificationService(): INotificationService {
+  if (!_notification) {
+    if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
+      _notification = new MockNotificationService();
+    } else {
+      const webhookUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
+      if (!webhookUrl) {
+        console.warn("[NotificationService] TEAMS_WEBHOOK_URL not set — falling back to mock");
+        _notification = new MockNotificationService();
+      } else {
+        _notification = new TeamsNotificationService(webhookUrl);
+      }
+    }
+  }
+  return _notification;
+}
+
+// ── Reminder (Phase 7) ────────────────────────────────────────────────────────
+export function getReminderService(): IReminderService {
+  if (!_reminder) {
+    const notif = getNotificationService();
+    const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
+    _reminder = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockReminderService(notif)
+      : new SupabaseReminderService(notif, paymentTermsDays);
+  }
+  return _reminder;
+}
+
 // ── Startup diagnostic (server-side only) ────────────────────────────────────
 // Import and call this once in a server component or API route to log
 // which services are running in real vs mock mode.
@@ -158,11 +197,12 @@ export function logServiceModes(): void {
   if (typeof window !== "undefined") return; // guard: server only
 
   const services: [string, string][] = [
-    ["Sheets",     "NEXT_PUBLIC_USE_MOCK_SHEETS"],
-    ["Drive",      "NEXT_PUBLIC_USE_MOCK_DRIVE"],
-    ["Validation", "NEXT_PUBLIC_USE_MOCK_VALIDATION"],
-    ["Storage",    "NEXT_PUBLIC_USE_MOCK_STORAGE"],
-    ["Dashboard",  "NEXT_PUBLIC_USE_MOCK_DASHBOARD"],
+    ["Sheets",       "NEXT_PUBLIC_USE_MOCK_SHEETS"],
+    ["Drive",        "NEXT_PUBLIC_USE_MOCK_DRIVE"],
+    ["Validation",   "NEXT_PUBLIC_USE_MOCK_VALIDATION"],
+    ["Storage",      "NEXT_PUBLIC_USE_MOCK_STORAGE"],
+    ["Dashboard",    "NEXT_PUBLIC_USE_MOCK_DASHBOARD"],
+    ["Notification", "NEXT_PUBLIC_USE_MOCK_NOTIFICATION"],
   ];
 
   console.log("\n[SDC Invoice Tool] Service modes:");

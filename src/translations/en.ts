@@ -162,6 +162,43 @@ const en = {
   unknown: "Unknown",
   row: "Row",
   warning_no_payment: "⚠ This tool does not execute payments",
+
+  // ── Phase 7: Reminders ────────────────────────────────────────────────────
+  reminder_section_title: "Reminder Status",
+  reminder_send_all: "Send Reminders",
+  reminder_sending: "Sending...",
+  reminder_sent: "Sent",
+  reminder_send_type_all: "Send All Types",
+  reminder_send_type_missing: "Missing Invoice Reminder",
+  reminder_send_type_stale: "Stale Review Reminder",
+  reminder_send_type_due: "Send Due Date Alert",
+  reminder_missing_invoice: "Missing",
+  reminder_stale_review: "Stale Review",
+  reminder_due_approaching: "Due Soon",
+  reminder_due_overdue: "Overdue",
+  reminder_of_total: "/ {total}",
+  reminder_stale_days: "Oldest {days}d",
+  reminder_no_issues: "No issues",
+  reminder_all_submitted: "All submitted",
+  reminder_last_sent: "Last sent",
+  reminder_never_sent: "Never sent",
+  reminder_history: "Send history",
+  reminder_result: "{sent} sent · {failed} failed · {skipped} skipped",
+  reminder_loading: "Checking reminder status...",
+
+  // ── Phase 7: Config - Notifications ───────────────────────────────────────
+  config_notifications_title: "Notification Settings",
+  config_teams_webhook: "Teams Webhook URL",
+  config_teams_webhook_placeholder: "https://outlook.office.com/webhook/...",
+  config_teams_test_send: "Test Send",
+  config_teams_test_ok: "✓ Sent to Teams",
+  config_teams_test_fail: "✗ Send failed",
+  config_reminder_settings_title: "Reminder Settings",
+  config_stale_threshold: "Stale review alert threshold (days)",
+  config_due_threshold: "Due date alert threshold (days)",
+  config_payment_terms: "Payment terms (days after end of closing month)",
+  config_escalation_recipient: "Escalation recipient",
+  config_escalation_placeholder: "Email address or Teams mention",
 } as const;
 
 export default en;

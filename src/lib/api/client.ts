@@ -15,6 +15,11 @@ import type {
   ProcessingLog,
   DashboardStats,
   AppConfig,
+  ReminderSummary,
+  ReminderGap,
+  StaleReview,
+  DueDateAlert,
+  ReminderType,
 } from "@/types";
 
 // ── Base fetch helper ─────────────────────────────────────────────────────────
@@ -199,4 +204,33 @@ export async function saveConfig(config: AppConfig): Promise<void> {
     method: "POST",
     body: JSON.stringify(config),
   });
+}
+
+// ── Phase 7: Reminders & Notifications ───────────────────────────────────────
+
+export async function fetchReminderSummary(month: string): Promise<ReminderSummary> {
+  return apiFetch<ReminderSummary>(`/api/reminders/summary?month=${encodeURIComponent(month)}`);
+}
+
+export async function sendReminders(
+  month: string,
+  type: ReminderType | "all"
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  return apiFetch<{ sent: number; failed: number; skipped: number }>(
+    "/api/reminders/send",
+    { method: "POST", body: JSON.stringify({ month, type }) }
+  );
+}
+
+export async function testNotification(): Promise<{ ok: boolean; message: string }> {
+  return apiFetch<{ ok: boolean; message: string }>("/api/notifications/test", {
+    method: "POST",
+  });
+}
+
+export async function fetchReminderGaps(
+  month: string,
+  type: "missing_invoice" | "stale_review" | "due_date" = "missing_invoice"
+): Promise<{ data: ReminderGap[] | StaleReview[] | DueDateAlert[] }> {
+  return apiFetch(`/api/reminders/gaps?month=${encodeURIComponent(month)}&type=${type}`);
 }

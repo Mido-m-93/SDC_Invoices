@@ -6,7 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage } from "@/translations";
-import { fetchConfig, saveConfig } from "@/lib/api/client";
+import { fetchConfig, saveConfig, testNotification } from "@/lib/api/client";
 import type { AppConfig } from "@/types";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 
@@ -17,6 +17,8 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -45,6 +47,21 @@ export default function ConfigPage() {
 
   const setStringArray = (key: "completedStatuses" | "skipStatuses", raw: string) =>
     set(key, raw.split("\n").map((s) => s.trim()).filter(Boolean));
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      // Save current webhook URL first so the API can use it
+      await saveConfig(config);
+      const result = await testNotification();
+      setWebhookTestResult(result);
+    } catch (err) {
+      setWebhookTestResult({ ok: false, message: String(err) });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -203,6 +220,104 @@ export default function ConfigPage() {
                 onChange={(e) => set("amountToleranceAbsolute", Number(e.target.value))}
               />
               <span className="text-sm text-stone-500">円 / unit</span>
+            </div>
+          </Card>
+
+          {/* ── Phase 7: Notification settings ─────────────────────────────── */}
+          <Card title={t("config_notifications_title")}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  {t("config_teams_webhook")}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    className={inputClass + " flex-1"}
+                    value={config.teamsWebhookUrl ?? ""}
+                    onChange={(e) => set("teamsWebhookUrl", e.target.value)}
+                    placeholder={t("config_teams_webhook_placeholder")}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={testingWebhook}
+                    onClick={handleTestWebhook}
+                  >
+                    {t("config_teams_test_send")}
+                  </Button>
+                </div>
+                {webhookTestResult && (
+                  <p className={`text-xs mt-1.5 ${webhookTestResult.ok ? "text-emerald-600" : "text-red-600"}`}>
+                    {webhookTestResult.ok ? t("config_teams_test_ok") : `${t("config_teams_test_fail")}: ${webhookTestResult.message}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* ── Phase 7: Reminder settings ──────────────────────────────────── */}
+          <Card title={t("config_reminder_settings_title")}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_stale_threshold")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputClass + " w-20"}
+                      value={config.staleReviewThresholdDays ?? 3}
+                      onChange={(e) => set("staleReviewThresholdDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">日</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_due_threshold")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputClass + " w-20"}
+                      value={config.dueDateThresholdDays ?? 5}
+                      onChange={(e) => set("dueDateThresholdDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">日前</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_payment_terms")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass + " w-20"}
+                      value={config.paymentTermsDays ?? 30}
+                      onChange={(e) => set("paymentTermsDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">日後</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  {t("config_escalation_recipient")}
+                </label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={config.escalationRecipient ?? ""}
+                  onChange={(e) => set("escalationRecipient", e.target.value)}
+                  placeholder={t("config_escalation_placeholder")}
+                />
+              </div>
             </div>
           </Card>
         </div>

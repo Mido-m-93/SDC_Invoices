@@ -14,6 +14,12 @@ import type {
   AppConfig,
   Vendor,
   Contract,
+  ReminderType,
+  ReminderLog,
+  ReminderGap,
+  StaleReview,
+  DueDateAlert,
+  ReminderSummary,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -141,4 +147,45 @@ export interface IContractService {
   listContracts(): Promise<Contract[]>;
   saveContract(contract: Contract): Promise<void>;
   deleteContract(id: string): Promise<void>;
+}
+
+// ── Notification service (Phase 7) ───────────────────────────────────────────
+export interface INotificationService {
+  /** Send a single reminder card. Returns true on success. */
+  sendReminder(data: {
+    type: ReminderType;
+    payload: unknown;
+  }): Promise<boolean>;
+
+  /** Send multiple reminders in sequence. */
+  sendBatch(
+    reminders: Array<{ type: ReminderType; payload: unknown }>
+  ): Promise<{ sent: number; failed: number }>;
+
+  /** Verify that the configured webhook / channel is reachable. */
+  testConnection(): Promise<{ ok: boolean; message: string }>;
+}
+
+// ── Reminder service (Phase 7) ────────────────────────────────────────────────
+export interface IReminderService {
+  /** Detect vendors with active contracts who have not submitted for month. */
+  detectGaps(month: string): Promise<ReminderGap[]>;
+
+  /** Detect invoices stuck in a non-approved review status for N+ days. */
+  detectStaleReviews(thresholdDays: number): Promise<StaleReview[]>;
+
+  /** Detect invoices whose derived due date is within thresholdDays or past. */
+  detectDueDateIssues(thresholdDays: number): Promise<DueDateAlert[]>;
+
+  /** Run detection for the given type, send notifications, and log results. */
+  sendReminders(
+    month: string,
+    type: ReminderType | "all"
+  ): Promise<{ sent: number; failed: number; skipped: number }>;
+
+  /** Return a combined summary for the dashboard widget. */
+  getSummary(month: string): Promise<ReminderSummary>;
+
+  /** Return recent reminder log entries for the month. */
+  getLogs(month: string): Promise<ReminderLog[]>;
 }

@@ -19,6 +19,11 @@ const DEFAULT_CONFIG: AppConfig = {
   defaultLanguage: "ja",
   duplicateDetectionMode: "filename",
   amountToleranceAbsolute: 1,
+  teamsWebhookUrl: "",
+  staleReviewThresholdDays: 3,
+  dueDateThresholdDays: 5,
+  escalationRecipient: "",
+  paymentTermsDays: 30,
 };
 
 // ── Row mappers ───────────────────────────────────────────────────────────────
@@ -206,6 +211,11 @@ function fromConfigRow(row: Record<string, unknown>): AppConfig {
     defaultLanguage: (row.default_language as AppConfig["defaultLanguage"]) ?? "ja",
     duplicateDetectionMode: (row.duplicate_detection_mode as AppConfig["duplicateDetectionMode"]) ?? "filename",
     amountToleranceAbsolute: (row.amount_tolerance_absolute as number) ?? 1,
+    teamsWebhookUrl: (row.teams_webhook_url as string) ?? "",
+    staleReviewThresholdDays: (row.stale_review_threshold_days as number) ?? 3,
+    dueDateThresholdDays: (row.due_date_threshold_days as number) ?? 5,
+    escalationRecipient: (row.escalation_recipient as string) ?? "",
+    paymentTermsDays: (row.payment_terms_days as number) ?? 30,
   };
 }
 

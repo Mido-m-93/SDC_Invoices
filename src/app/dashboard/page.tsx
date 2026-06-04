@@ -20,10 +20,12 @@ import {
   fetchFiledDocuments,
   fetchAvailableMonths,
   approveInvoice,
+  fetchReminderSummary,
+  sendReminders,
 } from "@/lib/api/client";
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
-import type { DashboardStats, InvoiceListItem } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType } from "@/types";
 import clsx from "clsx";
 
 export default function DashboardPage() {
@@ -43,6 +45,9 @@ export default function DashboardPage() {
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [reminderSummary, setReminderSummary] = useState<ReminderSummary | null>(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderResult, setReminderResult] = useState<{ sent: number; failed: number; skipped: number } | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -117,6 +122,28 @@ export default function DashboardPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // Load reminder summary non-blocking when month changes
+  useEffect(() => {
+    fetchReminderSummary(month)
+      .then(setReminderSummary)
+      .catch(() => {}); // silently fail — reminder section is non-critical
+  }, [month]);
+
+  const handleSendReminders = async (type: ReminderType | "all") => {
+    setSendingReminder(true);
+    setReminderResult(null);
+    try {
+      const result = await sendReminders(month, type);
+      setReminderResult(result);
+      // Refresh summary after sending
+      fetchReminderSummary(month).then(setReminderSummary).catch(() => {});
+    } catch {
+      // silently ignore
+    } finally {
+      setSendingReminder(false);
+    }
+  };
 
   const handleSaveReadyFiles = async () => {
     setSaving(true);
@@ -311,6 +338,16 @@ export default function DashboardPage() {
                 active={activeFilter === "ALREADY_PROCESSED"} onClick={() => handleCardClick("ALREADY_PROCESSED")} />
             </div>
 
+            {/* ── Phase 7: Reminder Status ──────────────────────────────────── */}
+            <ReminderStatusSection
+              summary={reminderSummary}
+              sending={sendingReminder}
+              result={reminderResult}
+              onSend={handleSendReminders}
+              language={language}
+              t={t}
+            />
+
             {/* Invoice drawer — shown when a card is active */}
             {activeFilter && (
               <InvoiceDrawer
@@ -364,6 +401,174 @@ export default function DashboardPage() {
         <InvoiceDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
     </AppShell>
+  );
+}
+
+// ── Reminder status section (Phase 7) ────────────────────────────────────────
+
+function ReminderStatusSection({
+  summary,
+  sending,
+  result,
+  onSend,
+  language,
+  t,
+}: {
+  summary: ReminderSummary | null;
+  sending: boolean;
+  result: { sent: number; failed: number; skipped: number } | null;
+  onSend: (type: ReminderType | "all") => void;
+  language: string;
+  t: (k: Parameters<ReturnType<typeof useLanguage>["t"]>[0]) => string;
+}) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
+
+  const chips = summary
+    ? [
+        {
+          label: t("reminder_missing_invoice"),
+          value: `${summary.missingInvoice.count}/${summary.missingInvoice.total}`,
+          color: summary.missingInvoice.count > 0 ? "amber" : "green",
+          type: "missing_invoice" as ReminderType,
+        },
+        {
+          label: t("reminder_stale_review"),
+          value: summary.staleReview.count > 0 ? `${summary.staleReview.count} (${summary.staleReview.oldestDays}d)` : "0",
+          color: summary.staleReview.count > 0 ? "amber" : "green",
+          type: "stale_review" as ReminderType,
+        },
+        {
+          label: t("reminder_due_approaching"),
+          value: String(summary.dueDateApproaching.count),
+          color: summary.dueDateApproaching.count > 0 ? "amber" : "green",
+          type: "due_date_approaching" as ReminderType,
+        },
+        {
+          label: t("reminder_due_overdue"),
+          value: String(summary.dueDateOverdue.count),
+          color: summary.dueDateOverdue.count > 0 ? "red" : "green",
+          type: "due_date_overdue" as ReminderType,
+        },
+      ]
+    : [];
+
+  return (
+    <div className="mb-6 bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50">
+        <div className="flex items-center gap-2">
+          <BellIcon />
+          <p className="text-sm font-semibold text-stone-700">{t("reminder_section_title")}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {summary?.lastSent && (
+            <span className="text-xs text-stone-400">
+              {t("reminder_last_sent")}: {new Date(summary.lastSent).toLocaleDateString(language === "ja" ? "ja-JP" : "en-US")}
+            </span>
+          )}
+          <div className="relative">
+            <button
+              onClick={() => setTypeOpen((p) => !p)}
+              disabled={sending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a3d2b] text-white text-xs font-medium hover:bg-[#1a3d2b]/90 disabled:opacity-50 transition"
+            >
+              {sending ? t("reminder_sending") : t("reminder_send_all")}
+              <span className="text-white/60">▾</span>
+            </button>
+            {typeOpen && !sending && (
+              <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-stone-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                {([
+                  ["all", t("reminder_send_type_all")],
+                  ["missing_invoice", t("reminder_send_type_missing")],
+                  ["stale_review", t("reminder_send_type_stale")],
+                  ["due_date_approaching", t("reminder_send_type_due")],
+                ] as [ReminderType | "all", string][]).map(([type, label]) => (
+                  <button
+                    key={type}
+                    onClick={() => { setTypeOpen(false); onSend(type); }}
+                    className="w-full text-left px-4 py-2 text-xs text-stone-700 hover:bg-stone-50 transition"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 py-4">
+        {!summary ? (
+          <p className="text-xs text-stone-400">{t("reminder_loading")}</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              {chips.map((chip) => (
+                <div key={chip.type} className={`rounded-lg px-3 py-2.5 border ${
+                  chip.color === "red" ? "bg-red-50 border-red-200" :
+                  chip.color === "amber" ? "bg-amber-50 border-amber-200" :
+                  "bg-emerald-50 border-emerald-200"
+                }`}>
+                  <p className={`text-xs font-medium mb-0.5 ${
+                    chip.color === "red" ? "text-red-700" :
+                    chip.color === "amber" ? "text-amber-700" :
+                    "text-emerald-700"
+                  }`}>{chip.label}</p>
+                  <p className={`text-lg font-bold ${
+                    chip.color === "red" ? "text-red-900" :
+                    chip.color === "amber" ? "text-amber-900" :
+                    "text-emerald-900"
+                  }`}>{chip.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {result && (
+              <p className="text-xs text-emerald-600 mb-2">
+                ✓ {t("reminder_result")
+                  .replace("{sent}", String(result.sent))
+                  .replace("{failed}", String(result.failed))
+                  .replace("{skipped}", String(result.skipped))}
+              </p>
+            )}
+
+            {summary.recentLogs.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowHistory((p) => !p)}
+                  className="text-xs text-stone-400 hover:text-stone-600 transition"
+                >
+                  {t("reminder_history")} {showHistory ? "▲" : "▼"}
+                </button>
+                {showHistory && (
+                  <div className="mt-2 space-y-1">
+                    {summary.recentLogs.slice(0, 5).map((log) => (
+                      <div key={log.id} className="flex items-center gap-2 text-xs text-stone-500">
+                        <span className={log.status === "sent" ? "text-emerald-500" : log.status === "failed" ? "text-red-500" : "text-stone-300"}>
+                          {log.status === "sent" ? "✓" : log.status === "failed" ? "✗" : "–"}
+                        </span>
+                        <span className="font-mono text-stone-400">{new Date(log.sentAt).toLocaleDateString()}</span>
+                        <span>{log.reminderType.replace(/_/g, " ")}</span>
+                        <span className="text-stone-300">{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
   );
 }
 
