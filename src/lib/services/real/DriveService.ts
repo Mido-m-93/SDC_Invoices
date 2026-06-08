@@ -1,14 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// lib/services/real/DriveService.ts — Real Google Drive integration stub
-//
-// HOW TO ACTIVATE:
-// 1. Set NEXT_PUBLIC_USE_MOCK=false
-// 2. Set GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, GOOGLE_DRIVE_ROOT_FOLDER_ID
-// 3. Uncomment and import in lib/services/index.ts
-// 4. npm install googleapis
-// ─────────────────────────────────────────────────────────────────────────────
-
-/*
+// lib/services/real/DriveService.ts — Real Google Drive integration
 import { google } from "googleapis";
 import type { IDriveService } from "../types";
 
@@ -21,21 +11,15 @@ export class RealDriveService implements IDriveService {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       },
-      scopes: [
-        "https://www.googleapis.com/auth/drive",
-      ],
+      scopes: ["https://www.googleapis.com/auth/drive"],
     });
   }
 
   private async getDrive() {
-    return google.drive({ version: "v3", auth: await this.auth.getClient() });
+    return google.drive({ version: "v3", auth: await this.auth.getClient() as never });
   }
 
-  async fetchAttachment(url: string) {
-    // Extract Google Drive file ID from URL
-    // Supports formats:
-    //   https://drive.google.com/file/d/FILE_ID/view
-    //   https://drive.google.com/open?id=FILE_ID
+  async fetchAttachment(url: string): Promise<{ filename: string; mimeType: string; data: Uint8Array } | null> {
     const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) ?? url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (!fileIdMatch) {
       console.warn("[DriveService] Cannot parse file ID from URL:", url);
@@ -44,9 +28,7 @@ export class RealDriveService implements IDriveService {
     const fileId = fileIdMatch[1];
     const drive = await this.getDrive();
 
-    // Get metadata
     const meta = await drive.files.get({ fileId, fields: "name,mimeType" });
-    // Download
     const res = await drive.files.get(
       { fileId, alt: "media" },
       { responseType: "arraybuffer" }
@@ -58,9 +40,8 @@ export class RealDriveService implements IDriveService {
     };
   }
 
-  async ensureMonthFolder({ rootFolderId, folderName }: { rootFolderId: string; folderName: string }) {
+  async ensureMonthFolder({ rootFolderId, folderName }: { rootFolderId: string; folderName: string }): Promise<string> {
     const drive = await this.getDrive();
-    // Check if folder already exists
     const existing = await drive.files.list({
       q: `'${rootFolderId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: "files(id,name)",
@@ -68,7 +49,6 @@ export class RealDriveService implements IDriveService {
     if (existing.data.files?.length) {
       return existing.data.files[0].id!;
     }
-    // Create it
     const folder = await drive.files.create({
       requestBody: {
         name: folderName,
@@ -80,7 +60,7 @@ export class RealDriveService implements IDriveService {
     return folder.data.id!;
   }
 
-  async uploadPdf({ folderId, filename, data }: { folderId: string; filename: string; data: Uint8Array }) {
+  async uploadPdf({ folderId, filename, data }: { folderId: string; filename: string; data: Uint8Array }): Promise<{ fileId: string; webViewLink: string }> {
     const drive = await this.getDrive();
     const { Readable } = await import("stream");
     const stream = Readable.from(Buffer.from(data));
@@ -95,7 +75,7 @@ export class RealDriveService implements IDriveService {
     };
   }
 
-  async checkDuplicate({ folderId, filename }: { folderId: string; filename: string }) {
+  async checkDuplicate({ folderId, filename }: { folderId: string; filename: string }): Promise<boolean> {
     const drive = await this.getDrive();
     const res = await drive.files.list({
       q: `'${folderId}' in parents and name='${filename}' and trashed=false`,
@@ -104,6 +84,3 @@ export class RealDriveService implements IDriveService {
     return (res.data.files?.length ?? 0) > 0;
   }
 }
-*/
-
-export {};

@@ -6,11 +6,11 @@
 // the corresponding flag is explicitly set to "false".
 //
 // Per-service flags (all default to mock):
-//   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService
-//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService      (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService / MicrosoftSheetsService
+//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService (requires GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY)
 //   NEXT_PUBLIC_USE_MOCK_VALIDATION     = "false" → use RealValidationService  (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
-//   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
+//   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use SupabaseDashboardService
 //   NEXT_PUBLIC_USE_MOCK_NOTIFICATION   = "false" → use TeamsNotificationService
 //
 // The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
@@ -45,7 +45,9 @@ import { MockReminderService } from "./mock/reminderService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
+import { RealDriveService } from "./real/DriveService";
 import { SupabaseStorageService } from "./real/SupabaseStorageService";
+import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
 import { SupabaseContractService } from "./real/SupabaseContractService";
 import { TeamsNotificationService } from "./real/TeamsNotificationService";
@@ -87,14 +89,10 @@ export function getSheetsService(): ISheetsService {
 // ── Drive ────────────────────────────────────────────────────────────────────
 export function getDriveService(): IDriveService {
   if (!_drive) {
-    if (isMock("NEXT_PUBLIC_USE_MOCK_DRIVE")) {
-      _drive = new MockDriveService();
+    if (!isMock("NEXT_PUBLIC_USE_MOCK_DRIVE") && process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+      _drive = new RealDriveService();
     } else {
-      // Real implementation not yet built — fail clearly rather than silently.
-      throw new Error(
-        "[DriveService] Real implementation is not yet available. " +
-        "Remove NEXT_PUBLIC_USE_MOCK_DRIVE=false or keep it unset to use the mock."
-      );
+      _drive = new MockDriveService();
     }
   }
   return _drive;
@@ -128,14 +126,9 @@ export function getStorageService(): IStorageService {
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export function getDashboardService(): IDashboardService {
   if (!_dashboard) {
-    if (isMock("NEXT_PUBLIC_USE_MOCK_DASHBOARD")) {
-      _dashboard = new MockDashboardService();
-    } else {
-      throw new Error(
-        "[DashboardService] Real implementation is not yet available. " +
-        "Remove NEXT_PUBLIC_USE_MOCK_DASHBOARD=false or keep it unset to use the mock."
-      );
-    }
+    _dashboard = isMock("NEXT_PUBLIC_USE_MOCK_DASHBOARD")
+      ? new MockDashboardService()
+      : new SupabaseDashboardService();
   }
   return _dashboard;
 }
