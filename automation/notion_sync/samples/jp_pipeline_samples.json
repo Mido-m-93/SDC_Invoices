@@ -1,0 +1,75 @@
+[
+  {
+    "source_db": "jp_pipeline",
+    "original_id": "jp-sample-0001",
+    "original_url": "https://www.notion.so/jp-sample-0001",
+    "project_name": "A社 DX推進パートナー支援",
+    "company": "株式会社サンプルA",
+    "status": "Negotiation",
+    "properties": {
+      "Contract_Status": "ひな型送付・受領",
+      "Contract_Start": null,
+      "Contract_End": null,
+      "Expected_Close": "2026-05-31",
+      "Last_Discussion": "2026-04-10",
+      "Revenue_千円": 6000,
+      "Revenue_月_千円": 1000,
+      "PJ_Term_months": 6,
+      "Industry": "製造業",
+      "Probability": "中",
+      "Strategic_Fit": "中",
+      "Sales_In_Charge": "田中",
+      "Next_Step": "見積提出と契約条件の最終確認",
+      "New_Continuing": "New",
+      "Notes": "KeyPerson: 経営企画部長 / 先方担当: 山田様"
+    }
+  },
+  {
+    "source_db": "jp_pipeline",
+    "original_id": "jp-sample-0002",
+    "original_url": "https://www.notion.so/jp-sample-0002",
+    "project_name": "B社 営業プロセス改革",
+    "company": "B株式会社",
+    "status": "Contracted",
+    "properties": {
+      "Contract_Status": "押印済",
+      "Contract_Start": "2026-04-01",
+      "Contract_End": "2026-09-30",
+      "Expected_Close": "2026-03-20",
+      "Last_Discussion": "2026-04-01",
+      "Revenue_千円": 12000,
+      "Revenue_月_千円": 2000,
+      "PJ_Term_months": 6,
+      "Industry": "小売",
+      "Probability": "高",
+      "Strategic_Fit": "高",
+      "Sales_In_Charge": "佐藤",
+      "Next_Step": "キックオフ準備",
+      "New_Continuing": "Continuing",
+      "Notes": "KeyPerson: CDO / 先方担当: 鈴木様"
+    }
+  },
+  {
+    "source_db": "jp_pipeline",
+    "original_id": "jp-sample-0003",
+    "original_url": "https://www.notion.so/jp-sample-0003",
+    "project_name": "C社 新規事業立ち上げ支援",
+    "company": "C合同会社",
+    "status": "Pending",
+    "properties": {
+      "Contract_Status": "未着手",
+      "Expected_Close": "2026-07-31",
+      "Last_Discussion": "2026-03-05",
+      "Revenue_千円": 4500,
+      "Revenue_月_千円": 1500,
+      "PJ_Term_months": 3,
+      "Industry": "IT",
+      "Probability": "低",
+      "Strategic_Fit": "中",
+      "Sales_In_Charge": "Jin",
+      "Next_Step": "2Q中の再接触",
+      "New_Continuing": "New",
+      "Notes": "KeyPerson: CEO / 先方担当: 高橋様"
+    }
+  }
+]

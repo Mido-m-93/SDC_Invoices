@@ -1,0 +1,1381 @@
+# RC ACCT Automation Roadmap v2
+
+by Jin and GPT https://chatgpt.com/share/e/6a001fc6-73f8-8002-90d5-92f90d362a19
+
+Below is a revised, more implementation-ready roadmap for Mohamad.
+
+It keeps the good parts of his draft — security first, Money Forward as source of truth, analysis-only features before actions, audit logs, approvals, and workflow prioritization — but changes the order from **platform-first** to **workflow-first**. His draft already identifies the right workstreams and first candidates, especially invoice/expense notifications, outsourced-provider invoice verification, expense reimbursement confirmation, and accounting rule-checking.
+
+---
+
+# Robo Co-op Accounting Automation Roadmap v2
+
+## Core principle
+
+Do not build a general accounting platform first.
+
+Build one safe, high-value accounting workflow first, then generalize the reusable parts into a platform.
+
+The first workflow should be:
+
+```
+Invoice verification from outsourced service provider
+```
+
+This is the best first workflow because it is:
+
+- accounting-critical
+- frequent enough to matter
+- mostly rule-based
+- possible to start in analysis-only mode
+- valuable even before Money Forward write access is automated
+- safer than bank payments, taxes, foreign currency, or closing
+
+---
+
+# 1. Strategic goal
+
+Build an AI-assisted accounting operations system for Robo Co-op that connects:
+
+```
+contracts
+→ invoices
+→ expense claims
+→ approvals
+→ Money Forward
+→ payment preparation
+→ bank/payment records
+→ monthly close
+→ management reporting
+```
+
+The system should not replace human accounting judgment.
+
+It should reduce manual work, prevent mistakes, and surface exceptions.
+
+## What AI can do
+
+```
+read
+extract
+classify
+match
+validate
+flag issues
+prepare drafts
+notify reviewers
+create logs
+generate checklists
+```
+
+## What AI should not do in v1
+
+```
+approve payments by itself
+execute bank transfers
+override missing contracts
+make final tax decisions
+make final closing decisions
+change Money Forward records without human approval
+```
+
+---
+
+# 2. Revised roadmap overview
+
+```
+Phase 0 — Decide the first workflow and safety boundaries
+Phase 1 — Map current invoice verification workflow
+Phase 2 — Prepare security and access
+Phase 3 — Build analysis-only invoice verification MVP
+Phase 4 — Add contract / vendor / project matching
+Phase 5 — Add approval workflow and audit logs
+Phase 6 — Add Money Forward preparation
+Phase 7 — Add reminders and expense reimbursement
+Phase 8 — Add outbound invoice support
+Phase 9 — Add bank sync monitoring and monthly close support
+Phase 10 — Stabilize, document, and scale
+```
+
+---
+
+# 3. Phase 0 — Confirm first workflow and safety boundaries
+
+## Goal
+
+Align everyone around the first automation target and define what the system is allowed to do.
+
+## Recommended first workflow
+
+```
+Workflow 10: Invoice verification from outsourced service provider
+```
+
+## Why not start with platform setup?
+
+Mohamad’s original roadmap starts with architecture, GCP setup, bilingual UI, and Money Forward API. Those are important, but if we build them before proving one real workflow, we risk overbuilding.
+
+The first milestone should be:
+
+```
+Can the system correctly review one invoice and tell a human what is wrong or missing?
+```
+
+## Deliverables
+
+```
+- First workflow confirmed
+- In-scope / out-of-scope list
+- Human approval boundaries
+- Risk classification
+- Success criteria
+```
+
+## v1 scope
+
+In scope:
+
+```
+- received invoice PDFs
+- outsourced provider invoices
+- OCR / field extraction
+- vendor matching
+- contract / expected amount check
+- tax check
+- duplicate check
+- reviewer notification
+- audit log
+```
+
+Out of scope for v1:
+
+```
+- automatic payment
+- automatic bank transfer
+- final accounting approval
+- tax filing
+- foreign remittance
+- full monthly closing
+- full bilingual dashboard
+```
+
+---
+
+# 4. Phase 1 — Map current manual workflow
+
+## Goal
+
+Understand exactly how the current outsourced-provider invoice verification process works.
+
+## Questions to answer
+
+```
+Where do invoices arrive?
+Who receives them?
+Where are they saved?
+How are they named?
+Who checks them?
+What fields are checked?
+Where is contract information stored?
+Where is expected monthly amount stored?
+What happens if there is a mismatch?
+Who approves payment?
+When is Money Forward updated?
+```
+
+## Required process map
+
+```
+Invoice received
+→ invoice saved
+→ invoice checked
+→ contract / amount confirmed
+→ tax checked
+→ payment target confirmed
+→ reviewer approves
+→ Money Forward prepared
+→ payment handled separately
+```
+
+## Deliverables
+
+```
+- as-is workflow map
+- to-be workflow map
+- list of invoice sources
+- list of reviewers
+- list of exception cases
+- list of systems involved
+```
+
+## Exception categories
+
+The system should be able to flag:
+
+```
+unknown vendor
+missing contract
+amount mismatch
+invoice month mismatch
+missing consumption tax
+duplicate invoice
+missing bank account
+bank account changed
+payment deadline soon
+unsupported currency
+unreadable PDF
+missing invoice file
+```
+
+---
+
+# 5. Phase 2 — Security and access preparation
+
+## Goal
+
+Secure credentials before automation touches any real systems.
+
+Mohamad’s draft correctly prioritizes moving secrets out of Notion and choosing a password manager. This should stay early in the roadmap.
+
+## Required actions
+
+```
+1. Inventory all credentials currently used for accounting workflows
+2. Identify which credentials are exposed in Notion
+3. Move secrets to 1Password or another approved password manager
+4. Define access levels
+5. Create separate service accounts where possible
+6. Avoid sharing personal logins with automation
+7. Record who has access to what
+```
+
+## Access levels
+
+```
+Admin:
+Can configure systems and credentials
+
+Reviewer:
+Can review extracted invoice data and approve/reject
+
+Operator:
+Can upload invoices and resolve simple issues
+
+Viewer:
+Can view status and logs only
+
+Automation service account:
+Can read limited folders/data and write logs
+```
+
+## Deliverables
+
+```
+- credential inventory
+- password manager selected
+- Notion secrets migration plan
+- role/access matrix
+- automation account plan
+```
+
+---
+
+# 6. Phase 3 — Analysis-only invoice verification MVP
+
+## Goal
+
+Build the first working automation without touching payments or Money Forward write actions.
+
+The MVP should answer:
+
+```
+Is this invoice probably okay, or does a human need to review it?
+```
+
+## Input sources
+
+Start with the simplest source first.
+
+Recommended order:
+
+```
+1. designated folder for invoice PDFs
+2. spreadsheet/manual upload
+3. email inbox
+4. Slack/Teams upload
+5. form submission
+```
+
+For MVP, use:
+
+```
+designated folder + manual upload
+```
+
+Do not start with every possible input channel.
+
+## Core workflow
+
+```
+1. New invoice PDF appears in folder
+2. System reads the PDF
+3. OCR extracts key fields
+4. System creates invoice record
+5. System checks basic rules
+6. System gives status:
+   - OK
+   - Needs review
+   - Blocked
+7. Human reviewer receives notification
+8. Human reviewer confirms or rejects
+```
+
+## Fields to extract
+
+```
+vendor name
+invoice number
+invoice date
+invoice month / service month
+payment due date
+subtotal
+consumption tax
+total amount
+currency
+bank name
+branch
+account type
+account number
+account holder
+project name if available
+contract reference if available
+```
+
+## Output statuses
+
+```
+OK:
+No obvious issue detected. Human can proceed.
+
+Needs review:
+Something is unclear, but not necessarily wrong.
+
+Blocked:
+Payment should not proceed until issue is resolved.
+```
+
+## Example status logic
+
+```
+If vendor is unknown → Blocked
+If no invoice number → Needs review
+If amount cannot be read → Blocked
+If tax appears missing → Needs review
+If bank account changed from previous invoice → Blocked
+If duplicate invoice number exists → Blocked
+If due date is within 3 days → Needs urgent review
+```
+
+## Deliverables
+
+```
+- invoice intake script or service
+- OCR/extraction pipeline
+- invoice verification table
+- simple reviewer view
+- status labels
+- exception flags
+- manual reviewer confirmation field
+```
+
+## MVP success criteria
+
+```
+- 80% of invoice PDFs are readable
+- 70%+ of key fields are extracted correctly
+- duplicate invoices can be detected
+- unknown vendors are flagged
+- human reviewer can see the invoice and extracted data in one place
+- no payment or Money Forward write action happens automatically
+```
+
+---
+
+# 7. Phase 4 — Contract / vendor / project matching
+
+## Goal
+
+Move from simple invoice reading to real accounting validation.
+
+This is the most important layer missing from Mohamad’s original architecture. Money Forward is the accounting source of truth, but it does not necessarily know whether a received invoice matches a project, contract, or expected monthly amount.
+
+We need a separate validation layer:
+
+```
+vendor master
+project master
+contract master
+expected payment rules
+```
+
+## Master data needed
+
+### Vendor master
+
+```
+vendor_id
+vendor name
+legal name
+common aliases
+bank account
+tax status
+default currency
+default reviewer
+related contracts
+```
+
+### Project master
+
+```
+project_id
+project name
+client
+owner
+status
+start date
+end date
+related contracts
+related vendors
+```
+
+### Contract master
+
+```
+contract_id
+vendor/client
+project
+contract type
+start date
+end date
+monthly amount
+total amount
+currency
+payment terms
+tax treatment
+contract file link
+approval status
+```
+
+### Expected payment rules
+
+```
+vendor
+project
+expected amount
+expected billing cycle
+payment deadline
+contract reference
+reviewer
+```
+
+## Matching logic
+
+```
+Invoice vendor name
+→ match to vendor master
+
+Invoice project/description
+→ match to project or contract
+
+Invoice amount
+→ compare with expected amount
+
+Invoice month
+→ compare with contract period
+
+Invoice bank account
+→ compare with vendor master
+```
+
+## Exception logic
+
+```
+No vendor match → Blocked
+No contract match → Blocked
+Amount mismatch → Needs review or Blocked
+Outside contract period → Blocked
+Bank account mismatch → Blocked
+Tax mismatch → Needs review
+```
+
+## Deliverables
+
+```
+- vendor master v1
+- contract master v1
+- project master v1
+- matching algorithm
+- exception report
+- reviewer correction flow
+```
+
+---
+
+# 8. Phase 5 — Approval workflow and audit logs
+
+## Goal
+
+Make every decision traceable.
+
+Before the system prepares anything for Money Forward, it should log:
+
+```
+what was received
+what was extracted
+what was checked
+what was flagged
+who reviewed it
+what decision was made
+when it was approved/rejected
+```
+
+## Approval states
+
+```
+Draft
+Extracted
+Needs review
+Blocked
+Approved for Money Forward preparation
+Prepared for payment
+Paid manually
+Rejected
+Archived
+```
+
+## Approval rules
+
+Initial rules can be simple:
+
+```
+Unknown vendor → Jintae or accounting lead approval required
+Amount mismatch → accounting lead approval required
+Bank account changed → manual confirmation required
+Over ¥100,000 → management review
+No contract → blocked
+No invoice file → blocked
+Duplicate invoice → blocked
+Foreign currency → accounting review
+Tax issue → accounting review
+```
+
+## Audit log fields
+
+```
+event_id
+timestamp
+user/system actor
+invoice_id
+action type
+before value
+after value
+reason
+source file
+reviewer comment
+```
+
+## Deliverables
+
+```
+- approval status workflow
+- reviewer comment field
+- audit log table
+- notification to Slack/Teams
+- escalation rules
+```
+
+---
+
+# 9. Phase 6 — Money Forward preparation
+
+## Goal
+
+Prepare data for Money Forward, but do not rush into full automatic writing.
+
+Mohamad’s draft says to connect Money Forward API. That is correct, but before implementation we must confirm what the API can actually do for RC’s plan.
+
+## First research task
+
+Confirm whether Money Forward API supports:
+
+```
+vendor data
+received invoices
+accounts payable / debt payment
+journal entries
+attachments / evidence
+payment status
+bank transaction data
+approval status
+```
+
+## If API supports required functions
+
+Build:
+
+```
+invoice record → Money Forward draft
+evidence attachment
+status sync
+payment preparation
+```
+
+## If API is limited
+
+Use a safer semi-automated flow:
+
+```
+invoice record
+→ generate upload-ready CSV or structured data
+→ prepare file package
+→ human uploads/checks in Money Forward
+→ system records status
+```
+
+## Deliverables
+
+```
+- Money Forward API capability report
+- integration design
+- data mapping
+- upload-ready invoice data
+- evidence attachment strategy
+- Money Forward status sync plan
+```
+
+## Important boundary
+
+```
+The system may prepare Money Forward input.
+The system should not execute final payment.
+```
+
+---
+
+# 10. Phase 7 — Add workflow 1: invoice/expense submission reminders
+
+## Goal
+
+Add a low-risk workflow that creates visible value quickly.
+
+Mohamad’s draft ranks “Notification regarding submission of invoices and expense reports” as an excellent first candidate because it is low risk, frequent, and easy. I would make it the second automation after invoice verification.
+
+## Workflow
+
+```
+1. Check who should submit invoice/expense report
+2. Check who has submitted
+3. Check who is missing files
+4. Send reminder
+5. Update status
+6. Notify accounting lead of overdue items
+```
+
+## Reminder types
+
+```
+invoice not submitted
+receipt missing
+expense report incomplete
+invoice submitted but unreadable
+approval pending
+payment deadline approaching
+```
+
+## Deliverables
+
+```
+- submission status tracker
+- reminder templates
+- Slack/Teams/email notification
+- overdue list
+- reviewer dashboard
+```
+
+---
+
+# 11. Phase 8 — Add workflow 4: expense reimbursement confirmation
+
+## Goal
+
+Automate expense validation and evidence handling.
+
+Do not start with automatic reimbursement payment.
+
+Start with validation and approval support.
+
+## Workflow
+
+```
+1. Employee submits expense claim
+2. Receipt is uploaded
+3. OCR extracts amount/date/vendor
+4. System classifies category
+5. System checks rules
+6. System flags missing receipt or policy issue
+7. Reviewer approves/rejects
+8. System prepares Money Forward evidence package
+```
+
+## Expense rules
+
+```
+company card preferred
+invoice payment second
+personal reimbursement last
+receipt required
+purpose required
+project/category required
+high amount requires stronger approval
+```
+
+## Approval examples
+
+```
+Under ¥50,000 and normal category → operational lead
+Over ¥100,000 → management review
+Annual subscription over ¥1,000,000 → formal approval
+Missing receipt → rejected or returned
+Unknown category → accounting review
+```
+
+## Deliverables
+
+```
+- expense claim form
+- receipt OCR
+- category classifier
+- policy checker
+- approval workflow
+- Money Forward evidence preparation
+```
+
+---
+
+# 12. Phase 9 — Add workflow 6: outbound invoice support
+
+## Goal
+
+Help RC issue invoices to business partners and track collection.
+
+This should come after inbound invoice verification because outbound invoicing affects clients and revenue.
+
+## Workflow
+
+```
+1. Contract or project says invoice should be issued
+2. System creates expected invoice item
+3. Human confirms amount and timing
+4. System prepares invoice draft
+5. Human sends/approves invoice
+6. System tracks due date
+7. Bank/Money Forward data confirms receipt
+8. System flags unpaid invoices
+```
+
+## Checks
+
+```
+contract exists
+billing period is correct
+amount matches contract
+client name is correct
+invoice due date is correct
+tax treatment is correct
+invoice has been sent
+payment has been received
+```
+
+## Deliverables
+
+```
+- expected invoice table
+- invoice draft support
+- unpaid invoice tracker
+- client payment reminder list
+- cash collection dashboard
+```
+
+---
+
+# 13. Phase 10 — Bank sync monitoring and monthly close support
+
+## Goal
+
+Add visibility into bank/Money Forward sync and monthly closing tasks without automating risky bank actions.
+
+## Bank sync monitoring
+
+Automate:
+
+```
+check latest Money Forward sync date
+detect sync failure
+notify accounting lead
+show unresolved bank sync issues
+```
+
+Do not automate:
+
+```
+bank login
+digital certificate operation
+wire transfer
+tax payment
+salary payment
+```
+
+## Monthly close support
+
+Start with checklist automation:
+
+```
+bank balance checked
+invoices reviewed
+expenses reviewed
+unpaid invoices checked
+vendor payments checked
+missing receipts checked
+Money Forward sync checked
+foreign currency items reviewed
+tax/payroll items reviewed
+```
+
+## Deliverables
+
+```
+- bank sync status table
+- monthly close checklist
+- missing evidence report
+- open exceptions report
+- management summary
+```
+
+---
+
+# 14. Recommended technical architecture
+
+Do not overbuild at the beginning.
+
+## MVP architecture
+
+```
+Invoice folder
+     ↓
+OCR / extraction script
+     ↓
+Cloud database or structured spreadsheet
+     ↓
+validation logic
+     ↓
+reviewer dashboard
+     ↓
+Slack/Teams notification
+```
+
+## v1 architecture
+
+```
+             +----------------------+
+             | Reviewer UI          |
+             | JP / EN labels later |
+             +----------+-----------+
+                        |
+                        v
+             +----------------------+
+             | Backend workflow API |
+             | validation + logic   |
+             +----+------------+----+
+                  |            |
+                  v            v
+       +---------------+   +----------------+
+       | Money Forward |   | Cloud Database |
+       | source of     |   | logs / state   |
+       | accounting    |   | approvals      |
+       | truth         |   | tasks          |
+       +---------------+   +----------------+
+                  ^
+                  |
+       +----------------------+
+       | Notion / contracts   |
+       | manuals / projects   |
+       +----------------------+
+                  ^
+                  |
+       +----------------------+
+       | 1Password            |
+       | credentials/secrets  |
+       +----------------------+
+```
+
+## Suggested components
+
+```
+Frontend:
+simple dashboard first, bilingual later
+
+Backend:
+GCP Cloud Run or similar
+
+Database:
+Cloud SQL, Firestore, or Supabase-style DB
+
+Storage:
+Google Drive / SharePoint / cloud storage for invoice PDFs
+
+OCR:
+start with reliable PDF extraction + OCR fallback
+
+Notifications:
+Slack / Teams / email
+
+Secrets:
+1Password or approved password manager
+
+Logs:
+cloud database audit log
+```
+
+---
+
+# 15. Data model v1
+
+## `invoices`
+
+```
+invoice_id
+source_file_url
+vendor_id
+vendor_name_raw
+invoice_number
+invoice_date
+service_month
+due_date
+subtotal
+tax
+total_amount
+currency
+bank_account_raw
+project_id
+contract_id
+status
+risk_level
+created_at
+updated_at
+```
+
+## `vendors`
+
+```
+vendor_id
+vendor_name
+aliases
+bank_account
+tax_status
+default_reviewer
+active_contracts
+notes
+```
+
+## `contracts`
+
+```
+contract_id
+vendor_or_client_id
+project_id
+contract_type
+start_date
+end_date
+expected_amount
+currency
+payment_terms
+contract_file_url
+status
+```
+
+## `exceptions`
+
+```
+exception_id
+invoice_id
+exception_type
+severity
+message
+detected_at
+resolved_by
+resolved_at
+resolution_note
+```
+
+## `approvals`
+
+```
+approval_id
+invoice_id
+approver
+approval_status
+comment
+approved_at
+```
+
+## `audit_logs`
+
+```
+log_id
+timestamp
+actor
+action
+object_type
+object_id
+before_value
+after_value
+reason
+```
+
+---
+
+# 16. Detailed sprint plan
+
+## Sprint 0 — Alignment and access
+
+Duration: 2–3 days
+
+```
+- confirm first workflow
+- confirm reviewer
+- collect sample invoices
+- collect relevant manual pages
+- identify invoice source folder
+- define safety boundaries
+- list credentials
+```
+
+Output:
+
+```
+- workflow brief
+- sample data set
+- access checklist
+```
+
+---
+
+## Sprint 1 — Invoice extraction MVP
+
+Duration: 1 week
+
+```
+- read invoice PDFs from folder
+- extract invoice fields
+- create invoice table
+- show extracted values
+- allow human correction
+```
+
+Output:
+
+```
+- invoice extraction prototype
+- extraction accuracy report
+```
+
+---
+
+## Sprint 2 — Rule checks and exception flags
+
+Duration: 1 week
+
+```
+- duplicate invoice check
+- missing field check
+- tax check
+- due date check
+- unknown vendor check
+- status assignment
+```
+
+Output:
+
+```
+- invoice verification MVP
+- exception list
+- reviewer view
+```
+
+---
+
+## Sprint 3 — Vendor / contract matching
+
+Duration: 1–2 weeks
+
+```
+- create vendor master
+- create contract master
+- match invoice to vendor
+- match invoice to contract/project
+- flag amount mismatch
+- flag contract missing
+```
+
+Output:
+
+```
+- vendor/contract matching engine
+- blocked/needs-review logic
+```
+
+---
+
+## Sprint 4 — Approval and audit
+
+Duration: 1 week
+
+```
+- approval states
+- reviewer comments
+- Slack/Teams notification
+- audit log
+- escalation rules
+```
+
+Output:
+
+```
+- approval workflow
+- auditable decision trail
+```
+
+---
+
+## Sprint 5 — Money Forward preparation
+
+Duration: 1–2 weeks
+
+```
+- research Money Forward API
+- define data mapping
+- prepare Money Forward-ready records
+- prepare evidence file package
+- sync status manually or via API if available
+```
+
+Output:
+
+```
+- Money Forward integration plan
+- upload-ready data
+- safe preparation workflow
+```
+
+---
+
+## Sprint 6 — Reminders and expense claims
+
+Duration: 2 weeks
+
+```
+- invoice submission reminders
+- expense submission reminders
+- expense receipt OCR
+- expense rule check
+- approval routing
+```
+
+Output:
+
+```
+- reminder workflow
+- expense confirmation workflow
+```
+
+---
+
+## Sprint 7 — Outbound invoice support
+
+Duration: 2–3 weeks
+
+```
+- expected invoice tracker
+- contract-to-invoice check
+- unpaid invoice tracker
+- payment receipt check
+```
+
+Output:
+
+```
+- outbound invoice dashboard
+- cash collection support
+```
+
+---
+
+# 17. Priority matrix
+
+| Priority | Workflow | Start timing | Why |
+| --- | --- | --- | --- |
+| 1 | Invoice verification from outsourced service provider | Now | High accounting value, safe in analysis-only mode |
+| 2 | Invoice/expense submission notifications | After MVP | Low risk, visible quick win |
+| 3 | Expense reimbursement confirmation | After reminders | Rule-based and valuable |
+| 4 | Accounting data rule checker | After invoice checks | Good assistant for reviewers |
+| 5 | Outbound invoice issuing | Phase 2 | Important but client-facing |
+| 6 | Attendance closing | Phase 2/3 | Useful but partly HR |
+| 7 | Contract handling | Phase 2/3 | Needs legal/approval clarity |
+| 8 | Bank accounting management | Later | Important but risky |
+| 9 | Foreign currency procedures | Later | High compliance risk |
+| 10 | Tax payments | Much later | High compliance risk |
+| 11 | Bank payments | Much later | High financial risk |
+| 12 | Financial closing | Later | Best after transaction flows are stable |
+
+---
+
+# 18. KPI targets
+
+## MVP KPIs
+
+```
+invoice extraction accuracy
+number of invoices processed
+number of exceptions detected
+manual time saved
+review turnaround time
+duplicate invoices caught
+missing contracts caught
+```
+
+## v1 KPIs
+
+```
+% invoices auto-classified
+% invoices requiring human correction
+average approval time
+number of payment-risk issues detected
+number of missing receipts detected
+number of unpaid invoices detected
+monthly close preparation time
+```
+
+## Suggested targets
+
+```
+80%+ invoices auto-readable
+70%+ fields extracted correctly in first MVP
+90%+ fields extracted correctly after correction/training
+100% high-risk invoices routed to human review
+0 automatic payments in v1
+100% approval decisions logged
+```
+
+---
+
+# 19. Guardrails
+
+## Financial guardrails
+
+```
+No automatic bank transfers
+No automatic tax payments
+No automatic salary payments
+No approval bypass
+No payment without invoice file
+No payment without vendor match
+No payment if bank account changed without human confirmation
+```
+
+## Security guardrails
+
+```
+No secrets in Notion
+No credentials in code
+No shared personal logins where avoidable
+Use 1Password or approved vault
+Use minimum necessary permissions
+Log all system actions
+```
+
+## Accounting guardrails
+
+```
+Money Forward remains source of truth
+AI outputs are suggestions until approved
+All exceptions remain visible until resolved
+All corrections are logged
+Human reviewer owns final decision
+```
+
+---
+
+# 20. Final recommended execution order
+
+The practical order for Mohamad should be:
+
+```
+1. Confirm first workflow: outsourced provider invoice verification
+2. Collect 10–20 sample invoices
+3. Map current manual process
+4. Move credentials/secrets out of Notion
+5. Build invoice extraction MVP
+6. Add validation rules and exception flags
+7. Add vendor/contract matching
+8. Add reviewer approval and audit logs
+9. Prepare Money Forward-ready data
+10. Add reminders
+11. Add expense reimbursement confirmation
+12. Add outbound invoice support
+13. Add bank sync monitoring
+14. Add monthly close checklist
+```
+
+---
+
+# 21. Short version to send Mohamad
+
+```
+I reviewed the roadmap and suggest revising it from platform-first to workflow-first.
+
+The first workflow should be “Invoice verification from outsourced service provider.”
+
+We should not begin by building the full bilingual dashboard, backend, GCP platform, and Money Forward integration. Instead, we should prove one safe accounting workflow first:
+
+invoice received
+→ OCR/extract fields
+→ match vendor/contract/project
+→ check tax, duplicate, amount, bank account
+→ flag issues
+→ send to human reviewer
+→ log decision
+
+AI should not approve or pay anything in v1.
+
+After this MVP works, we can generalize the reusable parts:
+- OCR/extraction
+- vendor/contract master
+- approval workflow
+- audit logs
+- Money Forward preparation
+- bilingual UI
+- reminders
+- expense reimbursement
+- outbound invoice support
+- bank sync/monthly close support
+
+The recommended order is:
+1. Invoice verification from outsourced provider
+2. Submission reminders
+3. Expense reimbursement confirmation
+4. Money Forward preparation
+5. Outbound invoice support
+6. Bank sync/monthly close support
+
+The key missing layer in the original architecture is contract/project/vendor master data. Money Forward is the accounting source of truth, but contract/project/vendor data is required to validate whether invoices are correct.
+```

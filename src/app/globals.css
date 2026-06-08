@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Noto Sans JP", "Hiragino Sans", "Meiryo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  --color-ink: #1a1a2e;
+  --color-surface: #faf9f7;
+  --color-border: #e5e2dc;
+  --color-accent: #2d6a4f;
+  --color-accent-2: #40916c;
+  --color-warn: #d4a017;
+  --color-danger: #c1121f;
+  --color-muted: #6b7280;
+  --sidebar-w: 220px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+/* Scrollbar polish */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1cdc7;
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b5b0a9;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+a,
+button {
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    color 0.15s;
+}

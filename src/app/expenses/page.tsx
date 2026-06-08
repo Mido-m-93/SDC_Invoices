@@ -1,0 +1,340 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus } from "@/types";
+
+const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
+const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
+const STATUSES: { value: ExpenseStatus | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "submitted", label: "Submitted" },
+  { value: "under_review", label: "Under Review" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "paid", label: "Paid" },
+];
+
+const STATUS_COLORS: Record<ExpenseStatus, string> = {
+  draft: "bg-stone-100 text-stone-500",
+  submitted: "bg-blue-100 text-blue-700",
+  under_review: "bg-amber-100 text-amber-700",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+  paid: "bg-emerald-100 text-emerald-700",
+  archived: "bg-stone-100 text-stone-400",
+};
+
+const RISK_COLORS = { OK: "text-green-600", NEEDS_REVIEW: "text-amber-600", BLOCKED: "text-red-600" };
+
+const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status" | "reviewerComment" | "reviewedBy" | "reviewedAt" | "approvedBy" | "approvedAt" | "paidAt" | "extractedAmount" | "extractedDate" | "extractedVendor" | "policyViolations" | "submittedAt"> = {
+  submittedBy: "",
+  submittedByEmail: "",
+  category: "other",
+  description: "",
+  amount: 0,
+  currency: "JPY",
+  paymentMethod: "personal_reimbursement",
+  receiptUrl: "",
+  receiptFilename: "",
+  projectName: "",
+  internalDepartment: "",
+  expenseDate: new Date().toISOString().slice(0, 10),
+};
+
+export default function ExpensesPage() {
+  const [claims, setClaims] = useState<ExpenseClaim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<ExpenseClaim | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [error, setError] = useState<string | null>(null);
+  const [validating, setValidating] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
+  const [approveComment, setApproveComment] = useState("");
+  const [actorName, setActorName] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = statusFilter === "all" ? "/api/expenses" : `/api/expenses?status=${statusFilter}`;
+      const res = await fetch(url);
+      const data = await res.json() as { claims: ExpenseClaim[] };
+      setClaims(data.claims ?? []);
+    } catch { setError("Failed to load expense claims"); }
+    finally { setLoading(false); }
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openNew() {
+    setEditing(null);
+    setForm({ ...EMPTY_FORM });
+    setShowForm(true);
+  }
+
+  function openEdit(c: ExpenseClaim) {
+    setEditing(c);
+    setForm({
+      submittedBy: c.submittedBy,
+      submittedByEmail: c.submittedByEmail,
+      category: c.category,
+      description: c.description,
+      amount: c.amount,
+      currency: c.currency,
+      paymentMethod: c.paymentMethod,
+      receiptUrl: c.receiptUrl,
+      receiptFilename: c.receiptFilename,
+      projectName: c.projectName,
+      internalDepartment: c.internalDepartment,
+      expenseDate: c.expenseDate,
+    });
+    setShowForm(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const url = editing ? `/api/expenses/${editing.id}` : "/api/expenses";
+      const method = editing ? "PUT" : "POST";
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      setShowForm(false);
+      load();
+    } catch { setError("Failed to save expense claim"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleValidate(id: string) {
+    setValidating(id);
+    try {
+      await fetch(`/api/expenses/${id}/validate`, { method: "POST" });
+      load();
+    } catch { setError("Validation failed"); }
+    finally { setValidating(null); }
+  }
+
+  async function handleApprove() {
+    if (!approvingId || !approveAction) return;
+    try {
+      await fetch(`/api/expenses/${approvingId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: approveAction, approvedBy: actorName, comment: approveComment }),
+      });
+      setApprovingId(null);
+      setApproveAction(null);
+      setApproveComment("");
+      load();
+    } catch { setError("Failed to update status"); }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this expense claim?")) return;
+    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <AppShell>
+      <PageHeader
+        title="Expense Claims"
+        subtitle="Submit and review expense reimbursement requests"
+        actions={<Button variant="primary" onClick={openNew}>+ New Claim</Button>}
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
+        ⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.
+      </div>
+
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
+          {error}
+          <button onClick={() => setError(null)}>×</button>
+        </div>
+      )}
+
+      {/* Status filter */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {STATUSES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => setStatusFilter(s.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s.value ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400">Loading…</p>
+      ) : claims.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">No expense claims found.</p>
+          <Button variant="primary" className="mt-4" onClick={openNew}>Submit your first claim</Button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
+              <tr>
+                <th className="px-4 py-3 text-left">Submitted By</th>
+                <th className="px-4 py-3 text-left">Category</th>
+                <th className="px-4 py-3 text-left">Description</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3 text-left">Date</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Violations</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {claims.map((c) => (
+                <tr key={c.id} className="hover:bg-stone-50">
+                  <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
+                  <td className="px-4 py-3 text-stone-500 capitalize">{c.category.replace(/_/g, " ")}</td>
+                  <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.description || "—"}</td>
+                  <td className="px-4 py-3 text-right font-mono text-stone-800">
+                    {c.currency} {c.amount.toLocaleString()}
+                    {c.extractedAmount !== null && Math.abs(c.extractedAmount - c.amount) > 1 && (
+                      <span className="ml-1 text-xs text-amber-600">(receipt: {c.extractedAmount.toLocaleString()})</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                      {c.status.replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.policyViolations.length > 0 ? (
+                      <span className="text-xs text-red-600">{c.policyViolations.join(", ")}</span>
+                    ) : (
+                      <span className="text-xs text-green-600">None</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 flex gap-1 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
+                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>Validate</Button>
+                    {(c.status === "submitted" || c.status === "under_review") && (
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>Approve</Button>
+                    )}
+                    {c.status !== "rejected" && c.status !== "paid" && (
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>Reject</Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Claim form modal */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-y-auto max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{editing ? "Edit Expense Claim" : "New Expense Claim"}</h2>
+              <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Submitted By *">
+                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder="Name" />
+                </Field>
+                <Field label="Email">
+                  <input className={inp} value={form.submittedByEmail} onChange={(e) => set("submittedByEmail", e.target.value)} placeholder="email@example.com" />
+                </Field>
+              </div>
+              <Field label="Expense Date *">
+                <input className={inp} type="date" value={form.expenseDate} onChange={(e) => set("expenseDate", e.target.value)} />
+              </Field>
+              <Field label="Category *">
+                <select className={inp} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                </select>
+              </Field>
+              <Field label="Description *">
+                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Purpose of expense..." />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Amount *">
+                  <input className={inp} type="number" value={form.amount} onChange={(e) => set("amount", parseFloat(e.target.value) || 0)} />
+                </Field>
+                <Field label="Currency">
+                  <select className={inp} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
+                    <option>JPY</option><option>USD</option><option>EUR</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Payment Method *">
+                <select className={inp} value={form.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>
+                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+                </select>
+              </Field>
+              <Field label="Receipt URL">
+                <input className={inp} value={form.receiptUrl} onChange={(e) => set("receiptUrl", e.target.value)} placeholder="https://..." />
+              </Field>
+              <Field label="Receipt Filename">
+                <input className={inp} value={form.receiptFilename} onChange={(e) => set("receiptFilename", e.target.value)} placeholder="receipt.pdf" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Project Name">
+                  <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
+                </Field>
+                <Field label="Department">
+                  <input className={inp} value={form.internalDepartment} onChange={(e) => set("internalDepartment", e.target.value)} />
+                </Field>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>Save Claim</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve/Reject modal */}
+      {approvingId && approveAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-base font-semibold mb-4 capitalize">{approveAction} Expense Claim</h2>
+            <Field label="Your Name *">
+              <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
+            </Field>
+            <div className="mt-3">
+              <Field label="Comment">
+                <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment..." />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel</Button>
+              <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>{approveAction === "approve" ? "Approve" : "Reject"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </AppShell>
+  );
+}
+
+const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-stone-500 mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
