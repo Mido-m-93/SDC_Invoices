@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { read, utils } from "xlsx";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import iconv from "iconv-lite";
 import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
