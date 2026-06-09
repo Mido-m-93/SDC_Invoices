@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useLanguage } from "@/translations";
 import { useCurrentUser, userColor, userInitials } from "@/lib/hooks/useCurrentUser";
 import clsx from "clsx";
@@ -20,10 +21,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
   const { user, signOut } = useCurrentUser();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
-      <aside className="fixed inset-y-0 left-0 z-40 w-[220px] bg-[#1a3d2b] text-white">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-stone-900/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={clsx(
+        "fixed inset-y-0 left-0 z-40 w-[220px] bg-[#1a3d2b] text-white transition-transform duration-200",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+      )}>
         <div className="border-b border-white/10 px-5 py-6">
           <p className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-white/40">
             SDC
@@ -41,6 +54,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={href}
                 href={href}
+                onClick={() => setSidebarOpen(false)}
                 className={clsx(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
                   active
@@ -68,7 +82,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {t("language_toggle")}
           </button>
 
-          {/* Current user + logout */}
           {user && (
             <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
               <span
@@ -90,10 +103,34 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="ml-[220px] min-h-screen bg-white">
-        <div className="min-h-screen px-6 py-8 lg:px-10">{children}</div>
-      </main>
+      <div className="lg:ml-[220px]">
+        {/* Mobile top bar */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-stone-100 bg-white px-4 py-3 lg:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-stone-600 hover:text-stone-900"
+            aria-label="Open menu"
+          >
+            <MenuIcon />
+          </button>
+          <span className="text-sm font-semibold text-stone-800">{t("app_name_short")}</span>
+        </div>
+
+        <main className="min-h-screen">
+          <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-10">{children}</div>
+        </main>
+      </div>
     </div>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
   );
 }
 

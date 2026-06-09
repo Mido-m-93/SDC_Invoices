@@ -103,6 +103,7 @@ export default function VendorsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
@@ -134,6 +135,7 @@ export default function VendorsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
