@@ -68,6 +68,11 @@ function LoginForm() {
         router.refresh();
       }
     } else if (mode === "signup") {
+      if (!email.toLowerCase().endsWith("@roboco-op.org")) {
+        setError("Sign up is restricted to @roboco-op.org email addresses.");
+        setLoading(false);
+        return;
+      }
       const slug = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (slug.length < 3) {
         setError("Username must be at least 3 characters (letters, numbers, underscores).");
