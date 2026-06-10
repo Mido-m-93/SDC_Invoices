@@ -10,7 +10,6 @@ function LoginForm() {
   const confirmed = searchParams.get("confirmed") === "true";
   const confirmError = searchParams.get("error") === "confirmation_failed";
   const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
-  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [loginId, setLoginId] = useState("");   // email or username for signin
   const [email, setEmail] = useState("");        // email for signup / reset
@@ -20,7 +19,7 @@ function LoginForm() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const resetForm = () => {
-    setName(""); setUsername(""); setLoginId(""); setEmail(""); setPassword("");
+    setUsername(""); setLoginId(""); setEmail(""); setPassword("");
     setError(null); setSuccess(null);
   };
 
@@ -83,7 +82,7 @@ function LoginForm() {
         email,
         password,
         options: {
-          data: { name: name.trim(), username: slug },
+          data: { username: slug },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
@@ -164,11 +163,6 @@ function LoginForm() {
           {/* Sign up fields */}
           {mode === "signup" && (
             <>
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-stone-700" htmlFor="name">Full name</label>
-                <input id="name" type="text" autoComplete="name" required value={name}
-                  onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Full name" />
-              </div>
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-stone-700" htmlFor="username">Username</label>
                 <input id="username" type="text" autoComplete="username" required value={username}
