@@ -116,10 +116,14 @@ export class MockValidationService implements IValidationService {
     const subtotal = Math.round(claimedTotal / 1.1);
     const taxAmount = claimedTotal - subtotal;
 
+    // Normalize closingMonth to YYYY-MM regardless of input format (ISO or Japanese)
+    const jpMatch = submission.closingMonth?.match(/(\d{4})年\s*(\d{1,2})月/);
+    const isoMonth = jpMatch
+      ? `${jpMatch[1]}-${jpMatch[2].padStart(2, "0")}`
+      : submission.closingMonth?.slice(0, 7);
+
     const mockExtracted: ExtractedInvoiceFields = {
-      invoiceDate: submission.closingMonth
-        ? `${submission.closingMonth.slice(0, 7)}-01`
-        : "2024-01-01",
+      invoiceDate: isoMonth ? `${isoMonth}-01` : "2024-01-01",
       subtotal,
       taxAmount,
       total: claimedTotal,
