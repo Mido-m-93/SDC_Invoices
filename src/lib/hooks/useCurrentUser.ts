@@ -31,15 +31,19 @@ export function useCurrentUser() {
       return name || authUser.email?.split("@")[0] || "User";
     };
 
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      setUser(resolveUser(authUser));
-      setReady(true);
+    supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {
+      if (refreshedUser) {
+        setUser(resolveUser(refreshedUser));
+        setReady(true);
+      } else {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        setUser(resolveUser(authUser));
+        setReady(true);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) { setUser(null); return; }
-      const { data: { user: freshUser } } = await supabase.auth.getUser();
-      setUser(resolveUser(freshUser));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(resolveUser(session?.user ?? null));
     });
 
     return () => subscription.unsubscribe();
