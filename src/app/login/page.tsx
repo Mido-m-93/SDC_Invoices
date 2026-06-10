@@ -48,7 +48,10 @@ function LoginForm() {
       const { data: signUpData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name: name.trim() } },
+        options: {
+          data: { name: name.trim() },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
       if (authError) {
         setError(authError.message);
