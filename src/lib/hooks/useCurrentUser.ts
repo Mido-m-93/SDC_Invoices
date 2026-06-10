@@ -36,8 +36,10 @@ export function useCurrentUser() {
       setReady(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(resolveUser(session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session) { setUser(null); return; }
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      setUser(resolveUser(freshUser));
     });
 
     return () => subscription.unsubscribe();
