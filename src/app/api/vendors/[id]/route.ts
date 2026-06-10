@@ -9,7 +9,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await getVendorService().saveVendor(vendor);
     return NextResponse.json({ success: true, vendor });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -18,6 +19,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     await getVendorService().deleteVendor(params.id);
     return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

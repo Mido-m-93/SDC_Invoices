@@ -21,13 +21,12 @@ function currentMonthJST(): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Optional cron secret validation (when called from GitHub Actions)
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const incoming = req.headers.get("x-cron-secret");
-    if (incoming !== cronSecret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
+  if (req.headers.get("x-cron-secret") !== cronSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: unknown;
@@ -52,6 +51,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ success: true, month, type, ...result });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

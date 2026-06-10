@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     const summary = await getReminderService().getSummary(month);
     return NextResponse.json(summary);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

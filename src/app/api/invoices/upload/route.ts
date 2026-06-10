@@ -154,8 +154,20 @@ export async function POST(req: NextRequest) {
 
     const blob = file as Blob;
     const fileName = (blob as File).name ?? "";
-    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+    if (blob.size > MAX_BYTES)
+      return NextResponse.json({ error: "File too large (max 10 MB)" }, { status: 413 });
+
     const isCSV = /\.(csv)$/i.test(fileName);
+    const allowedMime = isCSV
+      ? ["text/csv", "application/csv", "text/plain", "application/octet-stream"]
+      : ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+         "application/vnd.ms-excel", "application/octet-stream"];
+    if (blob.type && !allowedMime.includes(blob.type))
+      return NextResponse.json({ error: "Invalid file type" }, { status: 415 });
+
+    const buffer = Buffer.from(await blob.arrayBuffer());
 
     let rows: Record<string, unknown>[];
     let rawPreview = "";
@@ -193,6 +205,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ count: submissions.length, submissions, snapshotMonth, detectedHeaders, headerMapping, rawPreview });
   } catch (err) {
     console.error("[POST /api/invoices/upload]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
