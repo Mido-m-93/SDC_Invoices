@@ -92,8 +92,11 @@ function LoginForm() {
       } else if (signUpData.user && signUpData.user.identities?.length === 0) {
         setError("This email is already registered. Please sign in instead.");
         setLoading(false);
+      } else if (signUpData.session) {
+        router.push("/dashboard");
+        router.refresh();
       } else {
-        setSuccess("Check your email for a confirmation link to activate your account.");
+        setSuccess("Account created! Check your email for a confirmation link, then sign in.");
         setLoading(false);
       }
     } else {
