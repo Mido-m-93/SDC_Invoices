@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 // One-time admin endpoint to set a user's password via service role.
 // Protected by CRON_SECRET header. Remove this file after use.
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret || req.headers.get("x-admin-secret") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
