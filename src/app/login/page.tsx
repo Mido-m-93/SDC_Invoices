@@ -100,14 +100,7 @@ function LoginForm() {
         setLoading(false);
       }
     } else {
-      const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
-      });
-      if (authError) {
-        setError(authError.message);
-      } else {
-        setSuccess("Password reset email sent! Check your inbox.");
-      }
+      setSuccess("To reset your password, please contact your admin (mohamada@roboco-op.org). If you are the admin, log in and go to Settings to change your password.");
       setLoading(false);
     }
   };
