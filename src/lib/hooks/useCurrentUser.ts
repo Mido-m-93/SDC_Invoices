@@ -27,8 +27,9 @@ export function useCurrentUser() {
 
     const resolveUser = (authUser: { user_metadata?: Record<string, unknown>; email?: string } | null) => {
       if (!authUser) return null;
+      const username = authUser.user_metadata?.username as string | undefined;
       const name = authUser.user_metadata?.name as string | undefined;
-      return name || authUser.email?.split("@")[0] || "User";
+      return username || name || authUser.email?.split("@")[0] || "User";
     };
 
     supabase.auth.getUser().then(({ data: { user: authUser } }) => {
