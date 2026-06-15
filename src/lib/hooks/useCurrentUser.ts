@@ -32,12 +32,17 @@ export function useCurrentUser() {
       return username || name || authUser.email?.split("@")[0] || "User";
     };
 
-    supabase.auth.refreshSession().then(({ data: { user: authUser } }) => {
+    // getUser() hits the Supabase server and returns fresh database metadata,
+    // bypassing the stale JWT cached in localStorage.
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
       setUser(resolveUser(authUser));
       setReady(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Skip INITIAL_SESSION — it carries the stale cached JWT.
+      // getUser() above already handles the initial load with fresh server data.
+      if (event === "INITIAL_SESSION") return;
       setUser(resolveUser(session?.user ?? null));
     });
 
