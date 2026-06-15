@@ -18,17 +18,29 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
 
+  // ── Vendor state ──────────────────────────────────────────────────────────────
   const [addingVendor, setAddingVendor] = useState(false);
   const [vendorName, setVendorName] = useState(s.payerName ?? "");
   const [vendorSaving, setVendorSaving] = useState(false);
   const [vendorAdded, setVendorAdded] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
+  const [savedVendorId, setSavedVendorId] = useState<string | null>(null);
 
-  // Optimistic UI: reflect vendor registration immediately without re-validating
+  // ── Contract state ────────────────────────────────────────────────────────────
+  const [addingContract, setAddingContract] = useState(false);
+  const [contractProject, setContractProject] = useState(s.externalProjectName ?? s.projectType ?? "");
+  const [contractStart, setContractStart] = useState("");
+  const [contractEnd, setContractEnd] = useState("");
+  const [contractSaving, setContractSaving] = useState(false);
+  const [contractAdded, setContractAdded] = useState(false);
+  const [contractError, setContractError] = useState<string | null>(null);
+
+  // Optimistic UI: reflect changes immediately without re-validating
   const effectiveVendorMatched = (v?.vendorMatched ?? false) || vendorAdded;
+  const effectiveContractMatched = (v?.contractMatched ?? false) || contractAdded;
   const effectiveRiskLevel = (() => {
     if (!v?.riskLevel || v.riskLevel === "OK" || v.riskLevel === "BLOCKED") return v?.riskLevel;
-    if (vendorAdded && effectiveVendorMatched && (v.contractMatched ?? false)) return "OK";
+    if (effectiveVendorMatched && effectiveContractMatched) return "OK";
     return v.riskLevel;
   })();
 
@@ -42,12 +54,53 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
         body: JSON.stringify({ name: vendorName.trim() }),
       });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json() as { vendor: { id: string } };
+      setSavedVendorId(data.vendor.id);
       setVendorAdded(true);
       setAddingVendor(false);
     } catch (err) {
       setVendorError(err instanceof Error ? err.message : "Failed to add vendor");
     } finally {
       setVendorSaving(false);
+    }
+  }
+
+  async function handleAddContract() {
+    setContractSaving(true);
+    setContractError(null);
+    try {
+      // Resolve vendorId: use the one just created, or look up existing vendor by name
+      let vendorId = savedVendorId;
+      if (!vendorId) {
+        const vRes = await fetch("/api/vendors");
+        if (!vRes.ok) throw new Error("Failed to fetch vendors");
+        const vData = await vRes.json() as { vendors: Array<{ id: string; name: string; aliases?: string[] }> };
+        const match = vData.vendors.find(
+          (vnd) =>
+            vnd.name.toLowerCase() === (s.payerName ?? "").toLowerCase() ||
+            vnd.aliases?.some((a) => a.toLowerCase() === (s.payerName ?? "").toLowerCase())
+        );
+        if (!match) throw new Error("Vendor not found — please add the vendor first");
+        vendorId = match.id;
+      }
+      const res = await fetch("/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorId,
+          projectName: contractProject.trim() || s.payerName,
+          startDate: contractStart,
+          endDate: contractEnd,
+          status: "active",
+        }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      setContractAdded(true);
+      setAddingContract(false);
+    } catch (err) {
+      setContractError(err instanceof Error ? err.message : "Failed to add contract");
+    } finally {
+      setContractSaving(false);
     }
   }
 
@@ -169,7 +222,7 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                 )}
                 <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
                   <ValidationCheck label="Vendor Registered" pass={effectiveVendorMatched} />
-                  <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
+                  <ValidationCheck label="Active Contract Found" pass={effectiveContractMatched} />
                 </div>
 
                 {/* Add as Vendor — shown when vendor is not registered */}
@@ -220,6 +273,76 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
 
                 {vendorAdded && (
                   <p className="text-xs text-green-700 font-semibold px-1">✓ Vendor added successfully</p>
+                )}
+
+                {/* Add as Contract — shown when contract is not found */}
+                {!v.contractMatched && !contractAdded && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
+                    {!addingContract ? (
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-blue-700">No active contract found.</p>
+                        <button
+                          onClick={() => setAddingContract(true)}
+                          className="text-xs font-semibold text-blue-800 underline hover:text-blue-900"
+                        >
+                          + Add Contract
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-blue-800">Register new contract</p>
+                        <input
+                          type="text"
+                          value={contractProject}
+                          onChange={(e) => setContractProject(e.target.value)}
+                          placeholder="Project name"
+                          className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <p className="text-[10px] text-blue-700 mb-0.5">Start date</p>
+                            <input
+                              type="date"
+                              value={contractStart}
+                              onChange={(e) => setContractStart(e.target.value)}
+                              className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-blue-700 mb-0.5">End date</p>
+                            <input
+                              type="date"
+                              value={contractEnd}
+                              onChange={(e) => setContractEnd(e.target.value)}
+                              className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                          </div>
+                        </div>
+                        {contractError && (
+                          <p className="text-xs text-red-600">{contractError}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleAddContract}
+                            disabled={contractSaving || !contractStart || !contractEnd}
+                            className="rounded bg-blue-700 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                          >
+                            {contractSaving ? "Saving…" : "Save Contract"}
+                          </button>
+                          <button
+                            onClick={() => setAddingContract(false)}
+                            className="rounded px-3 py-1 text-xs text-stone-500 hover:text-stone-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {contractAdded && (
+                  <p className="text-xs text-green-700 font-semibold px-1">✓ Contract added successfully</p>
                 )}
 
                 {v.reviewerRecommendation && (
