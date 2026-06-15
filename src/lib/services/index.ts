@@ -46,6 +46,7 @@ import { MockReminderService } from "./mock/reminderService";
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
 import { RealDriveService } from "./real/DriveService";
+import { RealValidationService } from "./real/ValidationService";
 import { SupabaseStorageService } from "./real/SupabaseStorageService";
 import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
@@ -104,10 +105,8 @@ export function getValidationService(): IValidationService {
     if (isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")) {
       _validation = new MockValidationService();
     } else {
-      throw new Error(
-        "[ValidationService] Real implementation is not yet available. " +
-        "Remove NEXT_PUBLIC_USE_MOCK_VALIDATION=false or keep it unset to use the mock."
-      );
+      // Real service uses the same Drive service to fetch PDF bytes
+      _validation = new RealValidationService(getDriveService());
     }
   }
   return _validation;

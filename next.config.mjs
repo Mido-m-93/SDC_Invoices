@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ["iconv-lite"],
+    serverComponentsExternalPackages: ["iconv-lite", "pdf-parse"],
   },
 };
 
