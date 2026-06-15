@@ -25,7 +25,7 @@ jobs:
           TYPE="${{ github.event.inputs.type || 'all' }}"
           echo "Sending reminders: type=$TYPE"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
+          RESPONSE=$(curl -s -L -w "\n%{http_code}" \
             -X POST "$APP_URL/api/reminders/send" \
             -H "Content-Type: application/json" \
             -H "x-cron-secret: $CRON_SECRET" \
