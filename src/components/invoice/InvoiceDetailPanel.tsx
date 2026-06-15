@@ -24,6 +24,14 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const [vendorAdded, setVendorAdded] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
 
+  // Optimistic UI: reflect vendor registration immediately without re-validating
+  const effectiveVendorMatched = (v?.vendorMatched ?? false) || vendorAdded;
+  const effectiveRiskLevel = (() => {
+    if (!v?.riskLevel || v.riskLevel === "OK" || v.riskLevel === "BLOCKED") return v?.riskLevel;
+    if (vendorAdded && effectiveVendorMatched && (v.contractMatched ?? false)) return "OK";
+    return v.riskLevel;
+  })();
+
   async function handleAddVendor() {
     setVendorSaving(true);
     setVendorError(null);
@@ -142,30 +150,20 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
           {/* ── Risk assessment ──────────────────────────────────────── */}
           {v && (v.riskLevel || v.vendorMatched !== undefined) && (
             <Section title="Risk Assessment">
-              {(() => {
-                const effectiveVendorMatched = (v.vendorMatched ?? false) || vendorAdded;
-                // Optimistically recalculate risk after vendor is added.
-                // Only upgrade from NEEDS_REVIEW → OK; never change BLOCKED.
-                const effectiveRisk =
-                  vendorAdded && v.riskLevel !== "OK" && v.riskLevel !== "BLOCKED"
-                    ? effectiveVendorMatched && (v.contractMatched ?? false) ? "OK" : v.riskLevel
-                    : v.riskLevel;
-
-                return (
               <div className="space-y-3">
                 {v.riskLevel && (
                   <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
-                    effectiveRisk === "OK" ? "bg-green-50 border border-green-200" :
-                    effectiveRisk === "BLOCKED" ? "bg-red-50 border border-red-200" :
+                    effectiveRiskLevel === "OK" ? "bg-green-50 border border-green-200" :
+                    effectiveRiskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
                     "bg-amber-50 border border-amber-200"
                   }`}>
                     <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Risk Level</span>
                     <span className={`text-sm font-bold ${
-                      effectiveRisk === "OK" ? "text-green-700" :
-                      effectiveRisk === "BLOCKED" ? "text-red-700" :
+                      effectiveRiskLevel === "OK" ? "text-green-700" :
+                      effectiveRiskLevel === "BLOCKED" ? "text-red-700" :
                       "text-amber-700"
                     }`}>
-                      {effectiveRisk === "OK" ? "✓ OK" : effectiveRisk === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
+                      {effectiveRiskLevel === "OK" ? "✓ OK" : effectiveRiskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
                     </span>
                   </div>
                 )}
@@ -231,8 +229,6 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                   </div>
                 )}
               </div>
-                );
-              })()}
             </Section>
           )}
 
