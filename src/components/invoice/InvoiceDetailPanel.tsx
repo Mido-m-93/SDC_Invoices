@@ -1,6 +1,7 @@
 "use client";
 // src/components/invoice/InvoiceDetailPanel.tsx
 
+import { useState } from "react";
 import { useLanguage } from "@/translations";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
@@ -16,6 +17,31 @@ interface Props {
 export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
+
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [vendorName, setVendorName] = useState(s.payerName ?? "");
+  const [vendorSaving, setVendorSaving] = useState(false);
+  const [vendorAdded, setVendorAdded] = useState(false);
+  const [vendorError, setVendorError] = useState<string | null>(null);
+
+  async function handleAddVendor() {
+    setVendorSaving(true);
+    setVendorError(null);
+    try {
+      const res = await fetch("/api/vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: vendorName.trim() }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      setVendorAdded(true);
+      setAddingVendor(false);
+    } catch (err) {
+      setVendorError(err instanceof Error ? err.message : "Failed to add vendor");
+    } finally {
+      setVendorSaving(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
@@ -134,9 +160,60 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                   </div>
                 )}
                 <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
-                  <ValidationCheck label="Vendor Registered" pass={v.vendorMatched ?? false} />
+                  <ValidationCheck label="Vendor Registered" pass={(v.vendorMatched ?? false) || vendorAdded} />
                   <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
                 </div>
+
+                {/* Add as Vendor — shown when vendor is not registered */}
+                {!v.vendorMatched && !vendorAdded && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+                    {!addingVendor ? (
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-amber-700">Vendor not registered in the system.</p>
+                        <button
+                          onClick={() => setAddingVendor(true)}
+                          className="text-xs font-semibold text-amber-800 underline hover:text-amber-900"
+                        >
+                          + Add as Vendor
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-amber-800">Register as new vendor</p>
+                        <input
+                          type="text"
+                          value={vendorName}
+                          onChange={(e) => setVendorName(e.target.value)}
+                          placeholder="Vendor name"
+                          className="w-full rounded border border-amber-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        />
+                        {vendorError && (
+                          <p className="text-xs text-red-600">{vendorError}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleAddVendor}
+                            disabled={vendorSaving || !vendorName.trim()}
+                            className="rounded bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                          >
+                            {vendorSaving ? "Saving…" : "Save Vendor"}
+                          </button>
+                          <button
+                            onClick={() => setAddingVendor(false)}
+                            className="rounded px-3 py-1 text-xs text-stone-500 hover:text-stone-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {vendorAdded && (
+                  <p className="text-xs text-green-700 font-semibold px-1">✓ Vendor added successfully</p>
+                )}
+
                 {v.reviewerRecommendation && (
                   <div className="flex items-center gap-2 text-xs text-stone-500 px-1">
                     <span className="font-medium">Recommended Reviewer:</span>
