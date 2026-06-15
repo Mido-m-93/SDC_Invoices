@@ -116,7 +116,6 @@ export default function SettingsPage() {
             </button>
           </form>
         </div>
-        </div>
       </div>
     </AppShell>
   );
