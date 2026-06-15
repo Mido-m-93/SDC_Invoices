@@ -32,7 +32,7 @@ export function useCurrentUser() {
       return username || name || authUser.email?.split("@")[0] || "User";
     };
 
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+    supabase.auth.refreshSession().then(({ data: { user: authUser } }) => {
       setUser(resolveUser(authUser));
       setReady(true);
     });
