@@ -113,7 +113,8 @@ export async function extractWithPdfParseAndClaude(
   pdfBytes: Uint8Array
 ): Promise<ExtractedInvoiceFields> {
   // Dynamic import keeps pdf-parse out of the browser bundle
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // pdf-parse ships CJS only; require() is the correct import pattern here
+  // eslint-disable-next-line
   const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
   const pdfData = await pdfParse(Buffer.from(pdfBytes));
   const rawText = pdfData.text ?? "";
