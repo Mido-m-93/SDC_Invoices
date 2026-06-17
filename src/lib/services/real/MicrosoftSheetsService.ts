@@ -56,6 +56,7 @@ const COLUMN_MAP: Record<string, keyof InvoiceSubmission | "email"> = {
   "Name":                                                     "payerName",
   "Email":                                                    "email",
   "名前（Name）":                                             "payerName",
+  "Invoice Amount(local currency) and Dollars 請求金額（現地通貨および米ドル）": "claimedAmountTaxIncluded",
   "請求金額(税込)　※請求通貨で記入 Invoice Amount(local currency)": "claimedAmountTaxIncluded",
   "請求金額(税込)　※請求通貨で記入":                          "claimedAmountTaxIncluded",
   "請求書の稼働月 Which month does this invoice cover?":       "closingMonth",

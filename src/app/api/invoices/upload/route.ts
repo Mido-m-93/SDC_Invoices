@@ -83,7 +83,7 @@ type FieldName = keyof InvoiceSubmission | "email";
 const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
   { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
   { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
-  { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
+  { keywords: ["Invoice Amount", "請求金額", "現地通貨および米ドル"],                         field: "claimedAmountTaxIncluded" },
   { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
   { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                 field: "projectType" },
   { keywords: ["For Internal Projects Only", "内部案件の場合のみ"],                           field: "internalDepartment" },

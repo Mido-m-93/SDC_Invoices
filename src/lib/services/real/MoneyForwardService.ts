@@ -27,6 +27,7 @@ export interface MFSendPayload {
   billingDate: string;   // YYYY-MM-DD
   dueDate?: string;      // YYYY-MM-DD
   amount: number;        // tax-included total
+  currency?: "JPY" | "USD";
   memo?: string;
   pdfData?: Uint8Array;
   pdfFilename?: string;
@@ -104,6 +105,7 @@ export class MoneyForwardService {
         billing_date:  payload.billingDate,
         due_date:      payload.dueDate ?? null,
         memo:          payload.memo ?? "",
+        currency: payload.currency ?? "JPY",
         items: [
           {
             name:       payload.title,

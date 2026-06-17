@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
 import { getDriveService } from "@/lib/services";
+import { detectCurrency } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
 interface RequestBody {
@@ -64,12 +65,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const currency  = detectCurrency(submission.claimedAmountTaxIncluded);
     const mfService = new MoneyForwardService();
     const result    = await mfService.sendInvoice({
       partnerName: submission.payerName,
       title:       buildTitle(submission),
       billingDate,
       amount,
+      currency,
       memo: [
         submission.externalProjectName || submission.internalDepartment,
         submission.notes,

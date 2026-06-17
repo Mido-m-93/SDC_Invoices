@@ -122,8 +122,20 @@ export function truncate(s: string, max = 40): string {
 }
 
 // ── Currency display ──────────────────────────────────────────────────────────
+// Detects USD vs JPY from the raw string.
+// USD signals: $, USD, Dollars, Dollar, ドル
+// Everything else defaults to JPY (¥).
+export function detectCurrency(raw: string): "USD" | "JPY" {
+  const u = raw.toUpperCase();
+  if (/\$|USD|DOLLAR|ドル/.test(u)) return "USD";
+  return "JPY";
+}
+
 export function formatCurrency(raw: string): string {
   const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
   if (isNaN(n)) return raw || "—";
+  if (detectCurrency(raw) === "USD") {
+    return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
   return `¥${n.toLocaleString("ja-JP")}`;
 }
