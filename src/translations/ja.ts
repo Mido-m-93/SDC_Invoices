@@ -199,6 +199,16 @@ const ja = {
   config_payment_terms: "支払期日の基準（締め月末日から何日後）",
   config_escalation_recipient: "エスカレーション通知先",
   config_escalation_placeholder: "メールアドレス または Teamsのメンション",
+
+  // ── Money Forward ─────────────────────────────────────────────────────────
+  mf_send: "Money Forwardに送信",
+  mf_sending: "送信中…",
+  mf_sent: "Money Forwardに送信済み",
+  mf_error: "Money Forwardへの送信に失敗しました",
+  mf_not_connected: "Money Forwardが未接続です",
+  mf_not_connected_hint: "/api/auth/moneyforward にアクセスして接続してください",
+  mf_billing_url: "Money Forwardで表示",
+  section_money_forward: "Money Forward",
 } as const;
 
 export default ja;

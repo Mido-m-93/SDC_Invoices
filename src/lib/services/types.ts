@@ -32,6 +32,18 @@ export interface ISheetsService {
 }
 
 // ── Drive service ─────────────────────────────────────────────────────────────
+export interface DriveFile {
+  fileId: string;
+  filename: string;
+  mimeType: string;
+  webViewLink: string;
+}
+
+export interface DriveFolder {
+  folderId: string;
+  folderName: string;
+}
+
 export interface IDriveService {
   /**
    * Fetch the raw bytes (or metadata) of an attachment by its URL.
@@ -66,6 +78,16 @@ export interface IDriveService {
     folderId: string;
     filename: string;
   }): Promise<boolean>;
+
+  /**
+   * List all month subfolders inside the root folder, sorted newest first.
+   */
+  listMonthFolders(rootFolderId: string): Promise<DriveFolder[]>;
+
+  /**
+   * List all files (non-folder) inside a given folder.
+   */
+  listFilesInFolder(folderId: string): Promise<DriveFile[]>;
 }
 
 // ── Validation service ────────────────────────────────────────────────────────

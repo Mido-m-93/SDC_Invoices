@@ -100,6 +100,33 @@ export class MockDriveService implements IDriveService {
     // Simulate: the filed document for sub-005 already exists
     return params.filename.startsWith("中村 美咲_");
   }
+
+  async listMonthFolders(_rootFolderId: string) {
+    await delay(200);
+    return [
+      { folderId: "mock-folder-2025-06", folderName: "2025-06" },
+      { folderId: "mock-folder-2025-05", folderName: "2025-05" },
+      { folderId: "mock-folder-2025-04", folderName: "2025-04" },
+    ];
+  }
+
+  async listFilesInFolder(folderId: string) {
+    await delay(300);
+    return [
+      {
+        fileId:      `${folderId}-file-1`,
+        filename:    "田中 太郎_2025-06_invoice.pdf",
+        mimeType:    "application/pdf",
+        webViewLink: `https://drive.google.com/file/d/${folderId}-file-1/view`,
+      },
+      {
+        fileId:      `${folderId}-file-2`,
+        filename:    "山田 花子_2025-06_invoice.pdf",
+        mimeType:    "application/pdf",
+        webViewLink: `https://drive.google.com/file/d/${folderId}-file-2/view`,
+      },
+    ];
+  }
 }
 
 // ── Mock Validation Service ───────────────────────────────────────────────────

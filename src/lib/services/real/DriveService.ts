@@ -1,6 +1,6 @@
 // lib/services/real/DriveService.ts — Real Google Drive integration
 import { google } from "googleapis";
-import type { IDriveService } from "../types";
+import type { IDriveService, DriveFile, DriveFolder } from "../types";
 
 export class RealDriveService implements IDriveService {
   private auth;
@@ -82,5 +82,35 @@ export class RealDriveService implements IDriveService {
       fields: "files(id)",
     });
     return (res.data.files?.length ?? 0) > 0;
+  }
+
+  async listMonthFolders(rootFolderId: string): Promise<DriveFolder[]> {
+    const drive = await this.getDrive();
+    const res = await drive.files.list({
+      q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: "files(id,name)",
+      orderBy: "name desc",
+      pageSize: 100,
+    });
+    return (res.data.files ?? []).map((f) => ({
+      folderId: f.id!,
+      folderName: f.name!,
+    }));
+  }
+
+  async listFilesInFolder(folderId: string): Promise<DriveFile[]> {
+    const drive = await this.getDrive();
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
+      fields: "files(id,name,mimeType,webViewLink)",
+      orderBy: "name",
+      pageSize: 200,
+    });
+    return (res.data.files ?? []).map((f) => ({
+      fileId:      f.id!,
+      filename:    f.name!,
+      mimeType:    f.mimeType!,
+      webViewLink: f.webViewLink ?? `https://drive.google.com/file/d/${f.id}/view`,
+    }));
   }
 }

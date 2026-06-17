@@ -199,6 +199,16 @@ const en = {
   config_payment_terms: "Payment terms (days after end of closing month)",
   config_escalation_recipient: "Escalation recipient",
   config_escalation_placeholder: "Email address or Teams mention",
+
+  // ── Money Forward ─────────────────────────────────────────────────────────
+  mf_send: "Send to Money Forward",
+  mf_sending: "Sending…",
+  mf_sent: "Sent to Money Forward",
+  mf_error: "Failed to send to Money Forward",
+  mf_not_connected: "Money Forward not connected",
+  mf_not_connected_hint: "Visit /api/auth/moneyforward to connect",
+  mf_billing_url: "View in Money Forward",
+  section_money_forward: "Money Forward",
 } as const;
 
 export default en;
