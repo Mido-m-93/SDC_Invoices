@@ -14,6 +14,7 @@ import type {
   IVendorService,
   IContractService,
 } from "../types";
+import { enrichWithRisk } from "../riskEnrichment";
 import type {
   InvoiceSubmission,
   InvoiceValidationResult,
@@ -131,19 +132,23 @@ export class MockDriveService implements IDriveService {
 
 // ── Mock Validation Service ───────────────────────────────────────────────────
 export class MockValidationService implements IValidationService {
+  constructor(
+    private vendorService: IVendorService,
+    private contractService: IContractService
+  ) {}
+
   async validate(submission: InvoiceSubmission): Promise<InvoiceValidationResult> {
     await delay(500);
 
     if (!submission.invoiceAttachment) {
       const base = safeValidationResult(submission, null, false, false);
-      return enrichWithRisk(base, submission);
+      return enrichWithRisk(base, submission, this.vendorService, this.contractService);
     }
 
     const claimedTotal = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 100000;
     const subtotal = Math.round(claimedTotal / 1.1);
     const taxAmount = claimedTotal - subtotal;
 
-    // Normalize closingMonth to YYYY-MM regardless of input format (ISO or Japanese)
     const jpMatch = submission.closingMonth?.match(/(\d{4})年\s*(\d{1,2})月/);
     const isoMonth = jpMatch
       ? `${jpMatch[1]}-${jpMatch[2].padStart(2, "0")}`
@@ -161,7 +166,7 @@ export class MockValidationService implements IValidationService {
     };
 
     const base = safeValidationResult(submission, mockExtracted, true, false);
-    return enrichWithRisk(base, submission);
+    return enrichWithRisk(base, submission, this.vendorService, this.contractService);
   }
 
   async validateBatch(submissions: InvoiceSubmission[]): Promise<InvoiceValidationResult[]> {
@@ -169,75 +174,6 @@ export class MockValidationService implements IValidationService {
   }
 }
 
-function normalizeForMatch(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, "");
-}
-
-function enrichWithRisk(
-  result: InvoiceValidationResult,
-  submission: InvoiceSubmission
-): InvoiceValidationResult {
-  const vendors = loadVendors();
-  const contracts = loadContracts();
-  const payerNorm = normalizeForMatch(submission.payerName);
-
-  const vendor = vendors.find(
-    (v) =>
-      v.status === "active" &&
-      [v.name, ...v.aliases].some((n) => normalizeForMatch(n) === payerNorm)
-  );
-
-  const vendorMatched = !!vendor;
-  let contractMatched = false;
-  let contractId: string | undefined;
-  let activeContract: Contract | undefined;
-
-  if (vendor) {
-    const today = new Date().toISOString().slice(0, 10);
-    activeContract = contracts.find(
-      (c) =>
-        c.vendorId === vendor.id &&
-        c.status === "active" &&
-        c.startDate <= today &&
-        c.endDate >= today
-    );
-    contractMatched = !!activeContract;
-    contractId = activeContract?.id;
-  }
-
-  // Risk scoring
-  let riskLevel: import("@/types").RiskLevel;
-  let reviewerRecommendation: string;
-
-  if (vendorMatched && !contractMatched) {
-    // Known vendor but no active contract — blocked
-    riskLevel = "BLOCKED";
-    reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-  } else if (!vendorMatched) {
-    // Unknown vendor — needs review
-    riskLevel = "NEEDS_REVIEW";
-    reviewerRecommendation = "Accounting Lead";
-  } else if (
-    activeContract &&
-    submission.claimedAmountTaxIncluded &&
-    activeContract.expectedMonthlyAmount > 0
-  ) {
-    const claimed = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 0;
-    const tolerance = activeContract.expectedMonthlyAmount * 0.1; // 10% tolerance
-    if (Math.abs(claimed - activeContract.expectedMonthlyAmount) > tolerance) {
-      riskLevel = "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-    } else {
-      riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting";
-    }
-  } else {
-    riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-    reviewerRecommendation = vendor?.defaultReviewer || "Accounting";
-  }
-
-  return { ...result, vendorMatched, contractMatched, contractId, riskLevel, reviewerRecommendation };
-}
 
 // ── Mock Storage Service ──────────────────────────────────────────────────────
 export class MockStorageService implements IStorageService {

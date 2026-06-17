@@ -103,10 +103,9 @@ export function getDriveService(): IDriveService {
 export function getValidationService(): IValidationService {
   if (!_validation) {
     if (isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")) {
-      _validation = new MockValidationService();
+      _validation = new MockValidationService(getVendorService(), getContractService());
     } else {
-      // Real service uses the same Drive service to fetch PDF bytes
-      _validation = new RealValidationService(getDriveService());
+      _validation = new RealValidationService(getDriveService(), getVendorService(), getContractService());
     }
   }
   return _validation;

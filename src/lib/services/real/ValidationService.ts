@@ -10,12 +10,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
-import type { IDriveService, IValidationService } from "../types";
+import type { IDriveService, IVendorService, IContractService, IValidationService } from "../types";
 import { safeValidationResult } from "@/lib/validation/invoiceValidator";
 import { extractFromPdf } from "../ai/pdfExtractor";
+import { enrichWithRisk } from "../riskEnrichment";
 
 export class RealValidationService implements IValidationService {
-  constructor(private drive: IDriveService) {}
+  constructor(
+    private drive: IDriveService,
+    private vendorService: IVendorService,
+    private contractService: IContractService
+  ) {}
 
   async validate(submission: InvoiceSubmission): Promise<InvoiceValidationResult> {
     let pdfAccessible = false;
@@ -33,11 +38,9 @@ export class RealValidationService implements IValidationService {
       }
     }
 
-    // Duplicate detection requires a Drive folder scan — skipped here;
-    // the filing step handles duplicates before upload.
     const duplicateDetected = false;
-
-    return safeValidationResult(submission, extracted, pdfAccessible, duplicateDetected);
+    const base = safeValidationResult(submission, extracted, pdfAccessible, duplicateDetected);
+    return enrichWithRisk(base, submission, this.vendorService, this.contractService);
   }
 
   async validateBatch(submissions: InvoiceSubmission[]): Promise<InvoiceValidationResult[]> {
