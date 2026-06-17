@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       id: body.id || generateId(),
       vendorId: body.vendorId ?? "",
       projectName: body.projectName ?? "",
-      startDate: body.startDate ?? "",
+      startDate: body.startDate || new Date().toISOString().slice(0, 10),
       endDate: body.endDate ?? "",
       expectedMonthlyAmount: body.expectedMonthlyAmount ?? 0,
       currency: body.currency ?? "JPY",

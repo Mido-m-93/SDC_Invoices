@@ -40,7 +40,7 @@ export async function enrichWithRisk(
       (c) =>
         c.vendorId === vendor.id &&
         c.status === "active" &&
-        c.startDate <= today &&
+        (!c.startDate || c.startDate <= today) &&
         (!c.endDate || c.endDate >= today)
     );
     contractMatched = !!activeContract;
