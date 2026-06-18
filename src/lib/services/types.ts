@@ -14,6 +14,9 @@ import type {
   AppConfig,
   Vendor,
   Contract,
+  Proposal,
+  PaymentRecord,
+  PaymentRecordStatus,
   ReminderType,
   ReminderLog,
   ReminderGap,
@@ -29,6 +32,19 @@ import type {
   CloseChecklistItem,
   MonthlyCloseChecklist,
   CloseChecklistItemStatus,
+  Client,
+  ClientStatus,
+  Lead,
+  LeadStage,
+  LeadSummary,
+  Member,
+  MemberStatus,
+  AccountingEntry,
+  AccountingEntryType,
+  AccountingEntryStatus,
+  ProfitAndLoss,
+  AccountingSummary,
+  ReportingKPIs,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -158,6 +174,20 @@ export interface IContractService {
   deleteContract(id: string): Promise<void>;
 }
 
+// ── Proposal service ──────────────────────────────────────────────────────────
+export interface IProposalService {
+  listProposals(): Promise<Proposal[]>;
+  saveProposal(proposal: Proposal): Promise<void>;
+  deleteProposal(id: string): Promise<void>;
+}
+
+// ── Payment record service ────────────────────────────────────────────────────
+export interface IPaymentRecordService {
+  listPaymentRecords(filters?: { invoiceId?: string; contractId?: string; status?: PaymentRecordStatus }): Promise<PaymentRecord[]>;
+  savePaymentRecord(record: PaymentRecord): Promise<void>;
+  deletePaymentRecord(id: string): Promise<void>;
+}
+
 // ── Notification service (Phase 7) ───────────────────────────────────────────
 export interface INotificationService {
   /** Send a single reminder card. Returns true on success. */
@@ -224,4 +254,47 @@ export interface IReminderService {
 
   /** Return recent reminder log entries for the month. */
   getLogs(month: string): Promise<ReminderLog[]>;
+}
+
+// ── Client service (Phase 11) ─────────────────────────────────────────────────
+export interface IClientService {
+  listClients(filters?: { status?: ClientStatus }): Promise<Client[]>;
+  getClient(id: string): Promise<Client | null>;
+  saveClient(client: Client): Promise<void>;
+  deleteClient(id: string): Promise<void>;
+}
+
+// ── Lead service (Phase 11) ───────────────────────────────────────────────────
+export interface ILeadService {
+  listLeads(filters?: { stage?: LeadStage; assignedTo?: string; clientId?: string }): Promise<Lead[]>;
+  getLead(id: string): Promise<Lead | null>;
+  saveLead(lead: Lead): Promise<void>;
+  deleteLead(id: string): Promise<void>;
+  updateStage(id: string, stage: LeadStage, actorName: string): Promise<void>;
+  getSummary(month?: string): Promise<LeadSummary>;
+}
+
+// ── Member service (Phase 11) ─────────────────────────────────────────────────
+export interface IMemberService {
+  listMembers(filters?: { status?: MemberStatus; role?: string }): Promise<Member[]>;
+  getMember(id: string): Promise<Member | null>;
+  saveMember(member: Member): Promise<void>;
+  deleteMember(id: string): Promise<void>;
+}
+
+// ── Accounting service (Phase 11) ─────────────────────────────────────────────
+export interface IAccountingService {
+  listEntries(filters?: { month?: string; type?: AccountingEntryType; status?: AccountingEntryStatus; sourceType?: string }): Promise<AccountingEntry[]>;
+  getEntry(id: string): Promise<AccountingEntry | null>;
+  saveEntry(entry: AccountingEntry): Promise<void>;
+  deleteEntry(id: string): Promise<void>;
+  postEntry(id: string, actorName: string): Promise<void>;
+  voidEntry(id: string, actorName: string): Promise<void>;
+  getProfitAndLoss(month: string): Promise<ProfitAndLoss>;
+  getSummary(month: string): Promise<AccountingSummary>;
+}
+
+// ── Reporting service (Phase 11) ──────────────────────────────────────────────
+export interface IReportingService {
+  getKPIs(month: string): Promise<ReportingKPIs>;
 }

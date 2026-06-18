@@ -8,7 +8,9 @@ const en = {
   app_name_short: "Invoice Tool",
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
+  nav_proposals: "Proposals",
   nav_invoices: "Invoices",
+  nav_payment_records: "Payments",
   nav_logs: "Logs",
   nav_config: "Settings",
 
@@ -151,6 +153,11 @@ const en = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
+  nav_clients: "Clients",
+  nav_leads: "Leads",
+  nav_members: "Members",
+  nav_accounting: "Accounting",
+  nav_reporting: "Reporting",
 
   // ── Phase 8: Expenses ─────────────────────────────────────────────────────
   nav_expenses: "Expenses",
