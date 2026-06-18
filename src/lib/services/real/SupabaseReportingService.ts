@@ -11,7 +11,7 @@ export class SupabaseReportingService implements IReportingService {
     const [leads, proposals, outbound, accounting, expenses, contracts, vendors] = await Promise.all([
       db.from("leads").select("stage, estimated_value, currency, created_at"),
       db.from("proposals").select("status"),
-      db.from("outbound_invoices").select("status, total_amount, currency"),
+      db.from("outbound_invoices").select("status, total, currency"),
       db.from("accounting_entries").select("type, amount_jpy, status").eq("month", month),
       db.from("expense_claims").select("status"),
       db.from("contracts").select("status"),
@@ -25,10 +25,10 @@ export class SupabaseReportingService implements IReportingService {
     const proposalsData = (proposals.data ?? []) as Array<{ status: string }>;
     const proposalsAccepted = proposalsData.filter(p => p.status === "accepted").length;
 
-    const outboundData = (outbound.data ?? []) as Array<{ status: string; total_amount: number }>;
+    const outboundData = (outbound.data ?? []) as Array<{ status: string; total: number }>;
     const outboundPaid = outboundData.filter(o => o.status === "paid").length;
     const outboundOverdue = outboundData.filter(o => o.status === "overdue").length;
-    const totalOutstandingJpy = outboundData.filter(o => !["paid","cancelled"].includes(o.status)).reduce((s, o) => s + (o.total_amount ?? 0), 0);
+    const totalOutstandingJpy = outboundData.filter(o => !["paid","cancelled"].includes(o.status)).reduce((s, o) => s + (o.total ?? 0), 0);
 
     const accData = (accounting.data ?? []) as Array<{ type: string; amount_jpy: number; status: string }>;
     const posted = accData.filter(e => e.status === "posted");

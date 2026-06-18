@@ -27,6 +27,10 @@ export function currentISOTimestamp(): string {
   return new Date().toISOString();
 }
 
+export function currentYearMonth(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
 // ── Month helpers ─────────────────────────────────────────────────────────────
 
 // Parses any common date/month string into "YYYY-MM". Returns "unknown" if

@@ -431,11 +431,19 @@ export class MockAccountingService implements IAccountingService {
   async deleteEntry(id: string): Promise<void> { this.store.delete(id); }
   async postEntry(id: string, actorName: string): Promise<void> {
     const e = this.store.get(id);
-    if (e) this.store.set(id, { ...e, status: "posted", postedBy: actorName, postedAt: new Date().toISOString() });
+    if (!e) return;
+    if (e.status !== "draft") {
+      throw new Error(`Cannot post entry "${id}": status is "${e.status}", expected "draft".`);
+    }
+    this.store.set(id, { ...e, status: "posted", postedBy: actorName, postedAt: new Date().toISOString() });
   }
   async voidEntry(id: string, actorName: string): Promise<void> {
     const e = this.store.get(id);
-    if (e) this.store.set(id, { ...e, status: "voided", postedBy: actorName });
+    if (!e) return;
+    if (e.status !== "posted") {
+      throw new Error(`Cannot void entry "${id}": status is "${e.status}", expected "posted".`);
+    }
+    this.store.set(id, { ...e, status: "voided", postedBy: actorName });
   }
   async getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
     return { month, totalRevenue: 0, totalExpenses: 0, grossProfit: 0, grossMarginPct: 0, byCategory: [], currency: "JPY" };
