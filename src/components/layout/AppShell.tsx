@@ -14,6 +14,9 @@ const NAV_ITEMS = [
   { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
   { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
   { key: "nav_exceptions" as const, href: "/exceptions", icon: AlertIcon },
+  { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
+  { key: "nav_outbound" as const, href: "/outbound", icon: SendIcon },
+  { key: "nav_close" as const, href: "/close", icon: ChecklistIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
@@ -244,6 +247,34 @@ function AlertIcon({ size = 18 }: { size?: number }) {
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+function ReceiptIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2l-3 2-2-2-3 2-3-2-2 2z" />
+      <line x1="9" y1="9" x2="15" y2="9" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+    </svg>
+  );
+}
+
+function SendIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22,2 15,22 11,13 2,9" />
+    </svg>
+  );
+}
+
+function ChecklistIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
   );
 }

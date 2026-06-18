@@ -152,6 +152,9 @@ const ja = {
   nav_vendors: "取引先",
   nav_contracts: "契約",
   nav_exceptions: "例外一覧",
+  nav_expenses: "経費申請",
+  nav_outbound: "請求発行",
+  nav_close: "月次締め",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "閉じる",

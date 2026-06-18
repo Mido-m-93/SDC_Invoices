@@ -29,6 +29,9 @@ import type {
   IContractService,
   INotificationService,
   IReminderService,
+  IExpenseService,
+  IOutboundService,
+  ICloseService,
 } from "./types";
 
 import {
@@ -42,6 +45,9 @@ import {
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
+import { MockExpenseService } from "./mock/expenseService";
+import { MockOutboundService } from "./mock/outboundService";
+import { MockCloseService } from "./mock/closeService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
@@ -56,6 +62,9 @@ import { SlackNotificationService } from "./real/SlackNotificationService";
 import { EmailNotificationService } from "./real/EmailNotificationService";
 import { MultiChannelNotificationService } from "./real/MultiChannelNotificationService";
 import { SupabaseReminderService } from "./real/SupabaseReminderService";
+import { SupabaseExpenseService } from "./real/SupabaseExpenseService";
+import { SupabaseOutboundService } from "./real/SupabaseOutboundService";
+import { SupabaseCloseService } from "./real/SupabaseCloseService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -74,6 +83,9 @@ let _vendor: IVendorService | undefined;
 let _contract: IContractService | undefined;
 let _notification: INotificationService | undefined;
 let _reminder: IReminderService | undefined;
+let _expense: IExpenseService | undefined;
+let _outbound: IOutboundService | undefined;
+let _close: ICloseService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
@@ -194,6 +206,36 @@ export function getReminderService(): IReminderService {
       : new SupabaseReminderService(notif, paymentTermsDays);
   }
   return _reminder;
+}
+
+// ── Expense (Phase 8) ─────────────────────────────────────────────────────────
+export function getExpenseService(): IExpenseService {
+  if (!_expense) {
+    _expense = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockExpenseService()
+      : new SupabaseExpenseService();
+  }
+  return _expense;
+}
+
+// ── Outbound (Phase 9) ────────────────────────────────────────────────────────
+export function getOutboundService(): IOutboundService {
+  if (!_outbound) {
+    _outbound = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockOutboundService()
+      : new SupabaseOutboundService();
+  }
+  return _outbound;
+}
+
+// ── Monthly close (Phase 10) ──────────────────────────────────────────────────
+export function getCloseService(): ICloseService {
+  if (!_close) {
+    _close = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockCloseService()
+      : new SupabaseCloseService();
+  }
+  return _close;
 }
 
 // ── Startup diagnostic (server-side only) ────────────────────────────────────

@@ -20,6 +20,10 @@ import type {
   StaleReview,
   DueDateAlert,
   ReminderSummary,
+  ExpenseClaim,
+  OutboundInvoice,
+  MonthlyChecklistItem,
+  BankSyncStatus,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -210,4 +214,28 @@ export interface IReminderService {
 
   /** Return recent reminder log entries for the month. */
   getLogs(month: string): Promise<ReminderLog[]>;
+}
+
+// ── Expense service (Phase 8) ─────────────────────────────────────────────────
+export interface IExpenseService {
+  listExpenses(filters?: { status?: string; month?: string }): Promise<ExpenseClaim[]>;
+  getExpense(id: string): Promise<ExpenseClaim | null>;
+  saveExpense(claim: ExpenseClaim): Promise<void>;
+  deleteExpense(id: string): Promise<void>;
+}
+
+// ── Outbound invoice service (Phase 9) ───────────────────────────────────────
+export interface IOutboundService {
+  listOutbound(filters?: { status?: string }): Promise<OutboundInvoice[]>;
+  getOutbound(id: string): Promise<OutboundInvoice | null>;
+  saveOutbound(invoice: OutboundInvoice): Promise<void>;
+  deleteOutbound(id: string): Promise<void>;
+}
+
+// ── Monthly close service (Phase 10) ─────────────────────────────────────────
+export interface ICloseService {
+  getChecklist(month: string): Promise<MonthlyChecklistItem[]>;
+  saveChecklistItem(item: MonthlyChecklistItem): Promise<void>;
+  initChecklist(month: string): Promise<MonthlyChecklistItem[]>;
+  getBankSyncStatus(): Promise<BankSyncStatus>;
 }

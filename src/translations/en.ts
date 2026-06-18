@@ -152,6 +152,9 @@ const en = {
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
   nav_exceptions: "Exceptions",
+  nav_expenses: "Expenses",
+  nav_outbound: "Outbound",
+  nav_close: "Month Close",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "Close",

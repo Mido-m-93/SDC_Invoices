@@ -295,3 +295,110 @@ export interface ReminderSummary {
   lastSent: string | null;
   recentLogs: ReminderLog[];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 8 — Expense Claims
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ExpenseStatus =
+  | "submitted"
+  | "under_review"
+  | "approved"
+  | "rejected"
+  | "paid";
+
+export type ExpenseCategory =
+  | "travel"
+  | "meals"
+  | "software"
+  | "hardware"
+  | "office"
+  | "training"
+  | "other";
+
+export interface ExpenseClaim {
+  id: string;
+  submittedBy: string;           // name of employee
+  submittedByEmail: string;
+  submittedAt: string;           // ISO timestamp
+  category: ExpenseCategory;
+  purpose: string;               // description of why
+  amount: number;
+  currency: string;              // JPY, USD, etc.
+  receiptAttachment?: string;    // URL / Drive link
+  receiptFilename?: string;
+  projectName?: string;
+  notes?: string;
+  status: ExpenseStatus;
+  // Validation
+  receiptAccessible?: boolean;
+  extractedAmount?: number;
+  extractedDate?: string;
+  extractedVendor?: string;
+  issues?: string[];
+  // Review
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewerComment?: string;
+  // MF
+  mfEvidenceId?: string;
+  createdAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 9 — Outbound Invoices
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type OutboundStatus =
+  | "draft"
+  | "sent"
+  | "paid"
+  | "overdue"
+  | "cancelled";
+
+export interface OutboundInvoice {
+  id: string;
+  clientName: string;
+  clientEmail?: string;
+  projectName: string;
+  contractId?: string;
+  invoiceNumber?: string;
+  amount: number;
+  currency: string;
+  billingDate: string;           // YYYY-MM-DD
+  dueDate: string;               // YYYY-MM-DD
+  status: OutboundStatus;
+  notes?: string;
+  driveFileId?: string;
+  driveFileUrl?: string;
+  sentAt?: string;
+  paidAt?: string;
+  paidAmount?: number;
+  createdAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 10 — Monthly Close
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ChecklistItemStatus = "pending" | "done" | "skipped" | "blocked";
+
+export interface MonthlyChecklistItem {
+  id: string;
+  month: string;                 // YYYY-MM
+  category: string;              // e.g. "invoices", "bank", "tax"
+  title: string;
+  description?: string;
+  status: ChecklistItemStatus;
+  completedBy?: string;
+  completedAt?: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface BankSyncStatus {
+  lastSyncAt: string | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  message: string;
+  unresolvedCount: number;
+}
