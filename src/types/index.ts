@@ -195,6 +195,21 @@ export interface Vendor {
   createdAt: string;
 }
 
+// ── Proposal ─────────────────────────────────────────────────────────────────
+export interface Proposal {
+  id: string;
+  vendorId: string;
+  projectName: string;
+  proposalDate: string;
+  estimatedAmount: number;
+  currency: string;
+  description: string;
+  status: "draft" | "submitted" | "accepted" | "rejected" | "expired";
+  contractId?: string;
+  folderUrl?: string;
+  createdAt: string;
+}
+
 // ── Contract master ───────────────────────────────────────────────────────────
 export interface Contract {
   id: string;
@@ -206,6 +221,28 @@ export interface Contract {
   currency: string;
   paymentTerms: string;
   status: "active" | "expired" | "cancelled";
+  proposalId?: string;
+  contractFolderUrl?: string;
+  createdAt: string;
+}
+
+// ── Payment record ────────────────────────────────────────────────────────────
+export type PaymentRecordStatus = "pending" | "confirmed" | "failed" | "reconciled";
+
+export interface PaymentRecord {
+  id: string;
+  invoiceId: string;
+  contractId: string;
+  vendorId: string;
+  amount: number;
+  currency: string;
+  paymentDate: string;
+  paymentMethod: string;
+  referenceNumber: string;
+  status: PaymentRecordStatus;
+  confirmedBy?: string;
+  confirmedAt?: string;
+  notes?: string;
   createdAt: string;
 }
 
@@ -433,4 +470,153 @@ export interface MonthlyCloseChecklist {
   doneItems: number;
   blockedItems: number;
   completedAt: string | null;
+}
+
+// ── Phase 11: Client Management ───────────────────────────────────────────────
+export type ClientStatus = "active" | "inactive" | "prospect";
+
+export interface Client {
+  id: string;
+  name: string;
+  legalName: string;
+  industry: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  country: string;
+  taxRegistrationNumber: string;
+  status: ClientStatus;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Phase 11: Lead Management ─────────────────────────────────────────────────
+export type LeadStage = "new" | "contacted" | "qualified" | "proposal_sent" | "negotiation" | "won" | "lost" | "on_hold";
+export type LeadSource = "referral" | "inbound" | "outbound" | "event" | "partner" | "other";
+
+export interface Lead {
+  id: string;
+  clientId: string;
+  clientName: string;
+  contactName: string;
+  contactEmail: string;
+  source: LeadSource;
+  stage: LeadStage;
+  title: string;
+  estimatedValue: number;
+  currency: string;
+  probability: number;
+  expectedCloseDate: string;
+  assignedTo: string;
+  proposalId: string | null;
+  notes: string;
+  lostReason: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadSummary {
+  total: number;
+  byStage: Record<LeadStage, number>;
+  totalPipelineValue: number;
+  currency: string;
+  wonThisMonth: number;
+  lostThisMonth: number;
+}
+
+// ── Phase 11: Member / Employee Management ────────────────────────────────────
+export type MemberRole = "admin" | "sales" | "accounting" | "engineer" | "designer" | "manager" | "other";
+export type MemberStatus = "active" | "inactive" | "on_leave";
+
+export interface Member {
+  id: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  role: MemberRole;
+  department: string;
+  employeeCode: string;
+  joinDate: string;
+  status: MemberStatus;
+  avatarUrl: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Phase 11: Accounting Layer ────────────────────────────────────────────────
+export type AccountingEntryType = "revenue" | "expense" | "adjustment" | "transfer";
+export type AccountingEntryStatus = "draft" | "posted" | "voided";
+
+export interface AccountingEntry {
+  id: string;
+  entryDate: string;
+  month: string;
+  type: AccountingEntryType;
+  category: string;
+  description: string;
+  amount: number;
+  currency: string;
+  exchangeRate: number;
+  amountJpy: number;
+  status: AccountingEntryStatus;
+  sourceType: string;
+  sourceId: string;
+  clientId: string;
+  vendorId: string;
+  memberId: string;
+  notes: string;
+  postedBy: string;
+  postedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfitAndLoss {
+  month: string;
+  totalRevenue: number;
+  totalExpenses: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  byCategory: Array<{ category: string; type: AccountingEntryType; total: number }>;
+  currency: string;
+}
+
+export interface AccountingSummary {
+  month: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+  entryCount: number;
+  draftCount: number;
+  currency: string;
+}
+
+// ── Phase 11: Reporting Dashboard ─────────────────────────────────────────────
+export interface ReportingKPIs {
+  month: string;
+  leadsTotal: number;
+  leadsWon: number;
+  leadsLost: number;
+  leadConversionRate: number;
+  proposalsTotal: number;
+  proposalsAccepted: number;
+  proposalWinRate: number;
+  outboundInvoicesTotal: number;
+  outboundInvoicesPaid: number;
+  outboundInvoicesOverdue: number;
+  invoiceCollectionRate: number;
+  totalOutstandingJpy: number;
+  totalRevenueJpy: number;
+  totalExpensesJpy: number;
+  netProfitJpy: number;
+  grossMarginPct: number;
+  expensesTotal: number;
+  expensesApproved: number;
+  expensesRejected: number;
+  activeVendors: number;
+  activeContracts: number;
+  vendorsWithMissingInvoice: number;
 }

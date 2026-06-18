@@ -27,11 +27,18 @@ import type {
   IDashboardService,
   IVendorService,
   IContractService,
+  IProposalService,
+  IPaymentRecordService,
   INotificationService,
   IReminderService,
   IExpenseService,
   IOutboundInvoiceService,
   ICloseChecklistService,
+  IClientService,
+  ILeadService,
+  IMemberService,
+  IAccountingService,
+  IReportingService,
 } from "./types";
 
 import {
@@ -42,6 +49,13 @@ import {
   MockDashboardService,
   MockVendorService,
   MockContractService,
+  MockProposalService,
+  MockPaymentRecordService,
+  MockClientService,
+  MockLeadService,
+  MockMemberService,
+  MockAccountingService,
+  MockReportingService,
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
@@ -59,6 +73,13 @@ import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseExpenseService } from "./real/SupabaseExpenseService";
 import { SupabaseOutboundInvoiceService } from "./real/SupabaseOutboundInvoiceService";
 import { SupabaseCloseChecklistService } from "./real/SupabaseCloseChecklistService";
+import { SupabaseClientService } from "./real/SupabaseClientService";
+import { SupabaseLeadService } from "./real/SupabaseLeadService";
+import { SupabaseMemberService } from "./real/SupabaseMemberService";
+import { SupabaseAccountingService } from "./real/SupabaseAccountingService";
+import { SupabaseReportingService } from "./real/SupabaseReportingService";
+import { SupabaseProposalService } from "./real/SupabaseProposalService";
+import { SupabasePaymentRecordService } from "./real/SupabasePaymentRecordService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -75,11 +96,18 @@ let _storage: IStorageService | undefined;
 let _dashboard: IDashboardService | undefined;
 let _vendor: IVendorService | undefined;
 let _contract: IContractService | undefined;
+let _proposal: IProposalService | undefined;
+let _paymentRecord: IPaymentRecordService | undefined;
 let _notification: INotificationService | undefined;
 let _reminder: IReminderService | undefined;
 let _expense: IExpenseService | undefined;
 let _outboundInvoice: IOutboundInvoiceService | undefined;
 let _closeChecklist: ICloseChecklistService | undefined;
+let _client: IClientService | undefined;
+let _lead: ILeadService | undefined;
+let _member: IMemberService | undefined;
+let _accounting: IAccountingService | undefined;
+let _reporting: IReportingService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
@@ -208,6 +236,56 @@ export function getCloseChecklistService(): ICloseChecklistService {
     _closeChecklist = new SupabaseCloseChecklistService();
   }
   return _closeChecklist;
+}
+
+// ── Proposal ──────────────────────────────────────────────────────────────────
+export function getProposalService(): IProposalService {
+  if (!_proposal) {
+    _proposal = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockProposalService()
+      : new SupabaseProposalService();
+  }
+  return _proposal;
+}
+
+// ── Payment Record ────────────────────────────────────────────────────────────
+export function getPaymentRecordService(): IPaymentRecordService {
+  if (!_paymentRecord) {
+    _paymentRecord = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockPaymentRecordService()
+      : new SupabasePaymentRecordService();
+  }
+  return _paymentRecord;
+}
+
+// ── Client ────────────────────────────────────────────────────────────────────
+export function getClientService(): IClientService {
+  if (!_client) _client = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockClientService() : new SupabaseClientService();
+  return _client;
+}
+
+// ── Lead ──────────────────────────────────────────────────────────────────────
+export function getLeadService(): ILeadService {
+  if (!_lead) _lead = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockLeadService() : new SupabaseLeadService();
+  return _lead;
+}
+
+// ── Member ────────────────────────────────────────────────────────────────────
+export function getMemberService(): IMemberService {
+  if (!_member) _member = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockMemberService() : new SupabaseMemberService();
+  return _member;
+}
+
+// ── Accounting ────────────────────────────────────────────────────────────────
+export function getAccountingService(): IAccountingService {
+  if (!_accounting) _accounting = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockAccountingService() : new SupabaseAccountingService();
+  return _accounting;
+}
+
+// ── Reporting ─────────────────────────────────────────────────────────────────
+export function getReportingService(): IReportingService {
+  if (!_reporting) _reporting = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockReportingService() : new SupabaseReportingService();
+  return _reporting;
 }
 
 // ── Startup diagnostic (server-side only) ────────────────────────────────────
