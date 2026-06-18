@@ -109,7 +109,6 @@ export default function ContractsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
@@ -151,7 +150,6 @@ export default function ContractsPage() {
               ))}
             </tbody>
           </table>
-          </div>
         </div>
       )}
 
@@ -174,7 +172,7 @@ export default function ContractsPage() {
               <Field label="Project Name">
                 <input className={input} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} placeholder="Project or engagement name" />
               </Field>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Start Date *">
                   <input type="date" className={input} value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
                 </Field>

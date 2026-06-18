@@ -235,14 +235,18 @@ export class SupabaseReminderService implements IReminderService {
 
     // "all" → always send one summary card with all counts (even if 0)
     if (type === "all") {
-      const [gaps, stale, dueAll] = await Promise.all([
+      const db2 = getSupabase();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 5);
+      const [gaps, stale, dueAll, expenseStaleResult] = await Promise.all([
         this.detectGaps(month),
         this.detectStaleReviews(3),
         this.detectDueDateIssues(5),
+        db2.from("expense_claims").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]).lte("submitted_at", cutoff.toISOString()),
       ]);
       const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
       const overdue = dueAll.filter((d) => d.daysUntilDue < 0);
-      const payload = { month, gaps, stale, approaching, overdue };
+      const payload = { month, gaps, stale, approaching, overdue, staleExpenses: expenseStaleResult.count ?? 0 };
       const ok = await notifSvc.sendReminder({ type: "missing_invoice" as ReminderType, payload: { _summary: true, ...payload } });
       if (ok) sent++; else failed++;
       await this._logReminder(db, "missing_invoice", month, "teams", ok, "Monthly summary");
@@ -264,6 +268,24 @@ export class SupabaseReminderService implements IReminderService {
     } else if (type === "due_date_overdue") {
       const overdue = (await this.detectDueDateIssues(0)).filter((d) => d.daysUntilDue < 0);
       payload = { overdue };
+    } else if (type === "missing_expense_receipt") {
+      const db = getSupabase();
+      const { data } = await db
+        .from("expense_claims")
+        .select("id, submitted_by, amount, currency, expense_date")
+        .in("status", ["submitted", "under_review"])
+        .eq("receipt_url", "");
+      payload = { missing: data ?? [] };
+    } else if (type === "stale_expense_review") {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 5);
+      const db = getSupabase();
+      const { data } = await db
+        .from("expense_claims")
+        .select("id, submitted_by, amount, currency, submitted_at")
+        .in("status", ["submitted", "under_review"])
+        .lte("submitted_at", cutoff.toISOString());
+      payload = { stale: data ?? [] };
     }
 
     const ok = await notifSvc.sendReminder({ type, payload });

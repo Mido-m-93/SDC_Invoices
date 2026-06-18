@@ -21,9 +21,14 @@ import type {
   DueDateAlert,
   ReminderSummary,
   ExpenseClaim,
+  ExpenseValidationResult,
+  ExpenseStatus,
   OutboundInvoice,
-  MonthlyChecklistItem,
-  BankSyncStatus,
+  OutboundInvoiceStatus,
+  OutboundInvoiceSummary,
+  CloseChecklistItem,
+  MonthlyCloseChecklist,
+  CloseChecklistItemStatus,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -36,18 +41,6 @@ export interface ISheetsService {
 }
 
 // ── Drive service ─────────────────────────────────────────────────────────────
-export interface DriveFile {
-  fileId: string;
-  filename: string;
-  mimeType: string;
-  webViewLink: string;
-}
-
-export interface DriveFolder {
-  folderId: string;
-  folderName: string;
-}
-
 export interface IDriveService {
   /**
    * Fetch the raw bytes (or metadata) of an attachment by its URL.
@@ -82,16 +75,6 @@ export interface IDriveService {
     folderId: string;
     filename: string;
   }): Promise<boolean>;
-
-  /**
-   * List all month subfolders inside the root folder, sorted newest first.
-   */
-  listMonthFolders(rootFolderId: string): Promise<DriveFolder[]>;
-
-  /**
-   * List all files (non-folder) inside a given folder.
-   */
-  listFilesInFolder(folderId: string): Promise<DriveFile[]>;
 }
 
 // ── Validation service ────────────────────────────────────────────────────────
@@ -192,6 +175,33 @@ export interface INotificationService {
   testConnection(): Promise<{ ok: boolean; message: string }>;
 }
 
+// ── Expense service (Phase 8) ─────────────────────────────────────────────────
+export interface IExpenseService {
+  listClaims(filters?: { status?: ExpenseStatus; submittedBy?: string }): Promise<ExpenseClaim[]>;
+  getClaim(id: string): Promise<ExpenseClaim | null>;
+  saveClaim(claim: ExpenseClaim): Promise<void>;
+  deleteClaim(id: string): Promise<void>;
+  updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void>;
+  validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
+}
+
+// ── Outbound invoice service (Phase 9) ────────────────────────────────────────
+export interface IOutboundInvoiceService {
+  listInvoices(filters?: { status?: OutboundInvoiceStatus; billingMonth?: string }): Promise<OutboundInvoice[]>;
+  getInvoice(id: string): Promise<OutboundInvoice | null>;
+  saveInvoice(invoice: OutboundInvoice): Promise<void>;
+  deleteInvoice(id: string): Promise<void>;
+  updateStatus(id: string, status: OutboundInvoiceStatus, actorName: string): Promise<void>;
+  getSummary(month?: string): Promise<OutboundInvoiceSummary>;
+}
+
+// ── Monthly close checklist service (Phase 10) ────────────────────────────────
+export interface ICloseChecklistService {
+  getChecklist(month: string): Promise<MonthlyCloseChecklist>;
+  updateItem(id: string, updates: Partial<Pick<CloseChecklistItem, "status" | "assignee" | "completedBy" | "completedAt" | "notes">>): Promise<void>;
+  resetChecklist(month: string): Promise<void>;
+}
+
 // ── Reminder service (Phase 7) ────────────────────────────────────────────────
 export interface IReminderService {
   /** Detect vendors with active contracts who have not submitted for month. */
@@ -214,28 +224,4 @@ export interface IReminderService {
 
   /** Return recent reminder log entries for the month. */
   getLogs(month: string): Promise<ReminderLog[]>;
-}
-
-// ── Expense service (Phase 8) ─────────────────────────────────────────────────
-export interface IExpenseService {
-  listExpenses(filters?: { status?: string; month?: string }): Promise<ExpenseClaim[]>;
-  getExpense(id: string): Promise<ExpenseClaim | null>;
-  saveExpense(claim: ExpenseClaim): Promise<void>;
-  deleteExpense(id: string): Promise<void>;
-}
-
-// ── Outbound invoice service (Phase 9) ───────────────────────────────────────
-export interface IOutboundService {
-  listOutbound(filters?: { status?: string }): Promise<OutboundInvoice[]>;
-  getOutbound(id: string): Promise<OutboundInvoice | null>;
-  saveOutbound(invoice: OutboundInvoice): Promise<void>;
-  deleteOutbound(id: string): Promise<void>;
-}
-
-// ── Monthly close service (Phase 10) ─────────────────────────────────────────
-export interface ICloseService {
-  getChecklist(month: string): Promise<MonthlyChecklistItem[]>;
-  saveChecklistItem(item: MonthlyChecklistItem): Promise<void>;
-  initChecklist(month: string): Promise<MonthlyChecklistItem[]>;
-  getBankSyncStatus(): Promise<BankSyncStatus>;
 }

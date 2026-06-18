@@ -1,6 +1,6 @@
-// lib/services/real/DriveService.ts — Real Google Drive integration
+import "server-only";
 import { google } from "googleapis";
-import type { IDriveService, DriveFile, DriveFolder } from "../types";
+import type { IDriveService } from "../types";
 
 export class RealDriveService implements IDriveService {
   private auth;
@@ -16,18 +16,20 @@ export class RealDriveService implements IDriveService {
   }
 
   private async getDrive() {
-    return google.drive({ version: "v3", auth: await this.auth.getClient() as never });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return google.drive({ version: "v3", auth: await this.auth.getClient() as any });
   }
 
-  async fetchAttachment(url: string): Promise<{ filename: string; mimeType: string; data: Uint8Array } | null> {
-    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) ?? url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  async fetchAttachment(url: string) {
+    const fileIdMatch =
+      url.match(/\/d\/([a-zA-Z0-9_-]+)/) ??
+      url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (!fileIdMatch) {
       console.warn("[DriveService] Cannot parse file ID from URL:", url);
       return null;
     }
     const fileId = fileIdMatch[1];
     const drive = await this.getDrive();
-
     const meta = await drive.files.get({ fileId, fields: "name,mimeType" });
     const res = await drive.files.get(
       { fileId, alt: "media" },
@@ -40,7 +42,13 @@ export class RealDriveService implements IDriveService {
     };
   }
 
-  async ensureMonthFolder({ rootFolderId, folderName }: { rootFolderId: string; folderName: string }): Promise<string> {
+  async ensureMonthFolder({
+    rootFolderId,
+    folderName,
+  }: {
+    rootFolderId: string;
+    folderName: string;
+  }) {
     const drive = await this.getDrive();
     const existing = await drive.files.list({
       q: `'${rootFolderId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
@@ -60,7 +68,15 @@ export class RealDriveService implements IDriveService {
     return folder.data.id!;
   }
 
-  async uploadPdf({ folderId, filename, data }: { folderId: string; filename: string; data: Uint8Array }): Promise<{ fileId: string; webViewLink: string }> {
+  async uploadPdf({
+    folderId,
+    filename,
+    data,
+  }: {
+    folderId: string;
+    filename: string;
+    data: Uint8Array;
+  }) {
     const drive = await this.getDrive();
     const { Readable } = await import("stream");
     const stream = Readable.from(Buffer.from(data));
@@ -75,42 +91,18 @@ export class RealDriveService implements IDriveService {
     };
   }
 
-  async checkDuplicate({ folderId, filename }: { folderId: string; filename: string }): Promise<boolean> {
+  async checkDuplicate({
+    folderId,
+    filename,
+  }: {
+    folderId: string;
+    filename: string;
+  }) {
     const drive = await this.getDrive();
     const res = await drive.files.list({
       q: `'${folderId}' in parents and name='${filename}' and trashed=false`,
       fields: "files(id)",
     });
     return (res.data.files?.length ?? 0) > 0;
-  }
-
-  async listMonthFolders(rootFolderId: string): Promise<DriveFolder[]> {
-    const drive = await this.getDrive();
-    const res = await drive.files.list({
-      q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: "files(id,name)",
-      orderBy: "name desc",
-      pageSize: 100,
-    });
-    return (res.data.files ?? []).map((f) => ({
-      folderId: f.id!,
-      folderName: f.name!,
-    }));
-  }
-
-  async listFilesInFolder(folderId: string): Promise<DriveFile[]> {
-    const drive = await this.getDrive();
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,
-      fields: "files(id,name,mimeType,webViewLink)",
-      orderBy: "name",
-      pageSize: 200,
-    });
-    return (res.data.files ?? []).map((f) => ({
-      fileId:      f.id!,
-      filename:    f.name!,
-      mimeType:    f.mimeType!,
-      webViewLink: f.webViewLink ?? `https://drive.google.com/file/d/${f.id}/view`,
-    }));
   }
 }

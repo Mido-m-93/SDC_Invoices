@@ -16,7 +16,6 @@ import {
   fetchFiledDocuments,
   validateInvoice,
   fileInvoice,
-  approveInvoice,
   uploadInvoiceExcel,
   fetchAvailableMonths,
 } from "@/lib/api/client";
@@ -138,20 +137,20 @@ export default function InvoicesPage() {
   };
 
   // Rule 10: human reviewer explicitly approves a REVIEW_REQUIRED invoice
-  const handleApprove = async (item: InvoiceListItem) => {
+  const handleApprove = (item: InvoiceListItem) => {
     if (!item.validation) return;
-    try {
-      const approved = await approveInvoice(item.submission.id, user ?? "");
-      const updated = { ...item, validation: approved };
-      setItems((prev) =>
-        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
-      );
-      setSelectedItem((prev) =>
-        prev?.submission.id === item.submission.id ? updated : prev
-      );
-    } catch (err) {
-      setError(String(err));
-    }
+    const approved: InvoiceValidationResult = {
+      ...item.validation,
+      humanApproved: true,
+      approvedBy: user ?? undefined,
+    };
+    const updated = { ...item, validation: approved };
+    setItems((prev) =>
+      prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+    );
+    setSelectedItem((prev) =>
+      prev?.submission.id === item.submission.id ? updated : prev
+    );
   };
 
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

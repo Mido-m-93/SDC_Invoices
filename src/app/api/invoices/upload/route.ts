@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { read, utils } from "xlsx";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import iconv from "iconv-lite";
 import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
@@ -83,7 +84,7 @@ type FieldName = keyof InvoiceSubmission | "email";
 const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
   { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
   { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
-  { keywords: ["Invoice Amount", "請求金額", "現地通貨および米ドル"],                         field: "claimedAmountTaxIncluded" },
+  { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
   { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
   { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                 field: "projectType" },
   { keywords: ["For Internal Projects Only", "内部案件の場合のみ"],                           field: "internalDepartment" },
@@ -154,20 +155,8 @@ export async function POST(req: NextRequest) {
 
     const blob = file as Blob;
     const fileName = (blob as File).name ?? "";
-
-    const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-    if (blob.size > MAX_BYTES)
-      return NextResponse.json({ error: "File too large (max 10 MB)" }, { status: 413 });
-
-    const isCSV = /\.(csv)$/i.test(fileName);
-    const allowedMime = isCSV
-      ? ["text/csv", "application/csv", "text/plain", "application/octet-stream"]
-      : ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-         "application/vnd.ms-excel", "application/octet-stream"];
-    if (blob.type && !allowedMime.includes(blob.type))
-      return NextResponse.json({ error: "Invalid file type" }, { status: 415 });
-
     const buffer = Buffer.from(await blob.arrayBuffer());
+    const isCSV = /\.(csv)$/i.test(fileName);
 
     let rows: Record<string, unknown>[];
     let rawPreview = "";
@@ -205,6 +194,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ count: submissions.length, submissions, snapshotMonth, detectedHeaders, headerMapping, rawPreview });
   } catch (err) {
     console.error("[POST /api/invoices/upload]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

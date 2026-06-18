@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       errors.push({
         submissionId: validation.submissionId,
-        error: "Internal server error",
+        error: String(err),
       });
     }
   }

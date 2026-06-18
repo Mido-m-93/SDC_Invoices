@@ -28,18 +28,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicPath = pathname === "/login" || pathname.startsWith("/auth/");
 
-  // Cron endpoints authenticate via x-cron-secret header — bypass session check.
-  const cronSecret = process.env.CRON_SECRET;
-  const isCronPath = pathname.startsWith("/api/reminders/") || pathname.startsWith("/api/notifications/");
-  if (isCronPath && cronSecret && request.headers.get("x-cron-secret") === cronSecret) {
-    return supabaseResponse;
-  }
-
   if (!user && !isPublicPath) {
-    // Return 401 for API routes so callers get a machine-readable response.
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

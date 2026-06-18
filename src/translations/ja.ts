@@ -151,10 +151,21 @@ const ja = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "取引先",
   nav_contracts: "契約",
-  nav_exceptions: "例外一覧",
+
+  // ── Phase 8: Expenses ─────────────────────────────────────────────────────
   nav_expenses: "経費申請",
-  nav_outbound: "請求発行",
-  nav_close: "月次締め",
+  expenses_title: "経費申請管理",
+  expenses_subtitle: "経費申請の提出・確認・承認",
+
+  // ── Phase 9: Outbound Invoices ────────────────────────────────────────────
+  nav_outbound_invoices: "発行請求書",
+  outbound_invoices_title: "発行請求書管理",
+  outbound_invoices_subtitle: "クライアントへの請求書発行と入金管理",
+
+  // ── Phase 10: Monthly Close ────────────────────────────────────────────────
+  nav_close_checklist: "月次決算",
+  close_checklist_title: "月次決算チェックリスト",
+  close_checklist_subtitle: "月次決算タスクの進捗管理",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "閉じる",
@@ -203,16 +214,6 @@ const ja = {
   config_payment_terms: "支払期日の基準（締め月末日から何日後）",
   config_escalation_recipient: "エスカレーション通知先",
   config_escalation_placeholder: "メールアドレス または Teamsのメンション",
-
-  // ── Money Forward ─────────────────────────────────────────────────────────
-  mf_send: "Money Forwardに送信",
-  mf_sending: "送信中…",
-  mf_sent: "Money Forwardに送信済み",
-  mf_error: "Money Forwardへの送信に失敗しました",
-  mf_not_connected: "Money Forwardが未接続です",
-  mf_not_connected_hint: "/api/auth/moneyforward にアクセスして接続してください",
-  mf_billing_url: "Money Forwardで表示",
-  section_money_forward: "Money Forward",
 } as const;
 
 export default ja;

@@ -1,7 +1,6 @@
 "use client";
 // src/components/invoice/InvoiceDetailPanel.tsx
 
-import { useState } from "react";
 import { useLanguage } from "@/translations";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
@@ -17,151 +16,6 @@ interface Props {
 export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
-
-  // ── Money Forward state ───────────────────────────────────────────────────────
-  const [mfSending, setMfSending]   = useState(false);
-  const [mfResult, setMfResult]     = useState<{ billingUrl: string } | null>(null);
-  const [mfError, setMfError]       = useState<string | null>(null);
-  const [mfNotConn, setMfNotConn]   = useState(false);
-
-  // ── Vendor state ──────────────────────────────────────────────────────────────
-  const [addingVendor, setAddingVendor] = useState(false);
-  const [vendorName, setVendorName] = useState(s.payerName ?? "");
-  const [vendorSaving, setVendorSaving] = useState(false);
-  const [vendorAdded, setVendorAdded] = useState(false);
-  const [vendorError, setVendorError] = useState<string | null>(null);
-  const [savedVendorId, setSavedVendorId] = useState<string | null>(null);
-
-  // ── Comment state ─────────────────────────────────────────────────────────────
-  const [comment, setComment] = useState(v?.reviewerComment ?? "");
-  const [commentSaving, setCommentSaving] = useState(false);
-  const [commentSaved, setCommentSaved] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
-
-  // ── Contract state ────────────────────────────────────────────────────────────
-  const [addingContract, setAddingContract] = useState(false);
-  const [contractProject, setContractProject] = useState(s.externalProjectName ?? s.projectType ?? "");
-  const [contractStart, setContractStart] = useState("");
-  const [contractEnd, setContractEnd] = useState("");
-  const [contractSaving, setContractSaving] = useState(false);
-  const [contractAdded, setContractAdded] = useState(false);
-  const [contractError, setContractError] = useState<string | null>(null);
-
-  // Optimistic UI: reflect changes immediately without re-validating
-  const effectiveVendorMatched = (v?.vendorMatched ?? false) || vendorAdded;
-  const effectiveContractMatched = (v?.contractMatched ?? false) || contractAdded;
-  const effectiveRiskLevel = (() => {
-    if (!v?.riskLevel || v.riskLevel === "OK" || v.riskLevel === "BLOCKED") return v?.riskLevel;
-    if (effectiveVendorMatched && effectiveContractMatched) return "OK";
-    return v.riskLevel;
-  })();
-
-  async function handleSendToMF() {
-    setMfSending(true);
-    setMfError(null);
-    setMfNotConn(false);
-    setMfResult(null);
-    try {
-      const res = await fetch("/api/invoices/send-to-mf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submission: s, validation: v }),
-      });
-      if (res.status === 401) {
-        setMfNotConn(true);
-        return;
-      }
-      if (!res.ok) {
-        const data = await res.json() as { error?: string; detail?: string };
-        throw new Error(data.detail ?? data.error ?? `Server error ${res.status}`);
-      }
-      const data = await res.json() as { billingUrl: string };
-      setMfResult({ billingUrl: data.billingUrl });
-    } catch (err) {
-      setMfError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setMfSending(false);
-    }
-  }
-
-  async function handleAddVendor() {
-    setVendorSaving(true);
-    setVendorError(null);
-    try {
-      const res = await fetch("/api/vendors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: vendorName.trim() }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json() as { vendor: { id: string } };
-      setSavedVendorId(data.vendor.id);
-      setVendorAdded(true);
-      setAddingVendor(false);
-    } catch (err) {
-      setVendorError(err instanceof Error ? err.message : "Failed to add vendor");
-    } finally {
-      setVendorSaving(false);
-    }
-  }
-
-  async function handleAddContract() {
-    setContractSaving(true);
-    setContractError(null);
-    try {
-      // Resolve vendorId: use the one just created, or look up existing vendor by name
-      let vendorId = savedVendorId;
-      if (!vendorId) {
-        const vRes = await fetch("/api/vendors");
-        if (!vRes.ok) throw new Error("Failed to fetch vendors");
-        const vData = await vRes.json() as { vendors: Array<{ id: string; name: string; aliases?: string[] }> };
-        const match = vData.vendors.find(
-          (vnd) =>
-            vnd.name.toLowerCase() === (s.payerName ?? "").toLowerCase() ||
-            vnd.aliases?.some((a) => a.toLowerCase() === (s.payerName ?? "").toLowerCase())
-        );
-        if (!match) throw new Error("Vendor not found — please add the vendor first");
-        vendorId = match.id;
-      }
-      const res = await fetch("/api/contracts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vendorId,
-          projectName: contractProject.trim() || s.payerName,
-          startDate: contractStart,
-          endDate: contractEnd,
-          status: "active",
-        }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      setContractAdded(true);
-      setAddingContract(false);
-    } catch (err) {
-      setContractError(err instanceof Error ? err.message : "Failed to add contract");
-    } finally {
-      setContractSaving(false);
-    }
-  }
-
-  async function handleSaveComment() {
-    if (!comment.trim()) return;
-    setCommentSaving(true);
-    setCommentError(null);
-    try {
-      const res = await fetch("/api/invoices/comment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submissionId: s.id, comment: comment.trim(), commentBy: "reviewer" }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      setCommentSaved(true);
-    } catch (err) {
-      setCommentError(err instanceof Error ? err.message : "Failed to save comment");
-    } finally {
-      setCommentSaving(false);
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
@@ -265,145 +119,24 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               <div className="space-y-3">
                 {v.riskLevel && (
                   <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
-                    effectiveRiskLevel === "OK" ? "bg-green-50 border border-green-200" :
-                    effectiveRiskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
+                    v.riskLevel === "OK" ? "bg-green-50 border border-green-200" :
+                    v.riskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
                     "bg-amber-50 border border-amber-200"
                   }`}>
                     <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Risk Level</span>
                     <span className={`text-sm font-bold ${
-                      effectiveRiskLevel === "OK" ? "text-green-700" :
-                      effectiveRiskLevel === "BLOCKED" ? "text-red-700" :
+                      v.riskLevel === "OK" ? "text-green-700" :
+                      v.riskLevel === "BLOCKED" ? "text-red-700" :
                       "text-amber-700"
                     }`}>
-                      {effectiveRiskLevel === "OK" ? "✓ OK" : effectiveRiskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
+                      {v.riskLevel === "OK" ? "✓ OK" : v.riskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
                     </span>
                   </div>
                 )}
                 <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
-                  <ValidationCheck label="Vendor Registered" pass={effectiveVendorMatched} />
-                  <ValidationCheck label="Active Contract Found" pass={effectiveContractMatched} />
+                  <ValidationCheck label="Vendor Registered" pass={v.vendorMatched ?? false} />
+                  <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
                 </div>
-
-                {/* Add as Vendor — shown when vendor is not registered */}
-                {!v.vendorMatched && !vendorAdded && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
-                    {!addingVendor ? (
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-amber-700">Vendor not registered in the system.</p>
-                        <button
-                          onClick={() => setAddingVendor(true)}
-                          className="text-xs font-semibold text-amber-800 underline hover:text-amber-900"
-                        >
-                          + Add as Vendor
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-amber-800">Register as new vendor</p>
-                        <input
-                          type="text"
-                          value={vendorName}
-                          onChange={(e) => setVendorName(e.target.value)}
-                          placeholder="Vendor name"
-                          className="w-full rounded border border-amber-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                        />
-                        {vendorError && (
-                          <p className="text-xs text-red-600">{vendorError}</p>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleAddVendor}
-                            disabled={vendorSaving || !vendorName.trim()}
-                            className="rounded bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-                          >
-                            {vendorSaving ? "Saving…" : "Save Vendor"}
-                          </button>
-                          <button
-                            onClick={() => setAddingVendor(false)}
-                            className="rounded px-3 py-1 text-xs text-stone-500 hover:text-stone-700"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {vendorAdded && (
-                  <p className="text-xs text-green-700 font-semibold px-1">✓ Vendor added successfully</p>
-                )}
-
-                {/* Add as Contract — shown when contract is not found */}
-                {!v.contractMatched && !contractAdded && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
-                    {!addingContract ? (
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-blue-700">No active contract found.</p>
-                        <button
-                          onClick={() => setAddingContract(true)}
-                          className="text-xs font-semibold text-blue-800 underline hover:text-blue-900"
-                        >
-                          + Add Contract
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-blue-800">Register new contract</p>
-                        <input
-                          type="text"
-                          value={contractProject}
-                          onChange={(e) => setContractProject(e.target.value)}
-                          placeholder="Project name"
-                          className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-[10px] text-blue-700 mb-0.5">Start date</p>
-                            <input
-                              type="date"
-                              value={contractStart}
-                              onChange={(e) => setContractStart(e.target.value)}
-                              className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                            />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-blue-700 mb-0.5">End date</p>
-                            <input
-                              type="date"
-                              value={contractEnd}
-                              onChange={(e) => setContractEnd(e.target.value)}
-                              className="w-full rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                            />
-                          </div>
-                        </div>
-                        {contractError && (
-                          <p className="text-xs text-red-600">{contractError}</p>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleAddContract}
-                            disabled={contractSaving || !contractStart || !contractEnd}
-                            className="rounded bg-blue-700 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
-                          >
-                            {contractSaving ? "Saving…" : "Save Contract"}
-                          </button>
-                          <button
-                            onClick={() => setAddingContract(false)}
-                            className="rounded px-3 py-1 text-xs text-stone-500 hover:text-stone-700"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {contractAdded && (
-                  <p className="text-xs text-green-700 font-semibold px-1">✓ Contract added successfully</p>
-                )}
-
                 {v.reviewerRecommendation && (
                   <div className="flex items-center gap-2 text-xs text-stone-500 px-1">
                     <span className="font-medium">Recommended Reviewer:</span>
@@ -484,85 +217,6 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                   </div>
                 </>
               )}
-            </Section>
-          )}
-          {/* ── Reviewer Comment ─────────────────────────────────── */}
-          {v && (
-            <Section title="Reviewer Comment">
-              <div className="space-y-2">
-                <textarea
-                  value={comment}
-                  onChange={(e) => { setComment(e.target.value); setCommentSaved(false); }}
-                  placeholder="Add a comment or note for this invoice…"
-                  rows={3}
-                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm text-stone-800 resize-none focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
-                />
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSaveComment}
-                    disabled={commentSaving || !comment.trim()}
-                    className="rounded-lg bg-stone-700 hover:bg-stone-800 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    {commentSaving ? "Saving…" : "Save Comment"}
-                  </button>
-                  {commentSaved && <span className="text-xs text-green-700 font-semibold">✓ Saved</span>}
-                  {commentError && <span className="text-xs text-red-600">{commentError}</span>}
-                  {v.reviewerCommentAt && (
-                    <span className="text-xs text-stone-400">Last saved: {new Date(v.reviewerCommentAt).toLocaleDateString()}</span>
-                  )}
-                </div>
-              </div>
-            </Section>
-          )}
-
-          {/* ── Money Forward ────────────────────────────────────── */}
-          {v && (v.statusCode === "READY" || v.humanApproved) && (
-            <Section title={t("section_money_forward")}>
-              <div className="space-y-3">
-                {(mfResult || v.mfBillingUrl) ? (
-                  <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-4 py-3">
-                    <div>
-                      <span className="text-xs font-semibold text-green-700">{t("mf_sent")}</span>
-                      {v.mfSentAt && (
-                        <p className="text-[10px] text-green-600 mt-0.5">{new Date(v.mfSentAt).toLocaleDateString()}</p>
-                      )}
-                    </div>
-                    <a
-                      href={mfResult?.billingUrl ?? v.mfBillingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-green-800 underline font-semibold"
-                    >
-                      {t("mf_billing_url")} →
-                    </a>
-                  </div>
-                ) : mfNotConn ? (
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 space-y-1">
-                    <p className="text-xs font-semibold text-amber-700">{t("mf_not_connected")}</p>
-                    <a
-                      href="/api/auth/moneyforward"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-amber-800 underline"
-                    >
-                      {t("mf_not_connected_hint")}
-                    </a>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleSendToMF}
-                      disabled={mfSending}
-                      className="rounded-lg bg-[#1a56db] hover:bg-[#1648c7] disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white transition-colors"
-                    >
-                      {mfSending ? t("mf_sending") : t("mf_send")}
-                    </button>
-                    {mfError && (
-                      <p className="text-xs text-red-600">{mfError}</p>
-                    )}
-                  </div>
-                )}
-              </div>
             </Section>
           )}
         </div>
