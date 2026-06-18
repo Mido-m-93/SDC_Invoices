@@ -42,12 +42,18 @@ export class SupabaseAccountingService implements IAccountingService {
   }
 
   async postEntry(id: string, actorName: string): Promise<void> {
+    const entry = await this.getEntry(id);
+    if (!entry) throw new Error(`postEntry: entry ${id} not found`);
+    if (entry.status !== "draft") throw new Error(`postEntry: entry must be in draft state (current: ${entry.status})`);
     const now = new Date().toISOString();
     const { error } = await this.db.from("accounting_entries").update({ status: "posted", posted_by: actorName, posted_at: now, updated_at: now }).eq("id", id);
     if (error) throw new Error(`postEntry: ${error.message}`);
   }
 
   async voidEntry(id: string, actorName: string): Promise<void> {
+    const entry = await this.getEntry(id);
+    if (!entry) throw new Error(`voidEntry: entry ${id} not found`);
+    if (entry.status !== "posted") throw new Error(`voidEntry: entry must be in posted state (current: ${entry.status})`);
     const { error } = await this.db.from("accounting_entries").update({ status: "voided", posted_by: actorName, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw new Error(`voidEntry: ${error.message}`);
   }
