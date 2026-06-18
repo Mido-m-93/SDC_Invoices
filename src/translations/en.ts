@@ -151,6 +151,7 @@ const en = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
+  nav_exceptions: "Exceptions",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "Close",

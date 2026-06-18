@@ -1,7 +1,7 @@
 // POST /api/invoices/send-to-mf
 import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
-import { getDriveService } from "@/lib/services";
+import { getDriveService, getStorageService } from "@/lib/services";
 import { detectCurrency } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
@@ -82,6 +82,22 @@ export async function POST(req: NextRequest) {
       pdfData,
       pdfFilename,
     });
+
+    // Store MF billing info back to Supabase
+    try {
+      const storage = getStorageService();
+      const [existing] = await storage.loadValidationResults([submission.id]);
+      if (existing) {
+        await storage.saveValidationResult({
+          ...existing,
+          mfBillingId: result.billingId,
+          mfBillingUrl: result.billingUrl,
+          mfSentAt: new Date().toISOString(),
+        });
+      }
+    } catch (storeErr) {
+      console.warn("[send-to-mf] Could not store MF billing info:", storeErr);
+    }
 
     return NextResponse.json({ success: true, ...result });
   } catch (err) {

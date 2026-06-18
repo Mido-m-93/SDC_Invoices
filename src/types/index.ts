@@ -97,6 +97,16 @@ export interface InvoiceValidationResult {
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
+  approvedAt?: string;
+  // Reviewer comments
+  reviewerComment?: string;
+  reviewerCommentAt?: string;
+  // Money Forward
+  mfBillingId?: string;
+  mfBillingUrl?: string;
+  mfSentAt?: string;
+  // Escalation
+  escalatedAt?: string;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────
@@ -233,7 +243,8 @@ export type ReminderType =
   | "missing_invoice"
   | "stale_review"
   | "due_date_approaching"
-  | "due_date_overdue";
+  | "due_date_overdue"
+  | "escalation";
 
 export type ReminderChannel = "teams" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";

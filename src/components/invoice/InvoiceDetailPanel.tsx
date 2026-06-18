@@ -32,6 +32,12 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const [vendorError, setVendorError] = useState<string | null>(null);
   const [savedVendorId, setSavedVendorId] = useState<string | null>(null);
 
+  // ── Comment state ─────────────────────────────────────────────────────────────
+  const [comment, setComment] = useState(v?.reviewerComment ?? "");
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [commentSaved, setCommentSaved] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
   // ── Contract state ────────────────────────────────────────────────────────────
   const [addingContract, setAddingContract] = useState(false);
   const [contractProject, setContractProject] = useState(s.externalProjectName ?? s.projectType ?? "");
@@ -135,6 +141,25 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
       setContractError(err instanceof Error ? err.message : "Failed to add contract");
     } finally {
       setContractSaving(false);
+    }
+  }
+
+  async function handleSaveComment() {
+    if (!comment.trim()) return;
+    setCommentSaving(true);
+    setCommentError(null);
+    try {
+      const res = await fetch("/api/invoices/comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId: s.id, comment: comment.trim(), commentBy: "reviewer" }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      setCommentSaved(true);
+    } catch (err) {
+      setCommentError(err instanceof Error ? err.message : "Failed to save comment");
+    } finally {
+      setCommentSaving(false);
     }
   }
 
@@ -461,15 +486,49 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               )}
             </Section>
           )}
+          {/* ── Reviewer Comment ─────────────────────────────────── */}
+          {v && (
+            <Section title="Reviewer Comment">
+              <div className="space-y-2">
+                <textarea
+                  value={comment}
+                  onChange={(e) => { setComment(e.target.value); setCommentSaved(false); }}
+                  placeholder="Add a comment or note for this invoice…"
+                  rows={3}
+                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm text-stone-800 resize-none focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveComment}
+                    disabled={commentSaving || !comment.trim()}
+                    className="rounded-lg bg-stone-700 hover:bg-stone-800 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    {commentSaving ? "Saving…" : "Save Comment"}
+                  </button>
+                  {commentSaved && <span className="text-xs text-green-700 font-semibold">✓ Saved</span>}
+                  {commentError && <span className="text-xs text-red-600">{commentError}</span>}
+                  {v.reviewerCommentAt && (
+                    <span className="text-xs text-stone-400">Last saved: {new Date(v.reviewerCommentAt).toLocaleDateString()}</span>
+                  )}
+                </div>
+              </div>
+            </Section>
+          )}
+
           {/* ── Money Forward ────────────────────────────────────── */}
           {v && (v.statusCode === "READY" || v.humanApproved) && (
             <Section title={t("section_money_forward")}>
               <div className="space-y-3">
-                {mfResult ? (
+                {(mfResult || v.mfBillingUrl) ? (
                   <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-4 py-3">
-                    <span className="text-xs font-semibold text-green-700">{t("mf_sent")}</span>
+                    <div>
+                      <span className="text-xs font-semibold text-green-700">{t("mf_sent")}</span>
+                      {v.mfSentAt && (
+                        <p className="text-[10px] text-green-600 mt-0.5">{new Date(v.mfSentAt).toLocaleDateString()}</p>
+                      )}
+                    </div>
                     <a
-                      href={mfResult.billingUrl}
+                      href={mfResult?.billingUrl ?? v.mfBillingUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-green-800 underline font-semibold"

@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       statusCode: "READY" as const,
       humanApproved: true,
       approvedBy: approvedBy ?? "unknown",
+      approvedAt: new Date().toISOString(),
     };
 
     await storageSvc.saveValidationResult(approved);

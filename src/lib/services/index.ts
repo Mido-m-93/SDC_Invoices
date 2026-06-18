@@ -52,6 +52,9 @@ import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
 import { SupabaseContractService } from "./real/SupabaseContractService";
 import { TeamsNotificationService } from "./real/TeamsNotificationService";
+import { SlackNotificationService } from "./real/SlackNotificationService";
+import { EmailNotificationService } from "./real/EmailNotificationService";
+import { MultiChannelNotificationService } from "./real/MultiChannelNotificationService";
 import { SupabaseReminderService } from "./real/SupabaseReminderService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
@@ -151,19 +154,31 @@ export function getContractService(): IContractService {
   return _contract;
 }
 
-// ── Notification (Phase 7) ────────────────────────────────────────────────────
+// ── Notification (Phase 5/7) — multi-channel ─────────────────────────────────
 export function getNotificationService(): INotificationService {
   if (!_notification) {
     if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
       _notification = new MockNotificationService();
     } else {
-      const webhookUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
-      if (!webhookUrl) {
-        console.warn("[NotificationService] TEAMS_WEBHOOK_URL not set — falling back to mock");
-        _notification = new MockNotificationService();
-      } else {
-        _notification = new TeamsNotificationService(webhookUrl);
+      const channels: INotificationService[] = [];
+      const teamsUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
+      const slackUrl = process.env.SLACK_WEBHOOK_URL ?? "";
+      if (teamsUrl) channels.push(new TeamsNotificationService(teamsUrl));
+      if (slackUrl) channels.push(new SlackNotificationService(slackUrl));
+      // Email is self-configuring — uses RESEND_API_KEY + NOTIFICATION_TO env vars
+      channels.push(new EmailNotificationService());
+      if (channels.length === 1 && channels[0] instanceof EmailNotificationService) {
+        // only email configured — check if it's actually usable
+        const emailUsable = !!process.env.RESEND_API_KEY && !!process.env.NOTIFICATION_TO;
+        if (!emailUsable) {
+          console.warn("[NotificationService] No channels configured — falling back to mock");
+          _notification = new MockNotificationService();
+          return _notification;
+        }
       }
+      _notification = channels.length === 1
+        ? channels[0]
+        : new MultiChannelNotificationService(channels);
     }
   }
   return _notification;
