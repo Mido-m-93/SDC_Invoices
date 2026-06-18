@@ -67,17 +67,8 @@ export default function MembersPage() {
 
   function openEdit(m: Member) {
     setEditing(m);
-    setForm({
-      displayName:  m.displayName,
-      email:        m.email,
-      phone:        m.phone,
-      role:         m.role,
-      department:   m.department,
-      employeeCode: m.employeeCode,
-      joinDate:     m.joinDate,
-      status:       m.status,
-      notes:        m.notes,
-    });
+    const { id: _id, createdAt: _c, updatedAt: _u, avatarUrl: _a, ...rest } = m;
+    setForm(rest);
     setShowForm(true);
   }
 

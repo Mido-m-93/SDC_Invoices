@@ -42,7 +42,8 @@ export class SupabaseAccountingService implements IAccountingService {
   }
 
   async postEntry(id: string, actorName: string): Promise<void> {
-    const { error } = await this.db.from("accounting_entries").update({ status: "posted", posted_by: actorName, posted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
+    const now = new Date().toISOString();
+    const { error } = await this.db.from("accounting_entries").update({ status: "posted", posted_by: actorName, posted_at: now, updated_at: now }).eq("id", id);
     if (error) throw new Error(`postEntry: ${error.message}`);
   }
 
