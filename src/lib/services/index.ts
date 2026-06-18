@@ -6,11 +6,11 @@
 // the corresponding flag is explicitly set to "false".
 //
 // Per-service flags (all default to mock):
-//   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService / MicrosoftSheetsService
-//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService (requires GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY)
+//   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService
+//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService      (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_VALIDATION     = "false" → use RealValidationService  (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
-//   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use SupabaseDashboardService
+//   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_NOTIFICATION   = "false" → use TeamsNotificationService
 //
 // The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
@@ -30,8 +30,8 @@ import type {
   INotificationService,
   IReminderService,
   IExpenseService,
-  IOutboundService,
-  ICloseService,
+  IOutboundInvoiceService,
+  ICloseChecklistService,
 } from "./types";
 
 import {
@@ -45,26 +45,20 @@ import {
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
-import { MockExpenseService } from "./mock/expenseService";
-import { MockOutboundService } from "./mock/outboundService";
-import { MockCloseService } from "./mock/closeService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
-import { RealDriveService } from "./real/DriveService";
-import { RealValidationService } from "./real/ValidationService";
 import { SupabaseStorageService } from "./real/SupabaseStorageService";
-import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
 import { SupabaseContractService } from "./real/SupabaseContractService";
 import { TeamsNotificationService } from "./real/TeamsNotificationService";
-import { SlackNotificationService } from "./real/SlackNotificationService";
-import { EmailNotificationService } from "./real/EmailNotificationService";
-import { MultiChannelNotificationService } from "./real/MultiChannelNotificationService";
 import { SupabaseReminderService } from "./real/SupabaseReminderService";
+import { RealValidationService } from "./real/RealValidationService";
+import { RealDriveService } from "./real/DriveService";
+import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseExpenseService } from "./real/SupabaseExpenseService";
-import { SupabaseOutboundService } from "./real/SupabaseOutboundService";
-import { SupabaseCloseService } from "./real/SupabaseCloseService";
+import { SupabaseOutboundInvoiceService } from "./real/SupabaseOutboundInvoiceService";
+import { SupabaseCloseChecklistService } from "./real/SupabaseCloseChecklistService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -84,8 +78,8 @@ let _contract: IContractService | undefined;
 let _notification: INotificationService | undefined;
 let _reminder: IReminderService | undefined;
 let _expense: IExpenseService | undefined;
-let _outbound: IOutboundService | undefined;
-let _close: ICloseService | undefined;
+let _outboundInvoice: IOutboundInvoiceService | undefined;
+let _closeChecklist: ICloseChecklistService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
@@ -105,11 +99,9 @@ export function getSheetsService(): ISheetsService {
 // ── Drive ────────────────────────────────────────────────────────────────────
 export function getDriveService(): IDriveService {
   if (!_drive) {
-    if (!isMock("NEXT_PUBLIC_USE_MOCK_DRIVE") && process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
-      _drive = new RealDriveService();
-    } else {
-      _drive = new MockDriveService();
-    }
+    _drive = isMock("NEXT_PUBLIC_USE_MOCK_DRIVE")
+      ? new MockDriveService()
+      : new RealDriveService();
   }
   return _drive;
 }
@@ -117,11 +109,9 @@ export function getDriveService(): IDriveService {
 // ── Validation ───────────────────────────────────────────────────────────────
 export function getValidationService(): IValidationService {
   if (!_validation) {
-    if (isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")) {
-      _validation = new MockValidationService(getVendorService(), getContractService());
-    } else {
-      _validation = new RealValidationService(getDriveService(), getVendorService(), getContractService());
-    }
+    _validation = isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")
+      ? new MockValidationService()
+      : new RealValidationService();
   }
   return _validation;
 }
@@ -166,31 +156,19 @@ export function getContractService(): IContractService {
   return _contract;
 }
 
-// ── Notification (Phase 5/7) — multi-channel ─────────────────────────────────
+// ── Notification (Phase 7) ────────────────────────────────────────────────────
 export function getNotificationService(): INotificationService {
   if (!_notification) {
     if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
       _notification = new MockNotificationService();
     } else {
-      const channels: INotificationService[] = [];
-      const teamsUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
-      const slackUrl = process.env.SLACK_WEBHOOK_URL ?? "";
-      if (teamsUrl) channels.push(new TeamsNotificationService(teamsUrl));
-      if (slackUrl) channels.push(new SlackNotificationService(slackUrl));
-      // Email is self-configuring — uses RESEND_API_KEY + NOTIFICATION_TO env vars
-      channels.push(new EmailNotificationService());
-      if (channels.length === 1 && channels[0] instanceof EmailNotificationService) {
-        // only email configured — check if it's actually usable
-        const emailUsable = !!process.env.RESEND_API_KEY && !!process.env.NOTIFICATION_TO;
-        if (!emailUsable) {
-          console.warn("[NotificationService] No channels configured — falling back to mock");
-          _notification = new MockNotificationService();
-          return _notification;
-        }
+      const webhookUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
+      if (!webhookUrl) {
+        console.warn("[NotificationService] TEAMS_WEBHOOK_URL not set — falling back to mock");
+        _notification = new MockNotificationService();
+      } else {
+        _notification = new TeamsNotificationService(webhookUrl);
       }
-      _notification = channels.length === 1
-        ? channels[0]
-        : new MultiChannelNotificationService(channels);
     }
   }
   return _notification;
@@ -208,34 +186,28 @@ export function getReminderService(): IReminderService {
   return _reminder;
 }
 
-// ── Expense (Phase 8) ─────────────────────────────────────────────────────────
+// ── Expense (Phase 8) ────────────────────────────────────────────────────────
 export function getExpenseService(): IExpenseService {
   if (!_expense) {
-    _expense = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
-      ? new MockExpenseService()
-      : new SupabaseExpenseService();
+    _expense = new SupabaseExpenseService();
   }
   return _expense;
 }
 
-// ── Outbound (Phase 9) ────────────────────────────────────────────────────────
-export function getOutboundService(): IOutboundService {
-  if (!_outbound) {
-    _outbound = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
-      ? new MockOutboundService()
-      : new SupabaseOutboundService();
+// ── Outbound Invoice (Phase 9) ────────────────────────────────────────────────
+export function getOutboundInvoiceService(): IOutboundInvoiceService {
+  if (!_outboundInvoice) {
+    _outboundInvoice = new SupabaseOutboundInvoiceService();
   }
-  return _outbound;
+  return _outboundInvoice;
 }
 
-// ── Monthly close (Phase 10) ──────────────────────────────────────────────────
-export function getCloseService(): ICloseService {
-  if (!_close) {
-    _close = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
-      ? new MockCloseService()
-      : new SupabaseCloseService();
+// ── Monthly Close Checklist (Phase 10) ────────────────────────────────────────
+export function getCloseChecklistService(): ICloseChecklistService {
+  if (!_closeChecklist) {
+    _closeChecklist = new SupabaseCloseChecklistService();
   }
-  return _close;
+  return _closeChecklist;
 }
 
 // ── Startup diagnostic (server-side only) ────────────────────────────────────

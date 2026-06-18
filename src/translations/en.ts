@@ -151,10 +151,21 @@ const en = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
-  nav_exceptions: "Exceptions",
+
+  // ── Phase 8: Expenses ─────────────────────────────────────────────────────
   nav_expenses: "Expenses",
-  nav_outbound: "Outbound",
-  nav_close: "Month Close",
+  expenses_title: "Expense Claims",
+  expenses_subtitle: "Submit and review expense reimbursement requests",
+
+  // ── Phase 9: Outbound Invoices ────────────────────────────────────────────
+  nav_outbound_invoices: "Outbound Invoices",
+  outbound_invoices_title: "Outbound Invoice Management",
+  outbound_invoices_subtitle: "Track invoices issued to clients and payment collection",
+
+  // ── Phase 10: Monthly Close ────────────────────────────────────────────────
+  nav_close_checklist: "Monthly Close",
+  close_checklist_title: "Monthly Close Checklist",
+  close_checklist_subtitle: "Track monthly accounting close tasks",
 
   // ── Common ────────────────────────────────────────────────────────────────
   close: "Close",
@@ -203,16 +214,6 @@ const en = {
   config_payment_terms: "Payment terms (days after end of closing month)",
   config_escalation_recipient: "Escalation recipient",
   config_escalation_placeholder: "Email address or Teams mention",
-
-  // ── Money Forward ─────────────────────────────────────────────────────────
-  mf_send: "Send to Money Forward",
-  mf_sending: "Sending…",
-  mf_sent: "Sent to Money Forward",
-  mf_error: "Failed to send to Money Forward",
-  mf_not_connected: "Money Forward not connected",
-  mf_not_connected_hint: "Visit /api/auth/moneyforward to connect",
-  mf_billing_url: "View in Money Forward",
-  section_money_forward: "Money Forward",
 } as const;
 
 export default en;

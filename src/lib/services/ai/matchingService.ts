@@ -25,10 +25,7 @@ export async function matchSubmissionToVendorContract(
   const today = new Date().toISOString().slice(0, 10);
   const activeVendors = vendors.filter((v) => v.status === "active");
   const activeContracts = contracts.filter(
-    (c) =>
-      c.status === "active" &&
-      (!c.startDate || c.startDate <= today) &&
-      (!c.endDate || c.endDate >= today)
+    (c) => c.status === "active" && c.startDate <= today && c.endDate >= today
   );
 
   const vendorList = activeVendors.map((v) => ({

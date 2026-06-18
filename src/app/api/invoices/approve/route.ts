@@ -39,13 +39,12 @@ export async function POST(req: NextRequest) {
       statusCode: "READY" as const,
       humanApproved: true,
       approvedBy: approvedBy ?? "unknown",
-      approvedAt: new Date().toISOString(),
     };
 
     await storageSvc.saveValidationResult(approved);
     return NextResponse.json({ result: approved });
   } catch (err) {
     console.error("[POST /api/invoices/approve]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

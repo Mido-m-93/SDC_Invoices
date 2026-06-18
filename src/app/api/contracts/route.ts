@@ -9,8 +9,7 @@ export async function GET() {
     const contracts = await svc.listContracts();
     return NextResponse.json({ count: contracts.length, contracts });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
 
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
       id: body.id || generateId(),
       vendorId: body.vendorId ?? "",
       projectName: body.projectName ?? "",
-      startDate: body.startDate || new Date().toISOString().slice(0, 10),
+      startDate: body.startDate ?? "",
       endDate: body.endDate ?? "",
       expectedMonthlyAmount: body.expectedMonthlyAmount ?? 0,
       currency: body.currency ?? "JPY",
@@ -32,7 +31,6 @@ export async function POST(req: NextRequest) {
     await getContractService().saveContract(contract);
     return NextResponse.json({ success: true, contract });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

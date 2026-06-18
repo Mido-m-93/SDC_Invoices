@@ -60,4 +60,3 @@ automation/**/logs/
 # Excel データ
 *.xlsx
 *.xls
-.env*

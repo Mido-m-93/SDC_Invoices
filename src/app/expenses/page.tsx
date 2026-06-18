@@ -2,295 +2,339 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
-import clsx from "clsx";
-import type { ExpenseClaim, ExpenseCategory } from "@/types";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus } from "@/types";
 
-const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
-  { value: "travel",   label: "Travel" },
-  { value: "hardware", label: "Hardware" },
-  { value: "software", label: "Software" },
-  { value: "meals",    label: "Meals" },
-  { value: "office",   label: "Office" },
-  { value: "training", label: "Training" },
-  { value: "other",    label: "Other" },
+const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
+const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
+const STATUSES: { value: ExpenseStatus | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "submitted", label: "Submitted" },
+  { value: "under_review", label: "Under Review" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "paid", label: "Paid" },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  submitted: "bg-blue-50 text-blue-700",
-  under_review: "bg-amber-50 text-amber-700",
-  approved: "bg-green-50 text-green-700",
-  rejected: "bg-red-50 text-red-700",
-  paid: "bg-violet-50 text-violet-700",
+const STATUS_COLORS: Record<ExpenseStatus, string> = {
+  draft: "bg-stone-100 text-stone-500",
+  submitted: "bg-blue-100 text-blue-700",
+  under_review: "bg-amber-100 text-amber-700",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+  paid: "bg-emerald-100 text-emerald-700",
+  archived: "bg-stone-100 text-stone-400",
 };
 
-type FilterStatus = "all" | "submitted" | "under_review" | "approved" | "rejected" | "paid";
+const RISK_COLORS = { OK: "text-green-600", NEEDS_REVIEW: "text-amber-600", BLOCKED: "text-red-600" };
+
+const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status" | "reviewerComment" | "reviewedBy" | "reviewedAt" | "approvedBy" | "approvedAt" | "paidAt" | "extractedAmount" | "extractedDate" | "extractedVendor" | "policyViolations" | "submittedAt"> = {
+  submittedBy: "",
+  submittedByEmail: "",
+  category: "other",
+  description: "",
+  amount: 0,
+  currency: "JPY",
+  paymentMethod: "personal_reimbursement",
+  receiptUrl: "",
+  receiptFilename: "",
+  projectName: "",
+  internalDepartment: "",
+  expenseDate: new Date().toISOString().slice(0, 10),
+};
 
 export default function ExpensesPage() {
-  const [claims, setClaims]           = useState<ExpenseClaim[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [filter, setFilter]           = useState<FilterStatus>("all");
-  const [showForm, setShowForm]       = useState(false);
-  const [submitting, setSubmitting]   = useState(false);
-  const [selected, setSelected]       = useState<ExpenseClaim | null>(null);
-  const [reviewComment, setReviewComment] = useState("");
-  const [reviewing, setReviewing]     = useState(false);
-
-  const [form, setForm] = useState({
-    submittedBy: "",
-    submittedByEmail: "",
-    category: "other" as ExpenseCategory,
-    purpose: "",
-    amount: "",
-    projectName: "",
-    notes: "",
-  });
+  const [claims, setClaims] = useState<ExpenseClaim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<ExpenseClaim | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [error, setError] = useState<string | null>(null);
+  const [validating, setValidating] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
+  const [approveComment, setApproveComment] = useState("");
+  const [actorName, setActorName] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = filter !== "all" ? `?status=${filter}` : "";
-    const res = await fetch(`/api/expenses${params}`);
-    const data = await res.json() as { claims: ExpenseClaim[] };
-    setClaims(data.claims ?? []);
-    setLoading(false);
-  }, [filter]);
+    try {
+      const url = statusFilter === "all" ? "/api/expenses" : `/api/expenses?status=${statusFilter}`;
+      const res = await fetch(url);
+      const data = await res.json() as { claims: ExpenseClaim[] };
+      setClaims(data.claims ?? []);
+    } catch { setError("Failed to load expense claims"); }
+    finally { setLoading(false); }
+  }, [statusFilter]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    await fetch("/api/expenses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, amount: parseFloat(form.amount) || 0 }),
-    });
-    setForm({ submittedBy: "", submittedByEmail: "", category: "other", purpose: "", amount: "", projectName: "", notes: "" });
-    setShowForm(false);
-    setSubmitting(false);
-    await load();
+  function openNew() {
+    setEditing(null);
+    setForm({ ...EMPTY_FORM });
+    setShowForm(true);
   }
 
-  async function review(decision: "approved" | "rejected") {
-    if (!selected) return;
-    setReviewing(true);
-    await fetch("/api/expenses/review", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: selected.id, decision, reviewerComment: reviewComment }),
+  function openEdit(c: ExpenseClaim) {
+    setEditing(c);
+    setForm({
+      submittedBy: c.submittedBy,
+      submittedByEmail: c.submittedByEmail,
+      category: c.category,
+      description: c.description,
+      amount: c.amount,
+      currency: c.currency,
+      paymentMethod: c.paymentMethod,
+      receiptUrl: c.receiptUrl,
+      receiptFilename: c.receiptFilename,
+      projectName: c.projectName,
+      internalDepartment: c.internalDepartment,
+      expenseDate: c.expenseDate,
     });
-    setSelected(null);
-    setReviewComment("");
-    setReviewing(false);
-    await load();
+    setShowForm(true);
   }
 
-  const counts = {
-    all: claims.length,
-    submitted: claims.filter((c) => c.status === "submitted").length,
-    under_review: claims.filter((c) => c.status === "under_review").length,
-    approved: claims.filter((c) => c.status === "approved").length,
-    rejected: claims.filter((c) => c.status === "rejected").length,
-  };
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const url = editing ? `/api/expenses/${editing.id}` : "/api/expenses";
+      const method = editing ? "PUT" : "POST";
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      setShowForm(false);
+      load();
+    } catch { setError("Failed to save expense claim"); }
+    finally { setSaving(false); }
+  }
 
-  const filtered = filter === "all" ? claims : claims.filter((c) => c.status === filter);
-  const totalApproved = claims.filter((c) => c.status === "approved").reduce((s, c) => s + c.amount, 0);
+  async function handleValidate(id: string) {
+    setValidating(id);
+    try {
+      await fetch(`/api/expenses/${id}/validate`, { method: "POST" });
+      load();
+    } catch { setError("Validation failed"); }
+    finally { setValidating(null); }
+  }
+
+  async function handleApprove() {
+    if (!approvingId || !approveAction) return;
+    try {
+      await fetch(`/api/expenses/${approvingId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: approveAction, approvedBy: actorName, comment: approveComment }),
+      });
+      setApprovingId(null);
+      setApproveAction(null);
+      setApproveComment("");
+      load();
+    } catch { setError("Failed to update status"); }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this expense claim?")) return;
+    await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
     <AppShell>
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-stone-900">Expense Claims</h1>
-            <p className="mt-1 text-sm text-stone-500">Phase 8 — Employee expense submissions and approval</p>
-          </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-[#1a3d2b] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a3d2b]/90"
-          >
-            + Submit Expense
-          </button>
-        </div>
+      <PageHeader
+        title="Expense Claims"
+        subtitle="Submit and review expense reimbursement requests"
+        actions={<Button variant="primary" onClick={openNew}>+ New Claim</Button>}
+      />
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Pending", value: counts.submitted + counts.under_review, color: "text-amber-600" },
-            { label: "Approved", value: counts.approved, color: "text-green-600" },
-            { label: "Rejected", value: counts.rejected, color: "text-red-600" },
-            { label: "Approved Total", value: `¥${totalApproved.toLocaleString()}`, color: "text-violet-600" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-stone-100 bg-white p-4 shadow-sm">
-              <p className="text-xs text-stone-400">{s.label}</p>
-              <p className={clsx("mt-1 text-2xl font-bold", s.color)}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Filter tabs */}
-        <div className="flex gap-2 border-b border-stone-200">
-          {(["all", "submitted", "under_review", "approved", "rejected"] as FilterStatus[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={clsx(
-                "px-3 py-2 text-xs font-medium border-b-2 transition",
-                filter === s ? "border-[#1a3d2b] text-[#1a3d2b]" : "border-transparent text-stone-500 hover:text-stone-800",
-              )}
-            >
-              {s === "all" ? "All" : s.replace("_", " ")}
-              {s !== "paid" && <span className="ml-1 text-stone-400">({s === "all" ? counts.all : counts[s as keyof typeof counts] ?? 0})</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Table */}
-        {loading ? (
-          <p className="text-sm text-stone-400 py-8 text-center">Loading...</p>
-        ) : filtered.length === 0 ? (
-          <p className="text-sm text-stone-400 py-8 text-center">No expense claims</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-stone-100 shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="bg-stone-50 text-xs uppercase text-stone-400">
-                <tr>
-                  {["Submitted By", "Category", "Purpose", "Amount", "Project", "Submitted", "Status", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-stone-50">
-                    <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy}</td>
-                    <td className="px-4 py-3 text-stone-600 capitalize">{c.category}</td>
-                    <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.purpose}</td>
-                    <td className="px-4 py-3 font-mono text-stone-700">¥{c.amount.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-stone-500">{c.projectName ?? "—"}</td>
-                    <td className="px-4 py-3 text-stone-500">{c.submittedAt.slice(0, 10)}</td>
-                    <td className="px-4 py-3">
-                      <span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium capitalize", STATUS_COLORS[c.status] ?? "bg-stone-100 text-stone-600")}>
-                        {c.status.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {(c.status === "submitted" || c.status === "under_review") && (
-                        <button
-                          onClick={() => { setSelected(c); setReviewComment(c.reviewerComment ?? ""); }}
-                          className="text-xs text-[#1a3d2b] underline hover:no-underline"
-                        >
-                          Review
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
+        ⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.
       </div>
 
-      {/* Submit form modal */}
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
+          {error}
+          <button onClick={() => setError(null)}>×</button>
+        </div>
+      )}
+
+      {/* Status filter */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {STATUSES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => setStatusFilter(s.value)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s.value ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400">Loading…</p>
+      ) : claims.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">No expense claims found.</p>
+          <Button variant="primary" className="mt-4" onClick={openNew}>Submit your first claim</Button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
+              <tr>
+                <th className="px-4 py-3 text-left">Submitted By</th>
+                <th className="px-4 py-3 text-left">Category</th>
+                <th className="px-4 py-3 text-left">Description</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3 text-left">Date</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Violations</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {claims.map((c) => (
+                <tr key={c.id} className="hover:bg-stone-50">
+                  <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
+                  <td className="px-4 py-3 text-stone-500 capitalize">{c.category.replace(/_/g, " ")}</td>
+                  <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.description || "—"}</td>
+                  <td className="px-4 py-3 text-right font-mono text-stone-800">
+                    {c.currency} {c.amount.toLocaleString()}
+                    {c.extractedAmount !== null && Math.abs(c.extractedAmount - c.amount) > 1 && (
+                      <span className="ml-1 text-xs text-amber-600">(receipt: {c.extractedAmount.toLocaleString()})</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                      {c.status.replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.policyViolations.length > 0 ? (
+                      <span className="text-xs text-red-600">{c.policyViolations.join(", ")}</span>
+                    ) : (
+                      <span className="text-xs text-green-600">None</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 flex gap-1 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
+                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>Validate</Button>
+                    {(c.status === "submitted" || c.status === "under_review") && (
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>Approve</Button>
+                    )}
+                    {c.status !== "rejected" && c.status !== "paid" && (
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>Reject</Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Claim form modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">Submit Expense Claim</h2>
-            <form onSubmit={(e) => { void submit(e); }} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">Name *</label>
-                  <input required className="input-base" value={form.submittedBy} onChange={(e) => setForm({ ...form, submittedBy: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">Email *</label>
-                  <input type="email" required className="input-base" value={form.submittedByEmail} onChange={(e) => setForm({ ...form, submittedByEmail: e.target.value })} />
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-y-auto max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{editing ? "Edit Expense Claim" : "New Expense Claim"}</h2>
+              <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Submitted By *">
+                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder="Name" />
+                </Field>
+                <Field label="Email">
+                  <input className={inp} value={form.submittedByEmail} onChange={(e) => set("submittedByEmail", e.target.value)} placeholder="email@example.com" />
+                </Field>
               </div>
-              <div>
-                <label className="block text-xs text-stone-500 mb-1">Category *</label>
-                <select required className="input-base" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })}>
-                  {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <Field label="Expense Date *">
+                <input className={inp} type="date" value={form.expenseDate} onChange={(e) => set("expenseDate", e.target.value)} />
+              </Field>
+              <Field label="Category *">
+                <select className={inp} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
                 </select>
+              </Field>
+              <Field label="Description *">
+                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Purpose of expense..." />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Amount *">
+                  <input className={inp} type="number" value={form.amount} onChange={(e) => set("amount", parseFloat(e.target.value) || 0)} />
+                </Field>
+                <Field label="Currency">
+                  <select className={inp} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
+                    <option>JPY</option><option>USD</option><option>EUR</option>
+                  </select>
+                </Field>
               </div>
-              <div>
-                <label className="block text-xs text-stone-500 mb-1">Purpose *</label>
-                <input required className="input-base" placeholder="What was the expense for?" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+              <Field label="Payment Method *">
+                <select className={inp} value={form.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>
+                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+                </select>
+              </Field>
+              <Field label="Receipt URL">
+                <input className={inp} value={form.receiptUrl} onChange={(e) => set("receiptUrl", e.target.value)} placeholder="https://..." />
+              </Field>
+              <Field label="Receipt Filename">
+                <input className={inp} value={form.receiptFilename} onChange={(e) => set("receiptFilename", e.target.value)} placeholder="receipt.pdf" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Project Name">
+                  <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
+                </Field>
+                <Field label="Department">
+                  <input className={inp} value={form.internalDepartment} onChange={(e) => set("internalDepartment", e.target.value)} />
+                </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">Amount (¥) *</label>
-                  <input type="number" required min={1} className="input-base" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">Project</label>
-                  <input className="input-base" value={form.projectName} onChange={(e) => setForm({ ...form, projectName: e.target.value })} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-stone-500 mb-1">Notes</label>
-                <textarea rows={2} className="input-base resize-none" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-[#1a3d2b] py-2 text-sm font-medium text-white disabled:opacity-50">
-                  {submitting ? "Submitting…" : "Submit"}
-                </button>
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 rounded-lg border border-stone-200 py-2 text-sm font-medium text-stone-600">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Review modal */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
-            <h2 className="text-lg font-semibold text-stone-900">Review Expense Claim</h2>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between"><dt className="text-stone-500">Submitted by</dt><dd className="font-medium">{selected.submittedBy}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Purpose</dt><dd>{selected.purpose}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Amount</dt><dd className="font-mono">¥{selected.amount.toLocaleString()}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Category</dt><dd className="capitalize">{selected.category}</dd></div>
-              {selected.projectName && <div className="flex justify-between"><dt className="text-stone-500">Project</dt><dd>{selected.projectName}</dd></div>}
-            </dl>
-            <div>
-              <label className="block text-xs text-stone-500 mb-1">Comment (optional)</label>
-              <textarea rows={3} className="input-base resize-none" value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} />
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => { void review("approved"); }} disabled={reviewing} className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-medium text-white disabled:opacity-50">
-                Approve
-              </button>
-              <button onClick={() => { void review("rejected"); }} disabled={reviewing} className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-medium text-white disabled:opacity-50">
-                Reject
-              </button>
-              <button onClick={() => setSelected(null)} className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-stone-600">
-                Cancel
-              </button>
+            <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>Save Claim</Button>
             </div>
           </div>
         </div>
       )}
 
-      <style jsx>{`
-        .input-base {
-          width: 100%;
-          border-radius: 0.5rem;
-          border: 1px solid #e7e5e4;
-          padding: 0.4rem 0.6rem;
-          font-size: 0.875rem;
-          color: #1c1917;
-          background: white;
-          outline: none;
-        }
-        .input-base:focus {
-          border-color: #1a3d2b;
-          box-shadow: 0 0 0 2px rgba(26,61,43,0.1);
-        }
-      `}</style>
+      {/* Approve/Reject modal */}
+      {approvingId && approveAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-base font-semibold mb-4 capitalize">{approveAction} Expense Claim</h2>
+            <Field label="Your Name *">
+              <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
+            </Field>
+            <div className="mt-3">
+              <Field label="Comment">
+                <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment..." />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel</Button>
+              <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>{approveAction === "approve" ? "Approve" : "Reject"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
+  );
+}
+
+const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-stone-500 mb-1">{label}</label>
+      {children}
+    </div>
   );
 }

@@ -27,22 +27,22 @@ export function useCurrentUser() {
 
     const resolveUser = (authUser: { user_metadata?: Record<string, unknown>; email?: string } | null) => {
       if (!authUser) return null;
-      const username = authUser.user_metadata?.username as string | undefined;
       const name = authUser.user_metadata?.name as string | undefined;
-      return username || name || authUser.email?.split("@")[0] || "User";
+      return name || authUser.email?.split("@")[0] || "User";
     };
 
-    // getUser() hits the Supabase server and returns fresh database metadata,
-    // bypassing the stale JWT cached in localStorage.
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      setUser(resolveUser(authUser));
-      setReady(true);
+    supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {
+      if (refreshedUser) {
+        setUser(resolveUser(refreshedUser));
+        setReady(true);
+      } else {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        setUser(resolveUser(authUser));
+        setReady(true);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Skip INITIAL_SESSION — it carries the stale cached JWT.
-      // getUser() above already handles the initial load with fresh server data.
-      if (event === "INITIAL_SESSION") return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(resolveUser(session?.user ?? null));
     });
 

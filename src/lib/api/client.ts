@@ -217,7 +217,7 @@ export async function sendReminders(
   type: ReminderType | "all"
 ): Promise<{ sent: number; failed: number; skipped: number }> {
   return apiFetch<{ sent: number; failed: number; skipped: number }>(
-    "/api/reminders/trigger",
+    "/api/reminders/send",
     { method: "POST", body: JSON.stringify({ month, type }) }
   );
 }

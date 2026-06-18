@@ -73,7 +73,7 @@ export default function ConfigPage() {
 
   return (
     <AppShell>
-      <div className="max-w-3xl">
+      <div className="px-8 py-8 max-w-3xl">
         <PageHeader
           title={t("config_title")}
           actions={

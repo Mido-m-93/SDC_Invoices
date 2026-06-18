@@ -97,16 +97,6 @@ export interface InvoiceValidationResult {
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
-  approvedAt?: string;
-  // Reviewer comments
-  reviewerComment?: string;
-  reviewerCommentAt?: string;
-  // Money Forward
-  mfBillingId?: string;
-  mfBillingUrl?: string;
-  mfSentAt?: string;
-  // Escalation
-  escalatedAt?: string;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────
@@ -244,7 +234,8 @@ export type ReminderType =
   | "stale_review"
   | "due_date_approaching"
   | "due_date_overdue"
-  | "escalation";
+  | "missing_expense_receipt"
+  | "stale_expense_review";
 
 export type ReminderChannel = "teams" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";
@@ -296,109 +287,150 @@ export interface ReminderSummary {
   recentLogs: ReminderLog[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Phase 8 — Expense Claims
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Phase 8: Expense reimbursement ───────────────────────────────────────────
+
+export type ExpenseCategory =
+  | "transport"
+  | "accommodation"
+  | "meals"
+  | "software"
+  | "hardware"
+  | "office_supplies"
+  | "communication"
+  | "entertainment"
+  | "training"
+  | "other";
 
 export type ExpenseStatus =
+  | "draft"
   | "submitted"
   | "under_review"
   | "approved"
   | "rejected"
-  | "paid";
+  | "paid"
+  | "archived";
 
-export type ExpenseCategory =
-  | "travel"
-  | "meals"
-  | "software"
-  | "hardware"
-  | "office"
-  | "training"
-  | "other";
+export type ExpensePaymentMethod =
+  | "company_card"
+  | "invoice_payment"
+  | "personal_reimbursement";
 
 export interface ExpenseClaim {
   id: string;
-  submittedBy: string;           // name of employee
+  submittedBy: string;
   submittedByEmail: string;
-  submittedAt: string;           // ISO timestamp
+  submittedAt: string;
   category: ExpenseCategory;
-  purpose: string;               // description of why
+  description: string;
   amount: number;
-  currency: string;              // JPY, USD, etc.
-  receiptAttachment?: string;    // URL / Drive link
-  receiptFilename?: string;
-  projectName?: string;
-  notes?: string;
+  currency: string;
+  paymentMethod: ExpensePaymentMethod;
+  receiptUrl: string;
+  receiptFilename: string;
+  projectName: string;
+  internalDepartment: string;
+  expenseDate: string;
   status: ExpenseStatus;
-  // Validation
-  receiptAccessible?: boolean;
-  extractedAmount?: number;
-  extractedDate?: string;
-  extractedVendor?: string;
-  issues?: string[];
-  // Review
-  reviewedBy?: string;
-  reviewedAt?: string;
-  reviewerComment?: string;
-  // MF
-  mfEvidenceId?: string;
+  reviewerComment: string;
+  reviewedBy: string;
+  reviewedAt: string | null;
+  approvedBy: string;
+  approvedAt: string | null;
+  paidAt: string | null;
+  extractedAmount: number | null;
+  extractedDate: string | null;
+  extractedVendor: string | null;
+  policyViolations: string[];
   createdAt: string;
+  updatedAt: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Phase 9 — Outbound Invoices
-// ─────────────────────────────────────────────────────────────────────────────
+export interface ExpenseValidationResult {
+  claimId: string;
+  receiptAccessible: boolean;
+  amountMatchesReceipt: boolean;
+  dateFound: boolean;
+  categoryValid: boolean;
+  receiptMissing: boolean;
+  policyViolations: string[];
+  riskLevel: RiskLevel;
+  statusCode: ExpenseStatus;
+  extractedAmount: number | null;
+  extractedDate: string | null;
+  extractedVendor: string | null;
+}
 
-export type OutboundStatus =
+// ── Phase 9: Outbound invoice support ─────────────────────────────────────────
+
+export type OutboundInvoiceStatus =
   | "draft"
+  | "pending_approval"
   | "sent"
-  | "paid"
   | "overdue"
+  | "paid"
   | "cancelled";
 
 export interface OutboundInvoice {
   id: string;
+  contractId: string;
+  clientId: string;
   clientName: string;
-  clientEmail?: string;
   projectName: string;
-  contractId?: string;
-  invoiceNumber?: string;
-  amount: number;
+  invoiceNumber: string;
+  billingMonth: string;
+  issueDate: string;
+  dueDate: string;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
   currency: string;
-  billingDate: string;           // YYYY-MM-DD
-  dueDate: string;               // YYYY-MM-DD
-  status: OutboundStatus;
-  notes?: string;
-  driveFileId?: string;
-  driveFileUrl?: string;
-  sentAt?: string;
-  paidAt?: string;
-  paidAmount?: number;
+  status: OutboundInvoiceStatus;
+  notes: string;
+  sentAt: string | null;
+  paidAt: string | null;
+  paidAmount: number | null;
+  createdBy: string;
+  approvedBy: string;
+  approvedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Phase 10 — Monthly Close
-// ─────────────────────────────────────────────────────────────────────────────
+export interface OutboundInvoiceSummary {
+  total: number;
+  draft: number;
+  pendingApproval: number;
+  sent: number;
+  overdue: number;
+  paid: number;
+  totalOutstanding: number;
+  currency: string;
+}
 
-export type ChecklistItemStatus = "pending" | "done" | "skipped" | "blocked";
+// ── Phase 10: Monthly close checklist ─────────────────────────────────────────
 
-export interface MonthlyChecklistItem {
+export type CloseChecklistItemStatus = "pending" | "in_progress" | "done" | "blocked" | "na";
+
+export interface CloseChecklistItem {
   id: string;
-  month: string;                 // YYYY-MM
-  category: string;              // e.g. "invoices", "bank", "tax"
+  month: string;
+  category: string;
   title: string;
-  description?: string;
-  status: ChecklistItemStatus;
-  completedBy?: string;
-  completedAt?: string;
-  notes?: string;
+  titleJa: string;
+  description: string;
+  status: CloseChecklistItemStatus;
+  assignee: string;
+  completedBy: string;
+  completedAt: string | null;
+  notes: string;
   sortOrder: number;
 }
 
-export interface BankSyncStatus {
-  lastSyncAt: string | null;
-  status: "ok" | "warning" | "error" | "unknown";
-  message: string;
-  unresolvedCount: number;
+export interface MonthlyCloseChecklist {
+  month: string;
+  items: CloseChecklistItem[];
+  totalItems: number;
+  doneItems: number;
+  blockedItems: number;
+  completedAt: string | null;
 }
