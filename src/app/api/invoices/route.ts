@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
 
+export const maxDuration = 25;
+
 export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -13,17 +15,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Load what is already stored so we can preserve stable IDs.
-    // Validation and filed-document records reference these IDs.
+    console.log(`[GET /api/invoices] month=${month} mock_sheets=${process.env.NEXT_PUBLIC_USE_MOCK_SHEETS} mock_storage=${process.env.NEXT_PUBLIC_USE_MOCK_STORAGE} azure_tenant=${!!process.env.AZURE_TENANT_ID}`);
+
+    console.log("[GET /api/invoices] loading from storage...");
     const stored = await getStorageService().loadSubmissionsFromStore(month);
+    console.log(`[GET /api/invoices] storage returned ${stored.length} rows`);
     const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
     const storedIdByRow = new Map(stored.map((s) => [s.submissionRowNumber, s.id]));
 
-    // Pull the latest responses from Microsoft Forms (OneDrive Excel / Graph API).
-    // MicrosoftSheetsService returns ALL rows regardless of month, so we filter
-    // by the correct month using parseSnapshotMonth which handles M/D/YY, YYYY年M月,
-    // ISO, and other formats.
+    console.log("[GET /api/invoices] loading from sheets service...");
     const allFresh = await getSheetsService().loadSubmissions(month);
+    console.log(`[GET /api/invoices] sheets returned ${allFresh.length} rows`);
     const freshForMonth = allFresh.filter(
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
