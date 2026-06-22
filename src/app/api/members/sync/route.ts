@@ -56,22 +56,33 @@ interface DriveItem {
   file?: object;
 }
 
-async function listFolderChildren(token: string): Promise<DriveItem[]> {
-  // Encode the folder path segments individually so spaces/underscores survive.
-  const encodedFolder = SP_FOLDER.split("/").map(encodeURIComponent).join("/");
-  const url = `https://graph.microsoft.com/v1.0/sites/${SP_SITE}/drive/root:/${encodedFolder}:/children?$top=200&$select=id,name,folder,file`;
-
+async function graphGet<T>(path: string, token: string): Promise<T> {
+  const url = path.startsWith("https://") ? path : `https://graph.microsoft.com/v1.0${path}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Graph folder listing failed (${res.status}): ${body}`);
+    throw new Error(`Graph ${path} failed (${res.status}): ${body}`);
   }
+  return res.json() as Promise<T>;
+}
 
-  const data = await res.json() as { value?: DriveItem[] };
+async function listFolderChildren(token: string): Promise<DriveItem[]> {
+  // Step 1: resolve the site to get its stable ID
+  const site = await graphGet<{ id: string }>(
+    `/sites/${SP_SITE}`,
+    token
+  );
+
+  // Step 2: list the folder using the resolved site ID
+  const encodedFolder = SP_FOLDER.split("/").map(encodeURIComponent).join("/");
+  const data = await graphGet<{ value?: DriveItem[] }>(
+    `/sites/${site.id}/drive/root:/${encodedFolder}:/children?$top=200&$select=id,name,folder,file`,
+    token
+  );
+
   return data.value ?? [];
 }
 
