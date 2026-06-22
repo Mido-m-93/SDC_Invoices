@@ -131,3 +131,9 @@ export function formatCurrency(raw: string): string {
   if (isNaN(n)) return raw || "—";
   return `¥${n.toLocaleString("ja-JP")}`;
 }
+
+export function detectCurrency(raw: string): string {
+  if (/[$＄]/.test(raw)) return "USD";
+  if (/[€]/.test(raw)) return "EUR";
+  return "JPY";
+}
