@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/members/sync",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}

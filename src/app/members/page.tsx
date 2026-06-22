@@ -39,6 +39,8 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ added: number; skipped: number; total: number } | null>(null);
   const [editing, setEditing] = useState<Member | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_MEMBER });
@@ -103,6 +105,23 @@ export default function MembersPage() {
     load();
   }
 
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/members/sync", { method: "POST" });
+      const data = await res.json() as { ok: boolean; added: number; skipped: number; total: number; error?: string };
+      if (!data.ok) throw new Error(data.error ?? "Sync failed");
+      setSyncResult({ added: data.added, skipped: data.skipped, total: data.total });
+      if (data.added > 0) load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -112,12 +131,30 @@ export default function MembersPage() {
         title="Team Members"
         subtitle="Internal members and contractors"
         actions={
-          <Button variant="primary" onClick={openNew}
-            className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">
-            + Add Member
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={handleSync} disabled={syncing}
+              className="border border-stone-300 text-stone-700 hover:bg-stone-50 text-sm">
+              {syncing ? "Syncing…" : "↻ Sync from SharePoint"}
+            </Button>
+            <Button variant="primary" onClick={openNew}
+              className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">
+              + Add Member
+            </Button>
+          </div>
         }
       />
+
+      {syncResult && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 flex justify-between items-center">
+          <span>
+            SharePoint sync complete —{" "}
+            <strong>{syncResult.added} new member{syncResult.added !== 1 ? "s" : ""} added</strong>
+            {syncResult.skipped > 0 && `, ${syncResult.skipped} already registered`}
+            {" "}(scanned {syncResult.total} items)
+          </span>
+          <button onClick={() => setSyncResult(null)} className="text-green-400 hover:text-green-600 ml-4">×</button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
