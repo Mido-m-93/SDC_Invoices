@@ -40,6 +40,7 @@ export default function InvoicesPage() {
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [error, setError] = useState<string | null>(null);
+  const [sheetsWarning, setSheetsWarning] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [detectedHeaders, setDetectedHeaders] = useState<string[] | null>(null);
@@ -49,8 +50,10 @@ export default function InvoicesPage() {
   const loadInvoices = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSheetsWarning(null);
     try {
-      const submissions = await fetchInvoices(month);
+      const { submissions, sheetsWarning: sw } = await fetchInvoices(month);
+      if (sw) setSheetsWarning(sw);
       const ids = submissions.map((s) => s.id);
 
       const [validations, filedDocs] = await Promise.all([
@@ -253,6 +256,17 @@ export default function InvoicesPage() {
         {error && (
           <div className="mb-5 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 font-mono">
             {error}
+          </div>
+        )}
+
+        {/* Sheets sync warning — non-blocking: stored data still shows */}
+        {sheetsWarning && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800 flex items-start justify-between gap-4">
+            <div>
+              <span className="font-semibold">Microsoft Forms sync failed</span>
+              <span className="text-amber-700 font-mono text-xs block mt-1 break-all">{sheetsWarning}</span>
+            </div>
+            <button onClick={() => setSheetsWarning(null)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
           </div>
         )}
 
