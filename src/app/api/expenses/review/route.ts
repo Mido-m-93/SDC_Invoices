@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { id, decision, reviewedBy, reviewerComment } = await req.json() as {

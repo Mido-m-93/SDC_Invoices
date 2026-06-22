@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
 import type { DashboardStats } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 25;
 
 const ERROR_CODES = new Set([

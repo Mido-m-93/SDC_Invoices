@@ -3,6 +3,8 @@ import { getOutboundInvoiceService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 import type { OutboundInvoice } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { response } = await requireAuth();
   if (response) return response;

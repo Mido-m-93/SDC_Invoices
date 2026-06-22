@@ -5,6 +5,8 @@ import { getDriveService, getStorageService } from "@/lib/services";
 import { detectCurrency } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 interface RequestBody {
   submission: InvoiceSubmission;
   validation: InvoiceValidationResult;

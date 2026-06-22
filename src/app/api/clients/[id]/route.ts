@@ -3,6 +3,8 @@ import { getClientService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Client } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { user, response } = await requireAuth();
   if (!user) return response!;

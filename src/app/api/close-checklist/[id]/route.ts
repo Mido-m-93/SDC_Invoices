@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloseChecklistService } from "@/lib/services";
 import type { CloseChecklistItemStatus } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   let body: { status?: CloseChecklistItemStatus; assignee?: string; completedBy?: string; notes?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

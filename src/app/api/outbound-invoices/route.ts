@@ -3,6 +3,8 @@ import { getOutboundInvoiceService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import type { OutboundInvoice, OutboundInvoiceStatus } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") as OutboundInvoiceStatus | null;

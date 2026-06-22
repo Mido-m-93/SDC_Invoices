@@ -11,6 +11,8 @@ import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 import { getStorageService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 // ── Encoding detection ────────────────────────────────────────────────────────
 function decodeBuffer(buffer: Buffer): { text: string; encoding: string } {
   // Check for explicit BOM

@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/auth-guard";
 import { generateId } from "@/lib/utils";
 import type { OutboundInvoice } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { user, response } = await requireAuth();
   if (response) return response;

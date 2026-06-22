@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAccountingService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { user, response } = await requireAuth();
   if (!user) return response!;

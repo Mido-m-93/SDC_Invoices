@@ -3,6 +3,8 @@ import { getLeadService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 import type { LeadStage } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 const VALID_STAGES = ["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "on_hold"];
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {

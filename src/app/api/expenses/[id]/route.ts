@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const claim = await getExpenseService().getClaim(params.id);

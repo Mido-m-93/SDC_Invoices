@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   let body: { approvedBy?: string; comment?: string; action?: "approve" | "reject" };
   try { body = await req.json(); } catch { body = {}; }

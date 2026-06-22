@@ -5,6 +5,8 @@ import { generateId } from "@/lib/utils";
 import type { InvoiceSubmission, ProcessingRun, ProcessingLog } from "@/types";
 import { matchSubmissionToVendorContract } from "@/lib/services/ai/matchingService";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/invoices/validate
  * Body: { submission: InvoiceSubmission } | { submissions: InvoiceSubmission[] }

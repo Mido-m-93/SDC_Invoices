@@ -4,6 +4,8 @@ import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Client } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const { user, response } = await requireAuth();
   if (!user) return response!;

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOutboundInvoiceService } from "@/lib/services";
 import type { OutboundInvoiceStatus } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const inv = await getOutboundInvoiceService().getInvoice(params.id);

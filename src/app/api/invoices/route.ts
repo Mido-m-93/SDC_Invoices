@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
 
+export const dynamic = 'force-dynamic';
+
 export const maxDuration = 25;
 
 export async function GET(req: NextRequest) {
@@ -24,8 +26,15 @@ export async function GET(req: NextRequest) {
     const storedIdByRow = new Map(stored.map((s) => [s.submissionRowNumber, s.id]));
 
     console.log("[GET /api/invoices] loading from sheets service...");
-    const allFresh = await getSheetsService().loadSubmissions(month);
-    console.log(`[GET /api/invoices] sheets returned ${allFresh.length} rows`);
+    let allFresh: typeof stored = [];
+    let sheetsWarning: string | undefined;
+    try {
+      allFresh = await getSheetsService().loadSubmissions(month);
+      console.log(`[GET /api/invoices] sheets returned ${allFresh.length} rows`);
+    } catch (sheetsErr) {
+      sheetsWarning = String(sheetsErr);
+      console.warn("[GET /api/invoices] sheets service failed (returning stored data only):", sheetsErr);
+    }
     const freshForMonth = allFresh.filter(
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
@@ -47,12 +56,12 @@ export async function GET(req: NextRequest) {
       rows.map((s) => ({ ...s, submittedAt: submittedAtByRow.get(s.submissionRowNumber) ?? s.submittedAt }));
 
     if (newRows.length === 0) {
-      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored) });
+      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored), ...(sheetsWarning ? { sheetsWarning } : {}) });
     }
 
     const allToSave = [...stored, ...newRows];
     await getStorageService().saveSubmissions(allToSave, month);
-    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave) });
+    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave), ...(sheetsWarning ? { sheetsWarning } : {}) });
   } catch (err) {
     console.error("[GET /api/invoices]", err);
     return NextResponse.json(

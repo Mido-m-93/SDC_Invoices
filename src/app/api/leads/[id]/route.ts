@@ -3,6 +3,8 @@ import { getLeadService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Lead } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const { user, response } = await requireAuth();
   if (!user) return response!;

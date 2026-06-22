@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDriveService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
 
 export async function GET(req: NextRequest) {

@@ -5,6 +5,8 @@ import { DEFAULT_CONFIG, buildMonthFolderName } from "@/config/defaults";
 import { generateId } from "@/lib/utils";
 import type { InvoiceValidationResult, FiledDocument } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
 
 /**

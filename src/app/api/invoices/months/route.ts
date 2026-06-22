@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getStorageService, getSheetsService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Months already persisted in storage

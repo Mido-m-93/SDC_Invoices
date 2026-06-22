@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { buildMFAuthUrl } from "@/lib/services/real/MoneyForwardService";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   if (!process.env.MF_CLIENT_ID || !process.env.MF_REDIRECT_URI) {
     return NextResponse.json(

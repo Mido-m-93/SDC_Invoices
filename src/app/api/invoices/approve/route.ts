@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   let body: unknown;
   try {

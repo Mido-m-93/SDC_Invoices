@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const runs = await getStorageService().loadRuns();

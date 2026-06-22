@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   let body: unknown;
   try {

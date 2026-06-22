@@ -3,6 +3,8 @@ import { getMemberService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Member } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const { user, response } = await requireAuth();
   if (!user) return response!;

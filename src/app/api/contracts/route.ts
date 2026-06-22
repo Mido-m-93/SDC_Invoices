@@ -3,6 +3,8 @@ import { getContractService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import type { Contract } from "@/types";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const svc = getContractService();

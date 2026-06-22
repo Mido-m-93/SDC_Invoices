@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeMFCode } from "@/lib/services/real/MoneyForwardService";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const code  = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");

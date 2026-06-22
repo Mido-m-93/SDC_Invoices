@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getVendorService, getContractService } from "@/lib/services";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const today = new Date().toISOString().slice(0, 10);
   const [vendors, contracts] = await Promise.all([
