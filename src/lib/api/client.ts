@@ -62,11 +62,10 @@ export async function fetchAvailableMonths(): Promise<string[]> {
   return data.months;
 }
 
-export async function fetchInvoices(month: string): Promise<InvoiceSubmission[]> {
-  const data = await apiFetch<{ submissions: InvoiceSubmission[] }>(
+export async function fetchInvoices(month: string): Promise<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }> {
+  return apiFetch<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }>(
     `/api/invoices?month=${encodeURIComponent(month)}`
   );
-  return data.submissions;
 }
 
 export async function validateInvoice(
