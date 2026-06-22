@@ -66,7 +66,7 @@ export default function DashboardPage() {
   const loadInvoiceList = useCallback(async () => {
     setInvoicesLoading(true);
     try {
-      const submissions = await fetchInvoices(month);
+      const { submissions } = await fetchInvoices(month);
       const ids = submissions.map((s) => s.id);
       const [validations, filedDocs] = await Promise.all([
         fetchValidationResults(ids),
@@ -150,7 +150,7 @@ export default function DashboardPage() {
     setSavedCount(null);
     setError(null);
     try {
-      const submissions = await fetchInvoices(month);
+      const { submissions } = await fetchInvoices(month);
       if (submissions.length === 0) {
         setError(
           language === "ja"
@@ -196,7 +196,7 @@ export default function DashboardPage() {
     setValidating(true);
     setError(null);
     try {
-      const submissions = await fetchInvoices(month);
+      const { submissions } = await fetchInvoices(month);
       if (submissions.length === 0) {
         setError(
           language === "ja"

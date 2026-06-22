@@ -143,7 +143,7 @@ export function getValidationService(): IValidationService {
   if (!_validation) {
     _validation = isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")
       ? new MockValidationService()
-      : new RealValidationService(getDriveService(), getMemberService());
+      : new RealValidationService();
   }
   return _validation;
 }
