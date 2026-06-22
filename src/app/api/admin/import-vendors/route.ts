@@ -67,6 +67,8 @@ async function listSubfolders(token: string, categoryFolder: string): Promise<st
   }
 }
 
+export const GET = async () => POST();
+
 export async function POST() {
   try {
     const token = await getAccessToken();
