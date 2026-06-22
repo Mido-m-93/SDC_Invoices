@@ -43,6 +43,8 @@ export default function MembersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_MEMBER });
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +105,22 @@ export default function MembersPage() {
     load();
   }
 
+  async function handleImport() {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch("/api/admin/import-vendors", { method: "POST" });
+      const data = await res.json() as { added?: number; skipped?: number; error?: string };
+      if (data.error) throw new Error(data.error);
+      setImportMsg(`Import complete — ${data.added ?? 0} added, ${data.skipped ?? 0} skipped`);
+      load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -112,12 +130,22 @@ export default function MembersPage() {
         title="Team Members"
         subtitle="Internal members and contractors"
         actions={
-          <Button variant="primary" onClick={openNew}
-            className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">
-            + Add Member
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" loading={importing} onClick={handleImport}>Import from SharePoint</Button>
+            <Button variant="primary" onClick={openNew}
+              className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">
+              + Add Member
+            </Button>
+          </div>
         }
       />
+
+      {importMsg && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700 flex justify-between">
+          {importMsg}
+          <button onClick={() => setImportMsg(null)} className="text-green-400 hover:text-green-600">×</button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
