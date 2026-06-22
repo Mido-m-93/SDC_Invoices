@@ -192,66 +192,34 @@ function enrichWithRisk(
   result: InvoiceValidationResult,
   submission: InvoiceSubmission
 ): InvoiceValidationResult {
-  const vendors = loadVendors();
-  const contracts = loadContracts();
+  const members = loadMembers();
   const payerNorm = normalizeForMatch(submission.payerName);
+  const emailNorm = (submission.email ?? "").toLowerCase().trim();
 
-  const vendor = vendors.find(
-    (v) =>
-      v.status === "active" &&
-      [v.name, ...v.aliases].some((n) => normalizeForMatch(n) === payerNorm)
+  const member = members.find(
+    (m) =>
+      normalizeForMatch(m.displayName) === payerNorm ||
+      (emailNorm && m.email.toLowerCase() === emailNorm)
   );
 
-  const vendorMatched = !!vendor;
-  let contractMatched = false;
-  let contractId: string | undefined;
-  let activeContract: Contract | undefined;
+  const vendorMatched   = !!member;
+  const contractMatched = member?.status === "active";
 
-  if (vendor) {
-    const today = new Date().toISOString().slice(0, 10);
-    activeContract = contracts.find(
-      (c) =>
-        c.vendorId === vendor.id &&
-        c.status === "active" &&
-        c.startDate <= today &&
-        c.endDate >= today
-    );
-    contractMatched = !!activeContract;
-    contractId = activeContract?.id;
-  }
-
-  // Risk scoring
   let riskLevel: import("@/types").RiskLevel;
   let reviewerRecommendation: string;
 
-  if (vendorMatched && !contractMatched) {
-    // Known vendor but no active contract — blocked
-    riskLevel = "BLOCKED";
-    reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-  } else if (!vendorMatched) {
-    // Unknown vendor — needs review
+  if (!vendorMatched) {
     riskLevel = "NEEDS_REVIEW";
     reviewerRecommendation = "Accounting Lead";
-  } else if (
-    activeContract &&
-    submission.claimedAmountTaxIncluded &&
-    activeContract.expectedMonthlyAmount > 0
-  ) {
-    const claimed = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 0;
-    const tolerance = activeContract.expectedMonthlyAmount * 0.1; // 10% tolerance
-    if (Math.abs(claimed - activeContract.expectedMonthlyAmount) > tolerance) {
-      riskLevel = "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-    } else {
-      riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting";
-    }
+  } else if (!contractMatched) {
+    riskLevel = "BLOCKED";
+    reviewerRecommendation = "Accounting Lead";
   } else {
     riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-    reviewerRecommendation = vendor?.defaultReviewer || "Accounting";
+    reviewerRecommendation = member!.department || "Accounting";
   }
 
-  return { ...result, vendorMatched, contractMatched, contractId, riskLevel, reviewerRecommendation };
+  return { ...result, vendorMatched, contractMatched, riskLevel, reviewerRecommendation };
 }
 
 // ── Mock Storage Service ──────────────────────────────────────────────────────

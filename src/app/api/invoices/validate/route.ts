@@ -1,9 +1,9 @@
 // src/app/api/invoices/validate/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getValidationService, getStorageService, getVendorService, getContractService } from "@/lib/services";
+import { getValidationService, getStorageService, getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import type { InvoiceSubmission, ProcessingRun, ProcessingLog } from "@/types";
-import { matchSubmissionToVendorContract } from "@/lib/services/ai/matchingService";
+import { matchSubmissionToMember } from "@/lib/services/ai/matchingService";
 
 export const dynamic = 'force-dynamic';
 
@@ -63,21 +63,15 @@ export async function POST(req: NextRequest) {
     const validationSvc = getValidationService();
     const baseResults = await validationSvc.validateBatch(targets);
 
-    // AI vendor/contract matching — runs in parallel for all submissions
-    const [vendors, contracts] = await Promise.all([
-      getVendorService().listVendors().catch((err) => {
-        console.error("[validate] listVendors failed:", err);
-        return [];
-      }),
-      getContractService().listContracts().catch((err) => {
-        console.error("[validate] listContracts failed:", err);
-        return [];
-      }),
-    ]);
+    // AI member matching — checks whether the submitter is a registered active member
+    const members = await getMemberService().listMembers().catch((err) => {
+      console.error("[validate] listMembers failed:", err);
+      return [];
+    });
 
     const aiMatches = await Promise.all(
       targets.map((sub) =>
-        matchSubmissionToVendorContract(sub, vendors, contracts).catch((err) => {
+        matchSubmissionToMember(sub, members).catch((err) => {
           console.error(`[AI matching] failed for ${sub.id}:`, err);
           return null;
         })

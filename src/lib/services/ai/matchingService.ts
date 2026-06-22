@@ -1,10 +1,10 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import type { InvoiceSubmission, Vendor, Contract, RiskLevel } from "@/types";
+import type { InvoiceSubmission, Member, RiskLevel } from "@/types";
 
 export interface AIMatchResult {
-  vendorId: string | null;
-  contractId: string | null;
+  vendorId: string | null;   // matched member id (null = submitter unknown)
+  contractId: string | null; // same member id when active (null = inactive/unknown)
   confidence: number;
   riskLevel: RiskLevel;
   reviewerRecommendation: string;
@@ -17,69 +17,52 @@ function getClient(): Anthropic {
   return _client;
 }
 
-export async function matchSubmissionToVendorContract(
+export async function matchSubmissionToMember(
   submission: InvoiceSubmission,
-  vendors: Vendor[],
-  contracts: Contract[]
+  members: Member[]
 ): Promise<AIMatchResult> {
-  const today = new Date().toISOString().slice(0, 10);
-  const activeVendors = vendors.filter((v) => v.status === "active");
-  const activeContracts = contracts.filter(
-    (c) => c.status === "active" && c.startDate <= today && c.endDate >= today
-  );
+  const activeMembers = members.filter((m) => m.status === "active");
 
-  const vendorList = activeVendors.map((v) => ({
-    id: v.id,
-    name: v.name,
-    aliases: v.aliases,
-    defaultReviewer: v.defaultReviewer,
-    defaultProject: v.defaultProject,
+  const memberList = members.map((m) => ({
+    id: m.id,
+    displayName: m.displayName,
+    email: m.email,
+    department: m.department,
+    role: m.role,
+    status: m.status,
   }));
 
-  const contractList = activeContracts.map((c) => ({
-    id: c.id,
-    vendorId: c.vendorId,
-    projectName: c.projectName,
-    expectedMonthlyAmount: c.expectedMonthlyAmount,
-    currency: c.currency,
-  }));
-
-  const systemPrompt = `You are a vendor and contract matching assistant for an invoice processing system.
-Given an invoice submission and lists of known vendors and contracts, identify the best match.
-Consider: name similarity (including Japanese/English variants and aliases), project name, and claimed amount vs expected amount.
+  const systemPrompt = `You are a member matching assistant for an invoice processing system.
+Given an invoice submission, identify whether the submitter is a registered member of the organisation.
+Consider: name similarity (including Japanese/English variants), and email match.
 Respond only with a valid JSON object matching the exact schema requested.`;
 
-  const userPrompt = `Match this invoice submission to a vendor and contract.
+  const userPrompt = `Match this invoice submission to a registered member.
 
 SUBMISSION:
 - Payer Name: ${submission.payerName}
 - Email: ${submission.email}
-- Project Type: ${submission.projectType}
-- External Project: ${submission.externalProjectName}
 - Internal Department: ${submission.internalDepartment}
-- Claimed Amount (tax incl.): ${submission.claimedAmountTaxIncluded}
 - Closing Month: ${submission.closingMonth}
 
-ACTIVE VENDORS:
-${JSON.stringify(vendorList, null, 2)}
-
-ACTIVE CONTRACTS:
-${JSON.stringify(contractList, null, 2)}
+REGISTERED MEMBERS (${members.length} total, ${activeMembers.length} active):
+${JSON.stringify(memberList, null, 2)}
 
 Instructions:
-- Find the vendor whose name or aliases best match the payer name
-- Then find the best matching contract for that vendor
-- Set riskLevel: "OK" if vendor+contract matched and amount is within 10% of expected, "NEEDS_REVIEW" if unknown vendor or amount mismatch, "BLOCKED" if vendor found but no active contract
-- Set reviewerRecommendation to the vendor's defaultReviewer if known, otherwise "Accounting Lead"
+- Find the member whose displayName or email best matches the payer name / email
+- vendorId = the matched member's id, or null if no match found
+- contractId = same as vendorId when the matched member's status is "active", otherwise null
+- Set riskLevel: "OK" if member found and active, "BLOCKED" if found but inactive, "NEEDS_REVIEW" if no member found
+- Set reviewerRecommendation to the member's department if known, otherwise "Accounting Lead"
 - Confidence: 1.0 = exact match, 0.5 = partial/fuzzy, 0.0 = no match
 
 Respond with ONLY this JSON (no markdown, no extra text):
 {
-  "vendorId": "<id or null>",
-  "contractId": "<id or null>",
+  "vendorId": "<member id or null>",
+  "contractId": "<member id if active, else null>",
   "confidence": <0.0 to 1.0>,
   "riskLevel": "<OK | NEEDS_REVIEW | BLOCKED>",
-  "reviewerRecommendation": "<name>",
+  "reviewerRecommendation": "<department or Accounting Lead>",
   "reasoning": "<brief explanation>"
 }`;
 

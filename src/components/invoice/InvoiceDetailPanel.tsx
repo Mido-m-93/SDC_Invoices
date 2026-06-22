@@ -134,8 +134,8 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                   </div>
                 )}
                 <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
-                  <ValidationCheck label="Vendor Registered" pass={v.vendorMatched ?? false} />
-                  <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
+                  <ValidationCheck label="Submitter Registered" pass={v.vendorMatched ?? false} />
+                  <ValidationCheck label="Active Member" pass={v.contractMatched ?? false} />
                 </div>
                 {v.reviewerRecommendation && (
                   <div className="flex items-center gap-2 text-xs text-stone-500 px-1">

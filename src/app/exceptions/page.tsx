@@ -59,7 +59,7 @@ export default function ExceptionsPage() {
 
   function exportCsv() {
     const rows = [
-      ["Month", "Payer Name", "Risk Level", "Status", "Issues", "Vendor Matched", "Contract Matched", "Reviewer Comment", "Escalated At"],
+      ["Month", "Payer Name", "Risk Level", "Status", "Issues", "Submitter Registered", "Active Member", "Reviewer Comment", "Escalated At"],
       ...filtered.map((item) => [
         selectedMonth,
         item.submission.payerName,
@@ -155,8 +155,8 @@ export default function ExceptionsPage() {
                   <th className="px-4 py-3 text-left">Payer</th>
                   <th className="px-4 py-3 text-left">Risk Level</th>
                   <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Vendor</th>
-                  <th className="px-4 py-3 text-left">Contract</th>
+                  <th className="px-4 py-3 text-left">Registered</th>
+                  <th className="px-4 py-3 text-left">Active</th>
                   <th className="px-4 py-3 text-left">Issues</th>
                   <th className="px-4 py-3 text-left">Comment</th>
                   <th className="px-4 py-3 text-left">Escalated</th>
