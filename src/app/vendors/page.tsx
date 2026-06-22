@@ -24,6 +24,8 @@ export default function VendorsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_VENDOR, aliasesRaw: "" });
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +79,22 @@ export default function VendorsPage() {
     load();
   }
 
+  async function handleImport() {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await fetch("/api/admin/import-vendors", { method: "POST" });
+      const data = await res.json() as { added?: number; skipped?: number; error?: string };
+      if (data.error) throw new Error(data.error);
+      setImportMsg(`Import complete — ${data.added ?? 0} added, ${data.skipped ?? 0} skipped`);
+      load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
@@ -84,8 +102,20 @@ export default function VendorsPage() {
       <PageHeader
         title="Vendor Master"
         subtitle="Registered contractors and vendors for invoice matching"
-        actions={<Button variant="primary" onClick={openNew}>+ Add Vendor</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" loading={importing} onClick={handleImport}>Import from SharePoint</Button>
+            <Button variant="primary" onClick={openNew}>+ Add Vendor</Button>
+          </div>
+        }
       />
+
+      {importMsg && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700 flex justify-between">
+          {importMsg}
+          <button onClick={() => setImportMsg(null)} className="text-green-400 hover:text-green-600">×</button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
