@@ -1,11 +1,11 @@
 // POST /api/admin/import-vendors
 // Reads the SharePoint contracts folder via Microsoft Graph API and
-// bulk-creates vendor records from the 02_Vendor and 03_Member subfolders.
+// bulk-creates vendor records (02_Vendor) and member records (03_Member).
 
 import { NextResponse } from "next/server";
-import { getVendorService } from "@/lib/services";
+import { getVendorService, getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
-import type { Vendor } from "@/types";
+import type { Vendor, Member } from "@/types";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -14,8 +14,7 @@ const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 const SITE_ID        = "robocp.sharepoint.com,7ae9ce72-ce6c-4a70-a666-7349dbb12f5f,381cff93-5911-482e-b30f-b879812250c4";
 const CONTRACTS_PATH = "40_ExpandTogether/02_Functions/07_Legal/02_Contracts";
 
-// Categories to import: [folder name, vendor type label]
-const IMPORT_CATEGORIES: [string, string][] = [
+const IMPORT_CATEGORIES: [string, "Vendor" | "Member"][] = [
   ["02_Vendor", "Vendor"],
   ["03_Member", "Member"],
 ];
@@ -72,10 +71,13 @@ export async function POST() {
   try {
     const token = await getAccessToken();
     const vendorService = getVendorService();
+    const memberService = getMemberService();
 
-    // Get existing vendors to avoid duplicates
-    const existing = await vendorService.listVendors();
-    const existingNames = new Set(existing.map((v) => v.name.toLowerCase()));
+    const existingVendors = await vendorService.listVendors();
+    const existingVendorNames = new Set(existingVendors.map((v) => v.name.toLowerCase()));
+
+    const existingMembers = await memberService.listMembers();
+    const existingMemberNames = new Set(existingMembers.map((m) => m.displayName.toLowerCase()));
 
     const results: { name: string; type: string; status: "added" | "skipped" }[] = [];
 
@@ -83,25 +85,47 @@ export async function POST() {
       const folders = await listSubfolders(token, folderName);
 
       for (const name of folders) {
-        if (existingNames.has(name.toLowerCase())) {
-          results.push({ name, type, status: "skipped" });
-          continue;
+        if (type === "Vendor") {
+          if (existingVendorNames.has(name.toLowerCase())) {
+            results.push({ name, type, status: "skipped" });
+            continue;
+          }
+          const vendor: Vendor = {
+            id: generateId(),
+            name,
+            aliases: [],
+            taxRegistrationNumber: "",
+            bankAccountLast4: "",
+            defaultReviewer: "Accounting Lead",
+            defaultProject: "",
+            status: "active",
+            createdAt: new Date().toISOString(),
+          };
+          await vendorService.saveVendor(vendor);
+          existingVendorNames.add(name.toLowerCase());
+        } else {
+          if (existingMemberNames.has(name.toLowerCase())) {
+            results.push({ name, type, status: "skipped" });
+            continue;
+          }
+          const member: Member = {
+            id: generateId(),
+            displayName: name,
+            email: "",
+            phone: "",
+            role: "other",
+            department: "",
+            employeeCode: "",
+            joinDate: "",
+            status: "active",
+            avatarUrl: "",
+            notes: "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await memberService.saveMember(member);
+          existingMemberNames.add(name.toLowerCase());
         }
-
-        const vendor: Vendor = {
-          id: generateId(),
-          name,
-          aliases: [],
-          taxRegistrationNumber: "",
-          bankAccountLast4: "",
-          defaultReviewer: "Accounting Lead",
-          defaultProject: type === "Member" ? "Internal" : "",
-          status: "active",
-          createdAt: new Date().toISOString(),
-        };
-
-        await vendorService.saveVendor(vendor);
-        existingNames.add(name.toLowerCase());
         results.push({ name, type, status: "added" });
       }
     }
