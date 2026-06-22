@@ -97,6 +97,13 @@ export interface InvoiceValidationResult {
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
+  // Money Forward integration
+  mfBillingId?: string;
+  mfBillingUrl?: string;
+  mfSentAt?: string;
+  // Escalation / exception tracking
+  escalatedAt?: string;
+  reviewerComment?: string;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────
@@ -272,7 +279,8 @@ export type ReminderType =
   | "due_date_approaching"
   | "due_date_overdue"
   | "missing_expense_receipt"
-  | "stale_expense_review";
+  | "stale_expense_review"
+  | "escalation";
 
 export type ReminderChannel = "teams" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";
@@ -407,6 +415,8 @@ export type OutboundInvoiceStatus =
   | "paid"
   | "cancelled";
 
+export type OutboundStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
+
 export interface OutboundInvoice {
   id: string;
   contractId: string;
@@ -431,6 +441,12 @@ export interface OutboundInvoice {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // Compact outbound view fields
+  clientEmail?: string;
+  amount?: number;
+  billingDate?: string;
+  driveFileId?: string;
+  driveFileUrl?: string;
 }
 
 export interface OutboundInvoiceSummary {
@@ -470,6 +486,29 @@ export interface MonthlyCloseChecklist {
   doneItems: number;
   blockedItems: number;
   completedAt: string | null;
+}
+
+// Close-service types (used by src/app/close, src/app/api/close, src/lib/services/*CloseService)
+export type ChecklistItemStatus = "pending" | "done" | "skipped" | "blocked";
+
+export interface MonthlyChecklistItem {
+  id: string;
+  month: string;
+  category: string;
+  title: string;
+  description?: string;
+  status: ChecklistItemStatus;
+  completedBy?: string;
+  completedAt?: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface BankSyncStatus {
+  lastSyncAt: string | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  message: string;
+  unresolvedCount: number;
 }
 
 // ── Phase 11: Client Management ───────────────────────────────────────────────

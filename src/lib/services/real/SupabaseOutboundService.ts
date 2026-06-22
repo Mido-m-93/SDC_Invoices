@@ -27,25 +27,38 @@ function toRow(inv: OutboundInvoice): Record<string, unknown> {
 }
 
 function fromRow(row: Record<string, unknown>): OutboundInvoice {
+  const amount = (row.amount as number) ?? 0;
+  const billingDate = (row.billing_date as string) || "";
   return {
     id: row.id as string,
+    clientId: (row.client_id as string) || "",
     clientName: row.client_name as string,
     clientEmail: (row.client_email as string) || undefined,
     projectName: row.project_name as string,
-    contractId: (row.contract_id as string) || undefined,
-    invoiceNumber: (row.invoice_number as string) || undefined,
-    amount: row.amount as number,
-    currency: row.currency as string,
-    billingDate: row.billing_date as string,
+    contractId: (row.contract_id as string) || "",
+    invoiceNumber: (row.invoice_number as string) || "",
+    billingMonth: (row.billing_month as string) || billingDate,
+    issueDate: (row.issue_date as string) || billingDate,
     dueDate: row.due_date as string,
+    subtotal: (row.subtotal as number) ?? amount,
+    taxAmount: (row.tax_amount as number) ?? 0,
+    total: (row.total as number) ?? amount,
+    currency: row.currency as string,
     status: row.status as OutboundInvoice["status"],
-    notes: (row.notes as string) || undefined,
+    notes: (row.notes as string) || "",
+    sentAt: (row.sent_at as string) || null,
+    paidAt: (row.paid_at as string) || null,
+    paidAmount: (row.paid_amount as number) ?? null,
+    createdBy: (row.created_by as string) || "",
+    approvedBy: (row.approved_by as string) || "",
+    approvedAt: (row.approved_at as string) || null,
+    createdAt: row.created_at as string,
+    updatedAt: (row.updated_at as string) || (row.created_at as string),
+    // Compact outbound fields
+    amount,
+    billingDate,
     driveFileId: (row.drive_file_id as string) || undefined,
     driveFileUrl: (row.drive_file_url as string) || undefined,
-    sentAt: (row.sent_at as string) || undefined,
-    paidAt: (row.paid_at as string) || undefined,
-    paidAmount: (row.paid_amount as number) ?? undefined,
-    createdAt: row.created_at as string,
   };
 }
 

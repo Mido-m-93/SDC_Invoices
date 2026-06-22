@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!id || !decision) return NextResponse.json({ error: "Missing id or decision" }, { status: 400 });
 
     const svc      = getExpenseService();
-    const existing = await svc.getExpense(id);
+    const existing = await svc.getClaim(id);
     if (!existing) return NextResponse.json({ error: "Expense not found" }, { status: 404 });
 
     const updated = {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       reviewedAt:      new Date().toISOString(),
       reviewerComment: reviewerComment ?? existing.reviewerComment,
     };
-    await svc.saveExpense(updated);
+    await svc.saveClaim(updated);
     return NextResponse.json({ success: true, claim: updated });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

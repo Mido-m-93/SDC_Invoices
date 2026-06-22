@@ -34,6 +34,7 @@ import type {
   IExpenseService,
   IOutboundInvoiceService,
   ICloseChecklistService,
+  ICloseService,
   IClientService,
   ILeadService,
   IMemberService,
@@ -73,6 +74,8 @@ import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseExpenseService } from "./real/SupabaseExpenseService";
 import { SupabaseOutboundInvoiceService } from "./real/SupabaseOutboundInvoiceService";
 import { SupabaseCloseChecklistService } from "./real/SupabaseCloseChecklistService";
+import { MockCloseService } from "./mock/closeService";
+import { SupabaseCloseService } from "./real/SupabaseCloseService";
 import { SupabaseClientService } from "./real/SupabaseClientService";
 import { SupabaseLeadService } from "./real/SupabaseLeadService";
 import { SupabaseMemberService } from "./real/SupabaseMemberService";
@@ -103,6 +106,7 @@ let _reminder: IReminderService | undefined;
 let _expense: IExpenseService | undefined;
 let _outboundInvoice: IOutboundInvoiceService | undefined;
 let _closeChecklist: ICloseChecklistService | undefined;
+let _close: ICloseService | undefined;
 let _client: IClientService | undefined;
 let _lead: ILeadService | undefined;
 let _member: IMemberService | undefined;
@@ -237,6 +241,16 @@ export function getCloseChecklistService(): ICloseChecklistService {
     _closeChecklist = new SupabaseCloseChecklistService();
   }
   return _closeChecklist;
+}
+
+// ── Close service — lightweight checklist + bank sync (Phase 10) ──────────────
+export function getCloseService(): ICloseService {
+  if (!_close) {
+    _close = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockCloseService()
+      : new SupabaseCloseService();
+  }
+  return _close;
 }
 
 // ── Proposal ──────────────────────────────────────────────────────────────────

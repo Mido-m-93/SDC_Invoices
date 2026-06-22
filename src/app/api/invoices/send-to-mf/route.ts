@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const currency  = detectCurrency(submission.claimedAmountTaxIncluded);
+    const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
     const mfService = new MoneyForwardService();
     const result    = await mfService.sendInvoice({
       partnerName: submission.payerName,
