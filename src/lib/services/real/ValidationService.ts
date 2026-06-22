@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
-import type { IDriveService, IVendorService, IContractService, IValidationService } from "../types";
+import type { IDriveService, IMemberService, IValidationService } from "../types";
 import { safeValidationResult } from "@/lib/validation/invoiceValidator";
 import { extractFromPdf } from "../ai/pdfExtractor";
 import { enrichWithRisk } from "../riskEnrichment";
@@ -18,8 +18,7 @@ import { enrichWithRisk } from "../riskEnrichment";
 export class RealValidationService implements IValidationService {
   constructor(
     private drive: IDriveService,
-    private vendorService: IVendorService,
-    private contractService: IContractService
+    private memberService: IMemberService
   ) {}
 
   async validate(submission: InvoiceSubmission): Promise<InvoiceValidationResult> {
@@ -40,7 +39,7 @@ export class RealValidationService implements IValidationService {
 
     const duplicateDetected = false;
     const base = safeValidationResult(submission, extracted, pdfAccessible, duplicateDetected);
-    return enrichWithRisk(base, submission, this.vendorService, this.contractService);
+    return enrichWithRisk(base, submission, this.memberService);
   }
 
   async validateBatch(submissions: InvoiceSubmission[]): Promise<InvoiceValidationResult[]> {
