@@ -55,9 +55,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(stats);
   } catch (err) {
+    const detail = String(err);
     console.error("[GET /api/dashboard/stats]", err);
     return NextResponse.json(
-      { error: "Failed to load dashboard stats", detail: String(err) },
+      { error: `Stats error: ${detail}`, detail },
       { status: 500 }
     );
   }
