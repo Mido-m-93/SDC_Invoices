@@ -75,7 +75,7 @@ const en = {
   section_extracted: "Extracted Invoice Fields",
   section_validation: "Validation Results",
   section_filing: "Filing Information",
-  field_payer_name: "Payer Name",
+  field_payer_name: "Submitter Name",
   field_closing_month: "Closing Month",
   field_attachment: "Attachment",
   field_notes: "Notes",

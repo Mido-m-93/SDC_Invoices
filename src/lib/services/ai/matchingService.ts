@@ -17,11 +17,49 @@ function getClient(): Anthropic {
   return _client;
 }
 
+function normalise(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, "").replace(/[^\w]/g, "");
+}
+
 export async function matchSubmissionToMember(
   submission: InvoiceSubmission,
   members: Member[]
 ): Promise<AIMatchResult> {
   const activeMembers = members.filter((m) => m.status === "active");
+
+  // Fast-path: exact email match (no AI call needed)
+  const emailNorm = (submission.email ?? "").toLowerCase().trim();
+  if (emailNorm) {
+    const byEmail = members.find((m) => m.email.toLowerCase().trim() === emailNorm);
+    if (byEmail) {
+      const isActive = byEmail.status === "active";
+      return {
+        vendorId: byEmail.id,
+        contractId: isActive ? byEmail.id : null,
+        confidence: 1.0,
+        riskLevel: isActive ? "OK" : "BLOCKED",
+        reviewerRecommendation: byEmail.department || "Accounting",
+        reasoning: `Exact email match: ${emailNorm}`,
+      };
+    }
+  }
+
+  // Fast-path: exact normalised name match (no AI call needed)
+  const nameNorm = normalise(submission.payerName ?? "");
+  if (nameNorm) {
+    const byName = members.find((m) => normalise(m.displayName) === nameNorm);
+    if (byName) {
+      const isActive = byName.status === "active";
+      return {
+        vendorId: byName.id,
+        contractId: isActive ? byName.id : null,
+        confidence: 1.0,
+        riskLevel: isActive ? "OK" : "BLOCKED",
+        reviewerRecommendation: byName.department || "Accounting",
+        reasoning: `Exact name match: ${submission.payerName}`,
+      };
+    }
+  }
 
   const memberList = members.map((m) => ({
     id: m.id,
