@@ -111,7 +111,7 @@ function buildFieldMap(headers: string[]): Map<string, FieldName> {
   // the form respondent's M365 display name. When a more specific custom question
   // column also maps to the same field (e.g. "Name1"), drop the bare MS Forms
   // metadata column so the custom question value is used instead.
-  for (const field of new Set(map.values())) {
+  for (const field of Array.from(new Set(map.values()))) {
     const matching = [...map.entries()].filter(([, f]) => f === field);
     if (matching.length < 2) continue;
     const MS_FORMS_EXACT = ["name", "名前", "email", "メール", "メールアドレス（メール）"];
