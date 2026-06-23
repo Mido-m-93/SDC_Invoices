@@ -241,7 +241,7 @@ export class SupabaseStorageService implements IStorageService {
   }
 
   async clearAllSubmissions(): Promise<void> {
-    const { error: e1 } = await this.db.from("invoice_validation_results").delete().neq("id", "");
+    const { error: e1 } = await this.db.from("invoice_validations").delete().neq("id", "");
     if (e1) throw new Error(`clearAllSubmissions (validation_results): ${e1.message}`);
     const { error: e2 } = await this.db.from("invoice_submissions").delete().neq("id", "");
     if (e2) throw new Error(`clearAllSubmissions (submissions): ${e2.message}`);
