@@ -1,13 +1,21 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { InvoiceSubmission, Member, RiskLevel } from "@/types";
+import { extractWithClaude } from "./pdfExtractor";
+import {
+  listContractFiles,
+  downloadContractById,
+  downloadSharePointFile,
+  type ContractFile,
+} from "@/lib/services/real/SharePointContractService";
 
 export interface AIMatchResult {
-  vendorId: string | null;   // matched member id (null = submitter unknown)
-  contractId: string | null; // same member id when active (null = inactive/unknown)
+  vendorId: string | null;
+  contractId: string | null;
   confidence: number;
   riskLevel: RiskLevel;
   reviewerRecommendation: string;
+  reviewerRecommendationDept: string;
   reasoning: string;
 }
 
@@ -17,6 +25,64 @@ function getClient(): Anthropic {
   return _client;
 }
 
+// ── Step 1: Extract contractor name + amount from the submitted invoice PDF ───
+
+async function extractInvoiceData(
+  attachmentUrl: string
+): Promise<{ nameOnDoc: string | null; total: number | null }> {
+  try {
+    const bytes = await downloadSharePointFile(attachmentUrl);
+    const fields = await extractWithClaude(bytes);
+    return { nameOnDoc: fields.payerNameOnDoc, total: fields.total };
+  } catch (err) {
+    console.warn("[matchingService] Invoice PDF extraction failed:", err);
+    return { nameOnDoc: null, total: null };
+  }
+}
+
+// ── Step 2: Find the member's contract in SharePoint and extract the amount ──
+
+async function findAndExtractContract(
+  memberName: string,
+  contracts: ContractFile[]
+): Promise<{ fileName: string; contractedAmount: number | null } | null> {
+  if (contracts.length === 0) return null;
+
+  // Use Claude to pick the best-matching contract filename for this member name.
+  const fileList = contracts.map((c) => `- ${c.name} (id: ${c.id})`).join("\n");
+  const pick = await getClient().messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 128,
+    messages: [
+      {
+        role: "user",
+        content: `Which contract file best matches the member named "${memberName}"?
+Return ONLY the file id (e.g. "ABC123") or "none" if no reasonable match.
+
+Files:
+${fileList}`,
+      },
+    ],
+  });
+
+  const pickedId = (pick.content[0]?.type === "text" ? pick.content[0].text.trim() : "none")
+    .replace(/[^A-Za-z0-9_-]/g, "");
+
+  const matched = contracts.find((c) => c.id === pickedId);
+  if (!matched) return null;
+
+  // Download and extract the contracted payment amount from the contract PDF.
+  try {
+    const bytes = await downloadContractById(matched.siteId, matched.id);
+    const fields = await extractWithClaude(bytes);
+    return { fileName: matched.name, contractedAmount: fields.total };
+  } catch (err) {
+    console.warn("[matchingService] Contract extraction failed:", err);
+    return { fileName: matched.name, contractedAmount: null };
+  }
+}
+
+// ── Main matching function ────────────────────────────────────────────────────
 
 export async function matchSubmissionToMember(
   submission: InvoiceSubmission,
@@ -24,6 +90,28 @@ export async function matchSubmissionToMember(
 ): Promise<AIMatchResult> {
   const activeMembers = members.filter((m) => m.status === "active");
 
+  // Step 1 — extract contractor identity from the invoice PDF (best-effort)
+  let invoiceNameOnDoc: string | null = null;
+  let invoiceTotal: number | null = null;
+  if (submission.invoiceAttachment) {
+    const extracted = await extractInvoiceData(submission.invoiceAttachment);
+    invoiceNameOnDoc = extracted.nameOnDoc;
+    invoiceTotal     = extracted.total;
+    console.log("[matchingService] invoice PDF →", { invoiceNameOnDoc, invoiceTotal });
+  }
+
+  // Step 2 — look up the member contract in SharePoint (best-effort)
+  let contractInfo: { fileName: string; contractedAmount: number | null } | null = null;
+  const nameForContractLookup = invoiceNameOnDoc ?? submission.payerName;
+  try {
+    const contracts = await listContractFiles();
+    contractInfo = await findAndExtractContract(nameForContractLookup, contracts);
+    console.log("[matchingService] contract match →", contractInfo);
+  } catch (err) {
+    console.warn("[matchingService] Contract lookup failed:", err);
+  }
+
+  // Step 3 — final AI match: name + email + PDF evidence + contract
   const memberList = members.map((m) => ({
     id: m.id,
     displayName: m.displayName,
@@ -33,35 +121,52 @@ export async function matchSubmissionToMember(
     status: m.status,
   }));
 
+  const amountNote = invoiceTotal !== null && contractInfo?.contractedAmount !== null
+    ? `Invoice total: ${invoiceTotal}. Contracted amount: ${contractInfo?.contractedAmount}. ${
+        Math.abs((invoiceTotal ?? 0) - (contractInfo?.contractedAmount ?? 0)) < 1
+          ? "Amounts match."
+          : "AMOUNTS DO NOT MATCH — flag for review."
+      }`
+    : invoiceTotal !== null
+    ? `Invoice total extracted from PDF: ${invoiceTotal}. No contract amount found for comparison.`
+    : "No amount data available.";
+
   const systemPrompt = `You are a member matching assistant for an invoice processing system.
-Given an invoice submission, identify whether the submitter is a registered member of the organisation.
-Consider: name similarity (including Japanese/English variants), and email match.
-Respond only with a valid JSON object matching the exact schema requested.`;
+Identify whether the submitter is a registered active member of the organisation.
+Consider name similarity (Japanese/English variants), email match, and PDF evidence.
+Respond only with valid JSON matching the exact schema requested.`;
 
   const userPrompt = `Match this invoice submission to a registered member.
 
-SUBMISSION:
-- Payer Name: ${submission.payerName}
-- Email: ${submission.email}
-- Internal Department: ${submission.internalDepartment}
-- Closing Month: ${submission.closingMonth}
+FORM DATA:
+- Payer Name (from form): ${submission.payerName}
+- Email (from form): ${submission.email || "not provided"}
+
+PDF EVIDENCE:
+- Name on invoice PDF: ${invoiceNameOnDoc ?? "not extracted"}
+- Contract file matched: ${contractInfo?.fileName ?? "none"}
+- ${amountNote}
 
 REGISTERED MEMBERS (${members.length} total, ${activeMembers.length} active):
 ${JSON.stringify(memberList, null, 2)}
 
 Instructions:
-- Find the member whose displayName or email best matches the payer name / email
-- vendorId = the matched member's id, or null if no match found
-- contractId = same as vendorId when the matched member's status is "active", otherwise null
-- Set riskLevel: "OK" if member found and active, "BLOCKED" if found but inactive, "NEEDS_REVIEW" if no member found
-- Set reviewerRecommendation to the member's department if known, otherwise "Accounting Lead"
-- Confidence: 1.0 = exact match, 0.5 = partial/fuzzy, 0.0 = no match
+- Use the PDF name as the primary identifier; fall back to form payer name
+- vendorId = matched member id, or null if no match
+- contractId = same as vendorId when member status is "active", else null
+- riskLevel:
+    "OK"           — member found, active, and amounts match (or no contract to compare)
+    "NEEDS_REVIEW" — member found but amounts mismatch, or match is uncertain
+    "BLOCKED"      — member found but inactive
+    "NEEDS_REVIEW" — no member match found
+- reviewerRecommendation = member's department, or "Accounting Lead"
+- confidence: 1.0 exact, 0.5 fuzzy, 0.0 no match
 
-Respond with ONLY this JSON (no markdown, no extra text):
+Respond with ONLY this JSON (no markdown):
 {
-  "vendorId": "<member id or null>",
-  "contractId": "<member id if active, else null>",
-  "confidence": <0.0 to 1.0>,
+  "vendorId": "<id or null>",
+  "contractId": "<id or null>",
+  "confidence": <0.0–1.0>,
   "riskLevel": "<OK | NEEDS_REVIEW | BLOCKED>",
   "reviewerRecommendation": "<department or Accounting Lead>",
   "reasoning": "<brief explanation>"
@@ -78,25 +183,26 @@ Respond with ONLY this JSON (no markdown, no extra text):
 
   try {
     const parsed = JSON.parse(text) as AIMatchResult;
-    // Validate required fields with fallbacks
     return {
-      vendorId: parsed.vendorId ?? null,
-      contractId: parsed.contractId ?? null,
-      confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : 0,
-      riskLevel: (["OK", "NEEDS_REVIEW", "BLOCKED"] as RiskLevel[]).includes(parsed.riskLevel)
-        ? parsed.riskLevel
-        : "NEEDS_REVIEW",
-      reviewerRecommendation: parsed.reviewerRecommendation || "Accounting Lead",
-      reasoning: parsed.reasoning || "No reasoning provided",
+      vendorId:                    parsed.vendorId ?? null,
+      contractId:                  parsed.contractId ?? null,
+      confidence:                  typeof parsed.confidence === "number"
+        ? Math.min(1, Math.max(0, parsed.confidence)) : 0,
+      riskLevel:                   (["OK", "NEEDS_REVIEW", "BLOCKED"] as RiskLevel[]).includes(parsed.riskLevel)
+        ? parsed.riskLevel : "NEEDS_REVIEW",
+      reviewerRecommendation:      parsed.reviewerRecommendation || "Accounting Lead",
+      reviewerRecommendationDept:  parsed.reviewerRecommendation || "Accounting Lead",
+      reasoning:                   parsed.reasoning || "No reasoning provided",
     };
   } catch {
     return {
-      vendorId: null,
-      contractId: null,
-      confidence: 0,
-      riskLevel: "NEEDS_REVIEW",
-      reviewerRecommendation: "Accounting Lead",
-      reasoning: "AI matching failed — manual review required",
+      vendorId:                   null,
+      contractId:                 null,
+      confidence:                 0,
+      riskLevel:                  "NEEDS_REVIEW",
+      reviewerRecommendation:     "Accounting Lead",
+      reviewerRecommendationDept: "Accounting Lead",
+      reasoning:                  "AI matching failed — manual review required",
     };
   }
 }
