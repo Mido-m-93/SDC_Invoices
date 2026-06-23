@@ -52,9 +52,13 @@ async function graphGet<T>(path: string, token: string): Promise<T> {
 const COLUMN_MAP: Record<string, keyof InvoiceSubmission | "email"> = {
   "Start time":                                               "submittedAt",
   "Email":                                                    "email",
+  // "Name1" is the custom question answer (contractor name) — must come before
+  // "Name" so it wins when both columns are present in the MS Forms export.
+  "Name1":                                                    "payerName",
   "Name":                                                     "payerName",
   "メールアドレス（Email Address）":                          "email",
   "名前（Name）":                                             "payerName",
+  "Invoice Amount[local currency]":                           "claimedAmountTaxIncluded",
   "請求金額(税込)　※請求通貨で記入 Invoice Amount(local currency)": "claimedAmountTaxIncluded",
   "請求金額(税込)　※請求通貨で記入":                          "claimedAmountTaxIncluded",
   "請求書の稼働月 Which month does this invoice cover?":       "closingMonth",
