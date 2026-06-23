@@ -81,22 +81,23 @@ export default function DashboardPage() {
           filedDocument: filedMap[s.id] ?? null,
         }))
       );
-    } catch {
-      // silently fail — stats are still shown
+    } catch (err) {
+      setError(String(err));
     } finally {
       setInvoicesLoading(false);
     }
   }, [month]);
 
   const handleLoadInvoices = useCallback(async () => {
-    // Run stats sync and months refresh in parallel
+    setError(null);
+    // 1. Sync invoices from source (saves to storage)
+    await loadInvoiceList();
+    // 2. Refresh stats from the now-updated storage + available months
     const [, months] = await Promise.all([
       loadStats(),
       fetchAvailableMonths().catch(() => [] as string[]),
     ]);
     if (months.length > 0) setAvailableMonths(months);
-    // Always refresh the invoice list so the drawer shows the latest rows
-    loadInvoiceList();
   }, [loadStats, loadInvoiceList]);
 
   const handleCardClick = (filter: string) => {
