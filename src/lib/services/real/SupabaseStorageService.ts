@@ -240,6 +240,13 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`saveSubmissions (insert): ${error.message}`);
   }
 
+  async clearAllSubmissions(): Promise<void> {
+    const { error: e1 } = await this.db.from("invoice_validation_results").delete().neq("id", "");
+    if (e1) throw new Error(`clearAllSubmissions (validation_results): ${e1.message}`);
+    const { error: e2 } = await this.db.from("invoice_submissions").delete().neq("id", "");
+    if (e2) throw new Error(`clearAllSubmissions (submissions): ${e2.message}`);
+  }
+
   async listAvailableMonths(): Promise<string[]> {
     const { data, error } = await this.db
       .from("invoice_submissions")

@@ -230,6 +230,10 @@ export class MockStorageService implements IStorageService {
     saveUploadedSubmissions(submissions, month);
   }
 
+  async clearAllSubmissions(): Promise<void> {
+    if (typeof window !== "undefined") localStorage.removeItem("sdc_invoice_submissions");
+  }
+
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {
     return loadUploadedSubmissions(month);
   }

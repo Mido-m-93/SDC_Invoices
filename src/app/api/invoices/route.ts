@@ -70,3 +70,13 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    await getStorageService().clearAllSubmissions();
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[DELETE /api/invoices]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}

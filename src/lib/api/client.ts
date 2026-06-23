@@ -62,6 +62,10 @@ export async function fetchAvailableMonths(): Promise<string[]> {
   return data.months;
 }
 
+export async function clearAllInvoices(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices", { method: "DELETE" });
+}
+
 export async function fetchInvoices(month: string): Promise<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }> {
   return apiFetch<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }>(
     `/api/invoices?month=${encodeURIComponent(month)}`

@@ -18,6 +18,7 @@ import {
   fileInvoice,
   uploadInvoiceExcel,
   fetchAvailableMonths,
+  clearAllInvoices,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
 import { monthOptions, formatCurrency, formatTimestamp } from "@/lib/utils";
@@ -46,6 +47,8 @@ export default function InvoicesPage() {
   const [detectedHeaders, setDetectedHeaders] = useState<string[] | null>(null);
   const [headerMapping, setHeaderMapping] = useState<Record<string, string> | null>(null);
   const [rawPreview, setRawPreview] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -91,6 +94,22 @@ export default function InvoicesPage() {
   useEffect(() => {
     loadInvoices();
   }, [loadInvoices]);
+
+  const handleClearAll = async () => {
+    setClearing(true);
+    setError(null);
+    try {
+      await clearAllInvoices();
+      setItems([]);
+      setAvailableMonths([]);
+      setSelectedItem(null);
+      setConfirmClear(false);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const handleValidate = async (submission: InvoiceSubmission) => {
     setValidating(submission.id);
@@ -223,6 +242,13 @@ export default function InvoicesPage() {
           actions={
             <div className="flex items-center gap-3">
               <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
+              >
+                <TrashIcon />
+                Clear All
+              </button>
               {/* Excel file upload (workaround while waiting for Graph API approval) */}
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none
                 ${uploading
@@ -510,6 +536,34 @@ export default function InvoicesPage() {
           onClose={() => setSelectedItem(null)}
         />
       )}
+
+      {/* Clear All confirmation modal */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-semibold text-stone-900">Clear all invoices?</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              This will permanently delete all invoice submissions and validation results across every month. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmClear(false)}
+                disabled={clearing}
+                className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {clearing ? "Deleting…" : "Yes, delete all"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
@@ -528,4 +582,8 @@ function RefreshIcon() {
 
 function UploadIcon() {
   return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function TrashIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 }
