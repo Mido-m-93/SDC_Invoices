@@ -66,7 +66,8 @@ export default function DashboardPage() {
   const loadInvoiceList = useCallback(async () => {
     setInvoicesLoading(true);
     try {
-      const { submissions } = await fetchInvoices(month);
+      const { submissions, sheetsWarning: sw } = await fetchInvoices(month);
+      if (sw) setError(`Forms sync warning: ${sw}`);
       const ids = submissions.map((s) => s.id);
       const [validations, filedDocs] = await Promise.all([
         fetchValidationResults(ids),
@@ -110,13 +111,16 @@ export default function DashboardPage() {
     loadInvoiceList();
   };
 
-  // On mount: fetch available months and auto-select the most recent one with data
+  // On mount: fetch available months; if none, stay on current month
   useEffect(() => {
     fetchAvailableMonths().then((months) => {
       setAvailableMonths(months);
-      if (months.length > 0 && !months.includes(monthOptions(1)[0])) {
-        setMonth(months[0]);
+      if (months.length > 0) {
+        // Pick the most recent month that has data, but prefer current month if it has data
+        const current = monthOptions(1)[0];
+        setMonth(months.includes(current) ? current : months[0]);
       }
+      // If no months have data yet, leave the selector on the current month (default)
     }).catch(() => {});
   }, []);
 
