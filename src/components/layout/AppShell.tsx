@@ -67,7 +67,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="mt-auto space-y-2 border-t border-white/10 px-4 py-4">
+          <div className="space-y-2 border-t border-white/10 px-4 py-4">
             <button
               onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
