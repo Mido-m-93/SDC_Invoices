@@ -44,8 +44,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        {/* Nav + footer scroll together — no gap between last item and footer */}
-        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
+        {/* Nav + footer scroll together; footer pinned to bottom via mt-auto */}
+        <div className="flex flex-1 flex-col overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
           <nav className="px-3 py-3">
             {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
               const active = pathname.startsWith(href);
@@ -67,7 +67,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="space-y-2 border-t border-white/10 px-4 py-4">
+          <div className="mt-auto space-y-2 border-t border-white/10 px-4 py-4">
             <button
               onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
