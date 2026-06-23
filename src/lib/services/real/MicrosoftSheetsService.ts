@@ -47,36 +47,49 @@ async function graphGet<T>(path: string, token: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── Column mapping: Microsoft Forms → InvoiceSubmission ──────────────────────
-// Keys are normalized (trimmed, \r\n→space, collapsed spaces) before matching.
-const COLUMN_MAP: Record<string, keyof InvoiceSubmission | "email"> = {
-  "Start time":                                               "submittedAt",
-  "Email":                                                    "email",
-  // "Name1" is the custom question answer (contractor name) — must come before
-  // "Name" so it wins when both columns are present in the MS Forms export.
-  "Name1":                                                    "payerName",
-  "Name":                                                     "payerName",
-  "メールアドレス（Email Address）":                          "email",
-  "名前（Name）":                                             "payerName",
-  "Invoice Amount[local currency]":                           "claimedAmountTaxIncluded",
-  "請求金額(税込)　※請求通貨で記入 Invoice Amount(local currency)": "claimedAmountTaxIncluded",
-  "請求金額(税込)　※請求通貨で記入":                          "claimedAmountTaxIncluded",
-  "請求書の稼働月 Which month does this invoice cover?":       "closingMonth",
-  "請求書の稼働月":                                           "closingMonth",
-  "請求書の内訳(内部案件or外部案件) Invoice Category (Internal Project or External Project)": "projectType",
-  "請求書の内訳(内部案件or外部案件)":                         "projectType",
-  "※内部案件の場合のみ部門を選択して下さい。( For Internal Projects Only)": "internalDepartment",
-  "※外部案件の場合のみ案件名を選択してください。 For External Projects Only: Please select the project name.": "externalProjectName",
-  "※外部案件の場合のみ案件名を選択してください。":            "externalProjectName",
-  "請求書の添付( Invoice Attachment)*PDF形式にて1つの請求書のみアップロードしてください Please upload only one invoice in PDF format. You may upload up to 10 supported files (PDF). Upload up to 10 supported files: PDF. Max 10 MB per": "invoiceAttachment",
-  "請求書の添付( Invoice Attachment)":                        "invoiceAttachment",
-  "請求書ファイル添付（Attach Invoice File）":                "invoiceAttachment",
-  "その他特記事項（何かあれば記載してください） Additional Notes (if any)": "notes",
-  "備考（Remarks / Notes）":                                  "notes",
-};
+// ── Keyword rules: same approach as the upload route ─────────────────────────
+// Most-specific keywords first. Matching uses includes() so column headers that
+// contain extra text (e.g. "Invoice Amount(local currency) and Dollar amount")
+// still match. When two headers match the same field, the longer one wins —
+// this ensures "Name1" (custom question) beats "Name" (MS Forms built-in).
+type FieldName = keyof InvoiceSubmission | "email";
+const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
+  { keywords: ["Start time", "開始時刻"],                                                     field: "submittedAt" },
+  { keywords: ["Email Address", "メールアドレス"],                                            field: "email" },
+  { keywords: ["Invoice Amount", "請求金額"],                                                 field: "claimedAmountTaxIncluded" },
+  { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                           field: "closingMonth" },
+  { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                  field: "projectType" },
+  { keywords: ["For Internal Projects Only", "内部案件の場合のみ", "内部案件の場合"],          field: "internalDepartment" },
+  { keywords: ["For External Projects Only", "select the project name", "外部案件の場合のみ", "外部案件の場合"], field: "externalProjectName" },
+  { keywords: ["Invoice Attachment", "upload only one invoice", "請求書の添付", "請求書ファイル"], field: "invoiceAttachment" },
+  { keywords: ["Additional Notes", "特記事項", "備考"],                                       field: "notes" },
+  { keywords: ["Name", "名前"],                                                               field: "payerName" },
+];
 
 function normalizeHeader(h: string): string {
   return h.replace(/\r\n/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildFieldMap(headers: string[]): Map<string, FieldName> {
+  const map = new Map<string, FieldName>();
+  const bestLength = new Map<FieldName, number>();
+  for (const header of headers) {
+    const lower = normalizeHeader(header).toLowerCase();
+    for (const rule of KEYWORD_RULES) {
+      if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+        const prev = bestLength.get(rule.field) ?? 0;
+        if (header.length > prev) {
+          for (const [h, f] of Array.from(map.entries())) {
+            if (f === rule.field) { map.delete(h); break; }
+          }
+          map.set(header, rule.field);
+          bestLength.set(rule.field, header.length);
+        }
+        break;
+      }
+    }
+  }
+  return map;
 }
 
 // Convert an Excel serial number string to a readable value.
@@ -92,21 +105,17 @@ function convertSerial(raw: string, mode: "date" | "datetime"): string {
 
 function normalizeRow(
   raw: Record<string, string>,
+  fieldMap: Map<string, FieldName>,
   rowIndex: number
 ): InvoiceSubmission {
-  // Normalize the raw row keys so they match COLUMN_MAP
-  const normalized: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    normalized[normalizeHeader(k)] = (v ?? "").toString().trim();
-  }
-
-  const get = (key: keyof InvoiceSubmission | "email") =>
-    Object.entries(COLUMN_MAP)
-      .filter(([, v]) => v === key)
-      // Normalize the COLUMN_MAP key the same way we normalized the Excel headers
-      // so ideographic spaces (U+3000) and other Unicode whitespace don't cause mismatches
-      .map(([k]) => normalized[normalizeHeader(k)] ?? "")
-      .find((v) => v !== "") ?? "";
+  const get = (key: FieldName): string => {
+    for (const [header, field] of Array.from(fieldMap)) {
+      if (field !== key) continue;
+      const val = (raw[header] ?? "").toString().trim();
+      if (val) return val;
+    }
+    return "";
+  };
 
   return {
     id: generateId(),
@@ -165,10 +174,13 @@ export class MicrosoftSheetsService implements ISheetsService {
     });
 
     console.log("[MicrosoftSheetsService] rows found:", rows.length);
-    if (rows.length > 0) console.log("[MicrosoftSheetsService] headers:", Object.keys(rows[0]));
+    const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+    console.log("[MicrosoftSheetsService] headers:", headers);
+    const fieldMap = buildFieldMap(headers);
+    console.log("[MicrosoftSheetsService] fieldMap:", JSON.stringify(Object.fromEntries(fieldMap)));
 
     return rows
       .filter((row) => Object.values(row).some((v) => v !== ""))
-      .map((row, i) => normalizeRow(row, i));
+      .map((row, i) => normalizeRow(row, fieldMap, i));
   }
 }
