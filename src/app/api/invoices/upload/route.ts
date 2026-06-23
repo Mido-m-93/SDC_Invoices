@@ -98,27 +98,22 @@ const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
 
 function buildFieldMap(headers: string[]): Map<string, FieldName> {
   const map = new Map<string, FieldName>();
+  const bestLength = new Map<FieldName, number>();
   for (const header of headers) {
     const lower = header.toLowerCase();
     for (const rule of KEYWORD_RULES) {
       if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-        if (!map.has(header)) map.set(header, rule.field);
+        const prev = bestLength.get(rule.field) ?? 0;
+        if (header.length > prev) {
+          // Remove the shorter previous mapping for this field
+          for (const [h, f] of Array.from(map.entries())) {
+            if (f === rule.field) { map.delete(h); break; }
+          }
+          map.set(header, rule.field);
+          bestLength.set(rule.field, header.length);
+        }
         break;
       }
-    }
-  }
-  // Microsoft Forms exports include a built-in "Name" / "名前" column containing
-  // the form respondent's M365 display name. When a more specific custom question
-  // column also maps to the same field (e.g. "Name1"), drop the bare MS Forms
-  // metadata column so the custom question value is used instead.
-  for (const field of Array.from(new Set(map.values()))) {
-    const matching = [...map.entries()].filter(([, f]) => f === field);
-    if (matching.length < 2) continue;
-    const MS_FORMS_EXACT = ["name", "名前", "email", "メール", "メールアドレス（メール）"];
-    const exact = matching.filter(([h]) => MS_FORMS_EXACT.includes(h.toLowerCase()));
-    const specific = matching.filter(([h]) => !MS_FORMS_EXACT.includes(h.toLowerCase()));
-    if (exact.length > 0 && specific.length > 0) {
-      exact.forEach(([h]) => map.delete(h));
     }
   }
   return map;
@@ -211,6 +206,9 @@ export async function POST(req: NextRequest) {
     // Handles: "2026年5月", "2026-05", "2026-05-01", "4/23/26" (MM/DD/YY), "04/2026"
     const firstMonth = submissions[0]?.closingMonth ?? "";
     const snapshotMonth = parseSnapshotMonth(firstMonth);
+
+    console.log("[upload] detectedHeaders:", JSON.stringify(detectedHeaders));
+    console.log("[upload] headerMapping:", JSON.stringify(headerMapping));
 
     await getStorageService().saveSubmissions(submissions, snapshotMonth);
 
