@@ -107,6 +107,20 @@ function buildFieldMap(headers: string[]): Map<string, FieldName> {
       }
     }
   }
+  // Microsoft Forms exports include a built-in "Name" / "名前" column containing
+  // the form respondent's M365 display name. When a more specific custom question
+  // column also maps to the same field (e.g. "Name1"), drop the bare MS Forms
+  // metadata column so the custom question value is used instead.
+  for (const field of new Set(map.values())) {
+    const matching = [...map.entries()].filter(([, f]) => f === field);
+    if (matching.length < 2) continue;
+    const MS_FORMS_EXACT = ["name", "名前", "email", "メール", "メールアドレス（メール）"];
+    const exact = matching.filter(([h]) => MS_FORMS_EXACT.includes(h.toLowerCase()));
+    const specific = matching.filter(([h]) => !MS_FORMS_EXACT.includes(h.toLowerCase()));
+    if (exact.length > 0 && specific.length > 0) {
+      exact.forEach(([h]) => map.delete(h));
+    }
+  }
   return map;
 }
 
@@ -122,9 +136,16 @@ function convertExcelDate(value: string): string {
 
 function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, rowIndex: number): InvoiceSubmission {
   const values = new Map<FieldName, string>();
+  const headerLengths = new Map<FieldName, number>();
   for (const [header, field] of Array.from(fieldMap)) {
     const val = (row[header] ?? "").toString().trim();
-    if (val !== "") values.set(field, val);
+    // Prefer the more specific (longer) column header when multiple headers map
+    // to the same field — e.g. custom question "Name1" should win over the
+    // MS Forms built-in respondent "名前" column which contains the uploader's name.
+    if (val !== "" && header.length > (headerLengths.get(field) ?? 0)) {
+      values.set(field, val);
+      headerLengths.set(field, header.length);
+    }
   }
   const get = (f: FieldName) => values.get(f) ?? "";
   return {
