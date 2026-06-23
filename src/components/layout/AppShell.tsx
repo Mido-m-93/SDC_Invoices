@@ -44,56 +44,57 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        {/* Scrollable nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
-          {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
-            const active = pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={clsx(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-                  active
-                    ? "bg-white/10 text-white"
-                    : "text-white/60 hover:bg-white/5 hover:text-white",
-                )}
-              >
-                <Icon size={15} />
-                <span>{t(key)}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Nav + footer scroll together — no gap between last item and footer */}
+        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
+          <nav className="px-3 py-3">
+            {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
+              const active = pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                    active
+                      ? "bg-white/10 text-white"
+                      : "text-white/60 hover:bg-white/5 hover:text-white",
+                  )}
+                >
+                  <Icon size={15} />
+                  <span>{t(key)}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* Footer */}
-        <div className="shrink-0 space-y-2 border-t border-white/10 px-4 py-4">
-          <button
-            onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
-          >
-            <GlobeIcon size={12} />
-            {t("language_toggle")}
-          </button>
+          <div className="space-y-2 border-t border-white/10 px-4 py-4">
+            <button
+              onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
+            >
+              <GlobeIcon size={12} />
+              {t("language_toggle")}
+            </button>
 
-          {user && (
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                style={{ backgroundColor: userColor(user) }}
-              >
-                {userInitials(user)}
-              </span>
-              <span className="flex-1 truncate text-sm font-medium text-white">{user}</span>
-              <button
-                onClick={signOut}
-                title="Sign out"
-                className="text-white/30 transition hover:text-white"
-              >
-                <LogoutIcon size={14} />
-              </button>
-            </div>
-          )}
+            {user && (
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                  style={{ backgroundColor: userColor(user) }}
+                >
+                  {userInitials(user)}
+                </span>
+                <span className="flex-1 truncate text-sm font-medium text-white">{user}</span>
+                <button
+                  onClick={signOut}
+                  title="Sign out"
+                  className="text-white/30 transition hover:text-white"
+                >
+                  <LogoutIcon size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
