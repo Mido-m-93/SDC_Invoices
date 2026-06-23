@@ -33,9 +33,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
-      <aside className="fixed inset-y-0 left-0 z-40 w-[220px] bg-[#1a3d2b] text-white">
-        <div className="border-b border-white/10 px-5 py-6">
-          <p className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-white/40">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col bg-[#1a3d2b] text-white">
+        {/* Header */}
+        <div className="shrink-0 border-b border-white/10 px-5 py-5">
+          <p className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
             SDC
           </p>
           <p className="text-sm font-semibold leading-snug text-white">
@@ -43,33 +44,30 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <nav className="space-y-1 px-3 py-4">
+        {/* Scrollable nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
           {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
             const active = pathname.startsWith(href);
-
             return (
               <Link
                 key={href}
                 href={href}
                 className={clsx(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                   active
                     ? "bg-white/10 text-white"
                     : "text-white/60 hover:bg-white/5 hover:text-white",
                 )}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 <span>{t(key)}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 w-full space-y-3 px-4 pb-6">
-          <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            {t("warning_no_payment")}
-          </div>
-
+        {/* Footer */}
+        <div className="shrink-0 space-y-2 border-t border-white/10 px-4 py-4">
           <button
             onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
@@ -78,7 +76,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {t("language_toggle")}
           </button>
 
-          {/* Current user + logout */}
           {user && (
             <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
               <span
@@ -87,11 +84,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
               >
                 {userInitials(user)}
               </span>
-              <span className="flex-1 text-sm font-medium text-white truncate">{user}</span>
+              <span className="flex-1 truncate text-sm font-medium text-white">{user}</span>
               <button
                 onClick={signOut}
                 title="Sign out"
-                className="text-white/30 hover:text-white transition"
+                className="text-white/30 transition hover:text-white"
               >
                 <LogoutIcon size={14} />
               </button>
