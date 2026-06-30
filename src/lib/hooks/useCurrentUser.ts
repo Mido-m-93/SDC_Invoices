@@ -25,6 +25,12 @@ export function useCurrentUser() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
+    // No Supabase credentials (mock storage mode) — skip auth entirely
+    if (!supabase) {
+      setReady(true);
+      return;
+    }
+
     const resolveUser = (authUser: { user_metadata?: Record<string, unknown>; email?: string } | null) => {
       if (!authUser) return null;
       const name = authUser.user_metadata?.name as string | undefined;
@@ -51,6 +57,7 @@ export function useCurrentUser() {
 
   const signOut = async () => {
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { router.push("/login"); return; }
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

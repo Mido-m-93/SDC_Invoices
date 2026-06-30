@@ -1,54 +1,75 @@
 import type { IExpenseService } from "../types";
 import type { ExpenseClaim, ExpenseStatus, ExpenseValidationResult } from "@/types";
-
-const store = new Map<string, ExpenseClaim>();
+import {
+  loadExpenseClaims,
+  saveExpenseClaim,
+  deleteExpenseClaim,
+  updateExpenseClaimStatus,
+} from "./fileStore";
 
 export class MockExpenseService implements IExpenseService {
   async listClaims(filters?: { status?: ExpenseStatus; submittedBy?: string }): Promise<ExpenseClaim[]> {
-    let list = Array.from(store.values());
+    let list = loadExpenseClaims();
     if (filters?.status)      list = list.filter((c) => c.status === filters.status);
     if (filters?.submittedBy) list = list.filter((c) => c.submittedBy === filters.submittedBy);
     return list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   }
 
   async getClaim(id: string): Promise<ExpenseClaim | null> {
-    return store.get(id) ?? null;
+    return loadExpenseClaims().find((c) => c.id === id) ?? null;
   }
 
   async saveClaim(claim: ExpenseClaim): Promise<void> {
-    store.set(claim.id, claim);
+    saveExpenseClaim(claim);
   }
 
   async deleteClaim(id: string): Promise<void> {
-    store.delete(id);
+    deleteExpenseClaim(id);
   }
 
   async updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void> {
-    const existing = store.get(id);
-    if (!existing) return;
-    store.set(id, {
-      ...existing,
-      status,
-      reviewedBy: actorName,
-      reviewedAt: new Date().toISOString(),
-      reviewerComment: comment ?? existing.reviewerComment,
-    });
+    updateExpenseClaimStatus(id, status, actorName, comment);
   }
 
-  async validateClaim(_claim: ExpenseClaim): Promise<ExpenseValidationResult> {
+  async validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult> {
+    const TRANSPORT_NO_RECEIPT = /[→↔]|電車|バス|train|bus|subway|公共交通|metro|路線/i;
+    const isNoReceiptTransport =
+      claim.category === "transport" && TRANSPORT_NO_RECEIPT.test(claim.description ?? "");
+
+    const violations: string[] = [];
+    if (!claim.receiptUrl && !claim.receiptFilename && !isNoReceiptTransport) {
+      violations.push("MISSING_RECEIPT");
+    }
+    if (!claim.description) violations.push("MISSING_PURPOSE");
+    if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
+      violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
+    }
+    if (claim.amount > 1000000) violations.push("REQUIRES_MANAGEMENT_APPROVAL");
+
+    const receiptMissing = !claim.receiptUrl && !claim.receiptFilename && !isNoReceiptTransport;
+    const riskLevel =
+      violations.includes("MISSING_RECEIPT") || violations.includes("MISSING_PURPOSE")
+        ? "BLOCKED"
+        : violations.length > 0
+        ? "NEEDS_REVIEW"
+        : "OK";
+
+    // Persist updated violations back to disk
+    saveExpenseClaim({ ...claim, policyViolations: violations, updatedAt: new Date().toISOString() });
+
     return {
-      claimId: _claim.id,
-      receiptAccessible: !!_claim.receiptUrl,
-      amountMatchesReceipt: true,
-      dateFound: !!_claim.expenseDate,
-      categoryValid: true,
-      receiptMissing: !_claim.receiptUrl,
-      policyViolations: [],
-      riskLevel: "OK",
-      statusCode: _claim.status,
-      extractedAmount: null,
-      extractedDate: null,
-      extractedVendor: null,
+      claimId:              claim.id,
+      receiptAccessible:    !!claim.receiptUrl,
+      amountMatchesReceipt: claim.extractedAmount === null || Math.abs((claim.extractedAmount ?? 0) - claim.amount) <= 1,
+      dateFound:            !!claim.expenseDate,
+      categoryValid:        true,
+      receiptMissing,
+      policyViolations:     violations,
+      riskLevel,
+      statusCode:           claim.status,
+      extractedAmount:      claim.extractedAmount,
+      extractedDate:        claim.extractedDate,
+      extractedVendor:      claim.extractedVendor,
     };
   }
 }

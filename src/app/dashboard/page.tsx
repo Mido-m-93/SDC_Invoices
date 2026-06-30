@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/client";
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
-import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Lead } from "@/types";
 import clsx from "clsx";
 
 export default function DashboardPage() {
@@ -48,6 +48,12 @@ export default function DashboardPage() {
   const [reminderSummary, setReminderSummary] = useState<ReminderSummary | null>(null);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [reminderResult, setReminderResult] = useState<{ sent: number; failed: number; skipped: number } | null>(null);
+  const [moduleData, setModuleData] = useState<{
+    expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
+    clients:  { total: number; active: number; prospects: number } | null;
+    proposals: { total: number; open: number; accepted: number } | null;
+    leads:    { total: number; newCount: number; pipelineValue: number } | null;
+  }>({ expenses: null, clients: null, proposals: null, leads: null });
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -127,6 +133,45 @@ export default function DashboardPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // Load cross-module summary counts (non-blocking, best-effort)
+  useEffect(() => {
+    async function load() {
+      const [expRes, clientRes, proposalRes, leadRes] = await Promise.allSettled([
+        fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
+        fetch("/api/clients").then((r) => r.json() as Promise<{ clients: Client[] }>),
+        fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
+        fetch("/api/leads").then((r) => r.json() as Promise<{ leads: Lead[] }>),
+      ]);
+      setModuleData({
+        expenses: expRes.status === "fulfilled" ? (() => {
+          const cs = expRes.value.claims ?? [];
+          return {
+            total:         cs.length,
+            submitted:     cs.filter((c) => c.status === "submitted").length,
+            underReview:   cs.filter((c) => c.status === "under_review").length,
+            violations:    cs.filter((c) => c.policyViolations.length > 0).length,
+            pendingAmount: cs.filter((c) => ["submitted","under_review"].includes(c.status))
+                             .reduce((s, c) => s + c.amount, 0),
+          };
+        })() : null,
+        clients: clientRes.status === "fulfilled" ? (() => {
+          const cs = clientRes.value.clients ?? [];
+          return { total: cs.length, active: cs.filter((c) => c.status === "active").length, prospects: cs.filter((c) => c.status === "prospect").length };
+        })() : null,
+        proposals: proposalRes.status === "fulfilled" ? (() => {
+          const ps = proposalRes.value.proposals ?? [];
+          return { total: ps.length, open: ps.filter((p) => p.status === "submitted").length, accepted: ps.filter((p) => p.status === "accepted").length };
+        })() : null,
+        leads: leadRes.status === "fulfilled" ? (() => {
+          const ls = leadRes.value.leads ?? [];
+          const active = ls.filter((l) => !["won","lost"].includes(l.stage));
+          return { total: ls.length, newCount: ls.filter((l) => l.stage === "new").length, pipelineValue: active.reduce((s, l) => s + (l.estimatedValue ?? 0), 0) };
+        })() : null,
+      });
+    }
+    load().catch(() => {});
+  }, []);
 
   // Load reminder summary non-blocking when month changes
   useEffect(() => {
@@ -247,6 +292,57 @@ export default function DashboardPage() {
           actions={<MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />}
         />
 
+        {/* ── Module summary cards ──────────────────────────────────── */}
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <ModuleCard
+            href="/invoices" label="Invoices" icon={<InvoiceModIcon />}
+            primary={stats?.totalRows ?? "—"}
+            subs={[
+              { label: "Ready",  value: stats?.ready ?? 0,          color: (stats?.ready ?? 0) > 0 ? "green" : "neutral" },
+              { label: "Review", value: stats?.reviewRequired ?? 0, color: (stats?.reviewRequired ?? 0) > 0 ? "amber" : "neutral" },
+            ]}
+          />
+          <ModuleCard
+            href="/expenses" label="Expenses" icon={<ExpenseModIcon />}
+            primary={moduleData.expenses ? `¥${moduleData.expenses.pendingAmount.toLocaleString()}` : "—"}
+            subs={[
+              { label: "Pending",    value: (moduleData.expenses?.submitted ?? 0) + (moduleData.expenses?.underReview ?? 0), color: (moduleData.expenses?.submitted ?? 0) > 0 ? "amber" : "neutral" },
+              { label: "Violations", value: moduleData.expenses?.violations ?? 0, color: (moduleData.expenses?.violations ?? 0) > 0 ? "red" : "neutral" },
+            ]}
+          />
+          <ModuleCard
+            href="/clients" label="Clients" icon={<ClientModIcon />}
+            primary={moduleData.clients?.total ?? "—"}
+            subs={[
+              { label: "Active",    value: moduleData.clients?.active ?? 0,    color: "green" },
+              { label: "Prospects", value: moduleData.clients?.prospects ?? 0, color: "neutral" },
+            ]}
+          />
+          <ModuleCard
+            href="/proposals" label="Proposals" icon={<ProposalModIcon />}
+            primary={moduleData.proposals?.total ?? "—"}
+            subs={[
+              { label: "Open",     value: moduleData.proposals?.open ?? 0,     color: (moduleData.proposals?.open ?? 0) > 0 ? "amber" : "neutral" },
+              { label: "Accepted", value: moduleData.proposals?.accepted ?? 0, color: "green" },
+            ]}
+          />
+          <ModuleCard
+            href="/leads" label="Leads" icon={<LeadModIcon />}
+            primary={moduleData.leads?.total ?? "—"}
+            subs={[
+              { label: "New",      value: moduleData.leads?.newCount ?? 0, color: (moduleData.leads?.newCount ?? 0) > 0 ? "amber" : "neutral" },
+              { label: "Pipeline", value: moduleData.leads ? `¥${(moduleData.leads.pipelineValue / 1_000_000).toFixed(1)}M` : "—", color: "neutral" },
+            ]}
+          />
+        </div>
+
+        {/* ── Invoice processing section header ─────────────────────── */}
+        <div className="flex items-center gap-2 mb-4">
+          <InvoiceModIcon size={14} />
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Invoice Processing</p>
+          <span className="text-xs text-stone-300 ml-1">— {month}</span>
+        </div>
+
         {/* Action bar */}
         <div className="flex flex-wrap gap-3 mb-8">
           <Button
@@ -343,6 +439,9 @@ export default function DashboardPage() {
                 active={activeFilter === "ALREADY_PROCESSED"} onClick={() => handleCardClick("ALREADY_PROCESSED")} />
             </div>
 
+            {/* ── Expense claims strip ──────────────────────────────────────── */}
+            {moduleData.expenses && <ExpenseStrip data={moduleData.expenses} language={language} />}
+
             {/* ── Phase 7: Reminder Status ──────────────────────────────────── */}
             <ReminderStatusSection
               summary={reminderSummary}
@@ -406,6 +505,120 @@ export default function DashboardPage() {
         <InvoiceDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
     </AppShell>
+  );
+}
+
+// ── Module summary card ───────────────────────────────────────────────────────
+
+interface SubStat { label: string; value: string | number; color?: "green" | "amber" | "red" | "neutral" }
+
+function ModuleCard({ href, label, icon, primary, subs }: {
+  href: string; label: string; icon: React.ReactNode;
+  primary: string | number; subs: SubStat[];
+}) {
+  const colorClass = (c?: SubStat["color"]) =>
+    c === "green"   ? "text-emerald-600" :
+    c === "amber"   ? "text-amber-600" :
+    c === "red"     ? "text-red-500" :
+    "text-stone-400";
+
+  return (
+    <Link href={href} className="group flex flex-col rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 hover:shadow-sm transition-all">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[9px] font-bold tracking-widest uppercase text-stone-400">{label}</span>
+        <span className="text-stone-300 group-hover:text-stone-400 transition-colors">{icon}</span>
+      </div>
+      <p className="text-2xl font-bold text-stone-900 mb-2 font-mono tabular-nums">{primary}</p>
+      <div className="flex gap-3 mt-auto">
+        {subs.map((s) => (
+          <span key={s.label} className="text-[10px]">
+            <span className="text-stone-400">{s.label} </span>
+            <span className={`font-semibold ${colorClass(s.color)}`}>{s.value}</span>
+          </span>
+        ))}
+      </div>
+    </Link>
+  );
+}
+
+// ── Expense claims strip ──────────────────────────────────────────────────────
+
+function ExpenseStrip({ data, language }: {
+  data: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number };
+  language: string;
+}) {
+  return (
+    <div className="mb-6 rounded-xl border border-stone-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50 rounded-t-xl">
+        <div className="flex items-center gap-2">
+          <ExpenseModIcon size={14} />
+          <p className="text-sm font-semibold text-stone-700">
+            {language === "ja" ? "経費精算" : "Expense Claims"}
+          </p>
+        </div>
+        <Link href="/expenses" className="text-xs text-[#1a3d2b] font-medium hover:underline">
+          {language === "ja" ? "経費一覧 →" : "View all →"}
+        </Link>
+      </div>
+      <div className="grid grid-cols-4 divide-x divide-stone-100 px-2 py-1">
+        {[
+          { label: language === "ja" ? "合計" : "Total",        value: data.total,       color: "text-stone-900" },
+          { label: language === "ja" ? "申請中" : "Submitted",  value: data.submitted,   color: data.submitted   > 0 ? "text-amber-600"   : "text-stone-500" },
+          { label: language === "ja" ? "審査中" : "Under Review",value: data.underReview, color: data.underReview > 0 ? "text-blue-600"    : "text-stone-500" },
+          { label: language === "ja" ? "違反" : "Violations",   value: data.violations,  color: data.violations  > 0 ? "text-red-600"     : "text-stone-500" },
+        ].map((cell) => (
+          <div key={cell.label} className="flex flex-col items-center py-3 px-4">
+            <span className={`text-xl font-bold tabular-nums ${cell.color}`}>{cell.value}</span>
+            <span className="text-[10px] text-stone-400 mt-0.5">{cell.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Module icons ──────────────────────────────────────────────────────────────
+
+function InvoiceModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="15" y2="17" />
+    </svg>
+  );
+}
+function ExpenseModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  );
+}
+function ClientModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function ProposalModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+function LeadModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.16 12 19.79 19.79 0 0 1 1.05 3.42 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z" />
+    </svg>
   );
 }
 
@@ -665,7 +878,7 @@ function InvoiceDrawer({
                     </td>
                     <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.closingMonth || "—"}</td>
                     <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.projectType || "—"}</td>
-                    <td className="px-4 py-2.5 text-stone-700 font-mono text-xs whitespace-nowrap">{formatCurrency(s.claimedAmountTaxIncluded)}</td>
+                    <td className="px-4 py-2.5 text-stone-700 font-mono text-xs whitespace-nowrap">{formatCurrency(s.claimedAmountTaxIncluded, s.currency)}</td>
                     <td className="px-4 py-2.5 text-xs">
                       {s.invoiceAttachment
                         ? <span className="text-stone-500 font-mono truncate block max-w-[140px]" title={s.invoiceAttachment}>📎 {s.invoiceAttachment}</span>

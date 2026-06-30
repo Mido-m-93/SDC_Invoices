@@ -17,6 +17,7 @@ import type {
   Client,
   Lead,
   Member,
+  ExpenseClaim,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -35,9 +36,50 @@ interface MockStore {
   clients: Client[];
   leads: Lead[];
   members: Member[];
+  expenseClaims: ExpenseClaim[];
 }
 
-function readStore(): MockStore {
+// ── Seed data (shown when each array is empty) ───────────────────────────────
+
+const SEED_EXPENSES: ExpenseClaim[] = [
+  { id: "exp-001", submittedBy: "Noraldeen Ahmed",  submittedByEmail: "noraldeen@roboco-op.org", submittedAt: "2026-06-05T09:15:00.000Z", category: "transport",       description: "新宿→渋谷 往復電車代（クライアント訪問）",              amount: 1240,  currency: "JPY", paymentMethod: "personal_reimbursement", receiptUrl: "",  receiptFilename: "",                    projectName: "RoboCo-op Japan Operations", internalDepartment: "Operations",           expenseDate: "2026-06-05", status: "submitted",    reviewerComment: "",                                                  reviewedBy: "",               reviewedAt: null, approvedBy: "",               approvedAt: null, paidAt: null, extractedAmount: null, extractedDate: null, extractedVendor: null, policyViolations: [],                                    bankAccount: "みずほ銀行 渋谷支店 普通 1234567 ノラルディーン アハメッド", createdAt: "2026-06-05T09:15:00.000Z", updatedAt: "2026-06-05T09:15:00.000Z" },
+  { id: "exp-002", submittedBy: "Naing Min Lwin",   submittedByEmail: "naing@roboco-op.org",     submittedAt: "2026-06-03T14:30:00.000Z", category: "meals",           description: "クライアントランチ（3名）— 渋谷レストラン",               amount: 8400,  currency: "JPY", paymentMethod: "company_card",           receiptUrl: "",  receiptFilename: "receipt_lunch_jun3.jpg", projectName: "SDC Partnership",            internalDepartment: "Business Development", expenseDate: "2026-06-03", status: "under_review", reviewerComment: "",                                                  reviewedBy: "Mohamad Alayoubi", reviewedAt: "2026-06-04T10:00:00.000Z", approvedBy: "", approvedAt: null, paidAt: null, extractedAmount: 8400, extractedDate: "2026-06-03", extractedVendor: "渋谷ビストロ",   policyViolations: [],                                    bankAccount: "三菱UFJ銀行 恵比寿支店 普通 7654321 ナイン ミン ルイン",  createdAt: "2026-06-03T14:30:00.000Z", updatedAt: "2026-06-04T10:00:00.000Z" },
+  { id: "exp-003", submittedBy: "Ahmad Khalil",     submittedByEmail: "ahmad@roboco-op.org",     submittedAt: "2026-05-28T11:00:00.000Z", category: "software",        description: "Figma Professional サブスクリプション（月額）",           amount: 3960,  currency: "JPY", paymentMethod: "personal_reimbursement", receiptUrl: "",  receiptFilename: "figma_invoice_may.pdf", projectName: "UI/UX Projects",             internalDepartment: "Engineering",          expenseDate: "2026-05-28", status: "approved",     reviewerComment: "承認済み — 業務必須ツール",                          reviewedBy: "Mohamad Alayoubi", reviewedAt: "2026-05-29T09:00:00.000Z", approvedBy: "Mohamad Alayoubi", approvedAt: "2026-05-29T09:00:00.000Z", paidAt: null, extractedAmount: 3960, extractedDate: "2026-05-28", extractedVendor: "Figma Inc.",  policyViolations: [],                                    bankAccount: "ゆうちょ銀行 記号10010 番号12345671 アフマド ハリル",      createdAt: "2026-05-28T11:00:00.000Z", updatedAt: "2026-05-29T09:00:00.000Z" },
+  { id: "exp-004", submittedBy: "Mariam Hassan",    submittedByEmail: "mariam@roboco-op.org",    submittedAt: "2026-05-20T16:45:00.000Z", category: "accommodation",   description: "大阪出張 ホテル2泊（5/18〜5/20）",                        amount: 24800, currency: "JPY", paymentMethod: "personal_reimbursement", receiptUrl: "",  receiptFilename: "hotel_osaka_may.pdf",  projectName: "Osaka Client Onboarding",    internalDepartment: "Operations",           expenseDate: "2026-05-20", status: "paid",         reviewerComment: "承認済み — 出張規定内",                              reviewedBy: "Mohamad Alayoubi", reviewedAt: "2026-05-21T08:30:00.000Z", approvedBy: "Mohamad Alayoubi", approvedAt: "2026-05-21T08:30:00.000Z", paidAt: "2026-05-25T12:00:00.000Z", extractedAmount: 24800, extractedDate: "2026-05-20", extractedVendor: "東横イン 大阪梅田", policyViolations: [], bankAccount: "みずほ銀行 新宿支店 普通 9999999 マリアム ハッサン",       createdAt: "2026-05-20T16:45:00.000Z", updatedAt: "2026-05-25T12:00:00.000Z" },
+  { id: "exp-005", submittedBy: "Noraldeen Ahmed",  submittedByEmail: "noraldeen@roboco-op.org", submittedAt: "2026-06-10T10:20:00.000Z", category: "entertainment",   description: "チームディナー（歓迎会・8名）",                           amount: 68000, currency: "JPY", paymentMethod: "personal_reimbursement", receiptUrl: "",  receiptFilename: "dinner_receipt_jun10.jpg", projectName: "Internal",                internalDepartment: "HR",                   expenseDate: "2026-06-10", status: "rejected",     reviewerComment: "金額が交際費上限（¥50,000/回）を超えています。領収書を分割してください。", reviewedBy: "Mohamad Alayoubi", reviewedAt: "2026-06-11T09:00:00.000Z", approvedBy: "",               approvedAt: null, paidAt: null, extractedAmount: 68000, extractedDate: "2026-06-10", extractedVendor: "恵比寿 和食処", policyViolations: ["金額が交際費上限（¥50,000）を超えています"], bankAccount: "みずほ銀行 渋谷支店 普通 1234567 ノラルディーン アハメッド", createdAt: "2026-06-10T10:20:00.000Z", updatedAt: "2026-06-11T09:00:00.000Z" },
+  { id: "exp-006", submittedBy: "Ahmad Khalil",     submittedByEmail: "ahmad@roboco-op.org",     submittedAt: "2026-06-12T13:00:00.000Z", category: "office_supplies", description: "プリンターインクカートリッジ × 4本",                     amount: 6480,  currency: "JPY", paymentMethod: "personal_reimbursement", receiptUrl: "",  receiptFilename: "",                    projectName: "Internal",                   internalDepartment: "Operations",           expenseDate: "2026-06-12", status: "submitted",    reviewerComment: "",                                                  reviewedBy: "",               reviewedAt: null, approvedBy: "",               approvedAt: null, paidAt: null, extractedAmount: null, extractedDate: null, extractedVendor: null, policyViolations: ["領収書が添付されていません"], bankAccount: "ゆうちょ銀行 記号10010 番号12345671 アフマド ハリル",      createdAt: "2026-06-12T13:00:00.000Z", updatedAt: "2026-06-12T13:00:00.000Z" },
+  { id: "exp-007", submittedBy: "Mariam Hassan",    submittedByEmail: "mariam@roboco-op.org",    submittedAt: "2026-06-01T08:00:00.000Z", category: "training",        description: "PMP試験対策ワークショップ（2日間）",                      amount: 55000, currency: "JPY", paymentMethod: "invoice_payment",        receiptUrl: "",  receiptFilename: "pmp_workshop_invoice.pdf", projectName: "Professional Development", internalDepartment: "Operations",           expenseDate: "2026-06-01", status: "approved",     reviewerComment: "承認済み — 年間研修予算内",                          reviewedBy: "Mohamad Alayoubi", reviewedAt: "2026-06-02T10:00:00.000Z", approvedBy: "Mohamad Alayoubi", approvedAt: "2026-06-02T10:00:00.000Z", paidAt: null, extractedAmount: 55000, extractedDate: "2026-06-01", extractedVendor: "PMI Japan Chapter", policyViolations: [], bankAccount: "みずほ銀行 新宿支店 普通 9999999 マリアム ハッサン",       createdAt: "2026-06-01T08:00:00.000Z", updatedAt: "2026-06-02T10:00:00.000Z" },
+];
+
+const SEED_CLIENTS: Client[] = [
+  { id: "cli-001", name: "SDC Japan",           legalName: "SDC Japan 株式会社",         industry: "Technology",     contactName: "山田 太郎",      contactEmail: "yamada@sdc-japan.co.jp",    contactPhone: "03-1234-5678", address: "東京都渋谷区恵比寿1-1-1", country: "JP", taxRegistrationNumber: "T1000000000001", status: "active",    notes: "Main invoice client",       createdAt: "2026-01-15T09:00:00.000Z", updatedAt: "2026-06-01T10:00:00.000Z" },
+  { id: "cli-002", name: "Osaka Tech Partners", legalName: "大阪テックパートナーズ株式会社", industry: "IT Services",   contactName: "中村 花子",      contactEmail: "nakamura@otp.co.jp",        contactPhone: "06-9876-5432", address: "大阪府大阪市北区梅田2-2-2", country: "JP", taxRegistrationNumber: "T2000000000002", status: "active",    notes: "Quarterly retainer",        createdAt: "2026-02-01T09:00:00.000Z", updatedAt: "2026-06-10T09:00:00.000Z" },
+  { id: "cli-003", name: "RoboCo-op Singapore", legalName: "RoboCo-op Pte. Ltd.",         industry: "Consulting",     contactName: "Lee Mei Ling",   contactEmail: "meilin@roboco-op.sg",       contactPhone: "+65-9000-0001", address: "1 Raffles Place, Singapore",  country: "SG", taxRegistrationNumber: "",            status: "active",    notes: "APAC expansion partner",    createdAt: "2026-03-10T09:00:00.000Z", updatedAt: "2026-05-20T11:00:00.000Z" },
+  { id: "cli-004", name: "Kyoto Robotics Lab",  legalName: "京都ロボティクス研究所",        industry: "Research",       contactName: "田中 誠",        contactEmail: "tanaka@krl.kyoto.ac.jp",    contactPhone: "075-111-2222", address: "京都府京都市左京区3-3-3",  country: "JP", taxRegistrationNumber: "T3000000000003", status: "prospect",  notes: "Pilot project in progress",  createdAt: "2026-04-05T09:00:00.000Z", updatedAt: "2026-06-15T14:00:00.000Z" },
+  { id: "cli-005", name: "Fukuoka Digital",     legalName: "福岡デジタル株式会社",          industry: "E-Commerce",     contactName: "佐藤 幸子",      contactEmail: "sato@fukuoka-digital.jp",   contactPhone: "092-555-0099", address: "福岡県福岡市博多区4-4-4",  country: "JP", taxRegistrationNumber: "T4000000000004", status: "prospect",  notes: "Intro meeting scheduled",   createdAt: "2026-05-20T09:00:00.000Z", updatedAt: "2026-06-28T09:00:00.000Z" },
+  { id: "cli-006", name: "Legacy Corp",         legalName: "レガシー商事株式会社",           industry: "Manufacturing",  contactName: "高橋 一郎",      contactEmail: "takahashi@legacy.co.jp",   contactPhone: "03-0000-1111", address: "東京都千代田区5-5-5",     country: "JP", taxRegistrationNumber: "T5000000000005", status: "inactive",  notes: "Contract ended Mar 2026",   createdAt: "2025-06-01T09:00:00.000Z", updatedAt: "2026-03-31T17:00:00.000Z" },
+];
+
+const SEED_PROPOSALS: Proposal[] = [
+  { id: "prop-001", vendorId: "cli-001", projectName: "SDC Japan システム開発支援 Phase 2",   proposalDate: "2026-06-01", estimatedAmount: 3200000, currency: "JPY", description: "Phase 2 of the SDC Japan system development support contract. Covers API integration, testing, and deployment.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-01T09:00:00.000Z" },
+  { id: "prop-002", vendorId: "cli-004", projectName: "京都ロボティクス AI パイロット",         proposalDate: "2026-06-15", estimatedAmount: 1800000, currency: "JPY", description: "Pilot AI integration project for Kyoto Robotics Lab. Includes data analysis, model training, and reporting dashboard.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-15T10:00:00.000Z" },
+  { id: "prop-003", vendorId: "cli-002", projectName: "大阪テック クラウド移行支援",            proposalDate: "2026-05-10", estimatedAmount: 4500000, currency: "JPY", description: "Full cloud migration support for Osaka Tech Partners. AWS setup, CI/CD pipeline, monitoring.", status: "accepted",  contractId: "con-001", folderUrl: "", createdAt: "2026-05-10T09:00:00.000Z" },
+  { id: "prop-004", vendorId: "cli-003", projectName: "RoboCo-op Singapore Onboarding",      proposalDate: "2026-04-20", estimatedAmount: 2100000, currency: "JPY", description: "Onboarding and setup for RoboCo-op Singapore entity. Legal, HR, and IT infrastructure.", status: "draft",     contractId: "", folderUrl: "", createdAt: "2026-04-20T09:00:00.000Z" },
+  { id: "prop-005", vendorId: "cli-006", projectName: "Legacy Corp DX Consultation",          proposalDate: "2026-02-01", estimatedAmount: 900000,  currency: "JPY", description: "Digital transformation consultation. Proposal rejected — budget constraints.", status: "rejected",  contractId: "", folderUrl: "", createdAt: "2026-02-01T09:00:00.000Z" },
+];
+
+const SEED_LEADS: Lead[] = [
+  { id: "lead-001", clientId: "",        clientName: "Nagoya Motors",       contactName: "伊藤 健太",    contactEmail: "ito@nagoya-motors.co.jp",    source: "inbound",  stage: "new",           title: "自動車工場 IoT センサー導入",           estimatedValue: 5000000, currency: "JPY", probability: 20, expectedCloseDate: "2026-09-30", assignedTo: "Noraldeen Ahmed", proposalId: null, notes: "Inbound inquiry via website. Strong interest in IoT.", lostReason: "", createdAt: "2026-06-25T09:00:00.000Z", updatedAt: "2026-06-25T09:00:00.000Z" },
+  { id: "lead-002", clientId: "",        clientName: "Sapporo Brewery Tech",contactName: "小林 美咲",   contactEmail: "kobayashi@sbt.co.jp",        source: "event",    stage: "new",           title: "醸造管理システム デジタル化",             estimatedValue: 2800000, currency: "JPY", probability: 25, expectedCloseDate: "2026-10-15", assignedTo: "Mariam Hassan",   proposalId: null, notes: "Met at TechConf Osaka. Interested in digitizing brewery ops.", lostReason: "", createdAt: "2026-06-28T10:00:00.000Z", updatedAt: "2026-06-28T10:00:00.000Z" },
+  { id: "lead-003", clientId: "",        clientName: "Tokyo Logistics Co",  contactName: "渡辺 拓也",   contactEmail: "watanabe@tl-corp.co.jp",     source: "referral", stage: "contacted",     title: "物流ルート最適化 AI ソリューション",       estimatedValue: 7500000, currency: "JPY", probability: 40, expectedCloseDate: "2026-08-31", assignedTo: "Ahmad Khalil",    proposalId: null, notes: "Referral from SDC Japan. Had first call 2026-06-20.", lostReason: "", createdAt: "2026-06-10T09:00:00.000Z", updatedAt: "2026-06-20T15:00:00.000Z" },
+  { id: "lead-004", clientId: "",        clientName: "Hiroshima Medical",   contactName: "松本 律子",   contactEmail: "matsumoto@hm-hospital.jp",   source: "outbound", stage: "contacted",     title: "病院 電子カルテ連携システム",             estimatedValue: 3200000, currency: "JPY", probability: 30, expectedCloseDate: "2026-09-15", assignedTo: "Naing Min Lwin",  proposalId: null, notes: "Cold outreach. Interested in EHR integration demo.", lostReason: "", createdAt: "2026-06-05T09:00:00.000Z", updatedAt: "2026-06-18T11:00:00.000Z" },
+  { id: "lead-005", clientId: "cli-004", clientName: "Kyoto Robotics Lab",  contactName: "田中 誠",     contactEmail: "tanaka@krl.kyoto.ac.jp",    source: "referral", stage: "qualified",     title: "ロボットアーム 制御ソフトウェア開発",       estimatedValue: 6000000, currency: "JPY", probability: 60, expectedCloseDate: "2026-08-01", assignedTo: "Noraldeen Ahmed", proposalId: null, notes: "Existing client upgrade. Budget confirmed ¥6M.", lostReason: "", createdAt: "2026-05-20T09:00:00.000Z", updatedAt: "2026-06-22T09:00:00.000Z" },
+  { id: "lead-006", clientId: "",        clientName: "Sendai Smart City",   contactName: "阿部 智子",   contactEmail: "abe@sendai-smartcity.jp",    source: "partner",  stage: "proposal_sent", title: "スマートシティ データ基盤 構築",           estimatedValue: 12000000,currency: "JPY", probability: 55, expectedCloseDate: "2026-07-31", assignedTo: "Mariam Hassan",   proposalId: "prop-001", notes: "Proposal submitted 2026-06-10. Follow up next week.", lostReason: "", createdAt: "2026-05-15T09:00:00.000Z", updatedAt: "2026-06-10T16:00:00.000Z" },
+  { id: "lead-007", clientId: "cli-002", clientName: "Osaka Tech Partners", contactName: "中村 花子",   contactEmail: "nakamura@otp.co.jp",        source: "referral", stage: "negotiation",   title: "クラウド移行 Phase 2 エンジニアリング支援", estimatedValue: 4800000, currency: "JPY", probability: 80, expectedCloseDate: "2026-07-15", assignedTo: "Ahmad Khalil",    proposalId: "prop-003", notes: "Contract terms under review. Legal sign-off pending.", lostReason: "", createdAt: "2026-04-01T09:00:00.000Z", updatedAt: "2026-06-25T14:00:00.000Z" },
+  { id: "lead-008", clientId: "cli-003", clientName: "RoboCo-op Singapore", contactName: "Lee Mei Ling", contactEmail: "meilin@roboco-op.sg",      source: "partner",  stage: "won",           title: "Singapore Entity Setup & IT Infrastructure", estimatedValue: 2100000, currency: "JPY", probability: 100,expectedCloseDate: "2026-06-01", assignedTo: "Noraldeen Ahmed", proposalId: "prop-003", notes: "Won. Contract signed 2026-06-01. Now in delivery.", lostReason: "", createdAt: "2026-03-01T09:00:00.000Z", updatedAt: "2026-06-01T09:00:00.000Z" },
+];
+
+export function readStore(): MockStore {
   const empty: MockStore = {
     submissions: [],
     validationResults: {},
@@ -51,13 +93,14 @@ function readStore(): MockStore {
     clients: [],
     leads: [],
     members: [],
+    expenseClaims: [],
   };
   try {
-    if (!fs.existsSync(STORE_PATH)) return empty;
+    if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
     const raw = fs.readFileSync(STORE_PATH, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     // Handle legacy format where the file was a plain submissions array
-    if (Array.isArray(parsed)) return { ...empty, submissions: parsed };
+    if (Array.isArray(parsed)) return { ...empty, submissions: parsed, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
     const store = parsed as Partial<MockStore>;
     return {
       submissions:       store.submissions ?? [],
@@ -67,18 +110,19 @@ function readStore(): MockStore {
       logs:              store.logs ?? [],
       vendors:           store.vendors ?? [],
       contracts:         store.contracts ?? [],
-      proposals:         store.proposals ?? [],
+      proposals:         store.proposals?.length    ? store.proposals    : SEED_PROPOSALS,
       paymentRecords:    store.paymentRecords ?? [],
-      clients:           store.clients ?? [],
-      leads:             store.leads ?? [],
+      clients:           store.clients?.length      ? store.clients      : SEED_CLIENTS,
+      leads:             store.leads?.length        ? store.leads        : SEED_LEADS,
       members:           store.members ?? [],
+      expenseClaims:     store.expenseClaims?.length ? store.expenseClaims : SEED_EXPENSES,
     };
   } catch {
-    return empty;
+    return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
   }
 }
 
-function writeStore(store: MockStore): void {
+export function writeStore(store: MockStore): void {
   try {
     fs.writeFileSync(STORE_PATH, JSON.stringify(store), "utf-8");
   } catch (err) {
@@ -92,11 +136,24 @@ function deriveMonth(s: InvoiceSubmission): string {
   return parseSnapshotMonth(s.closingMonth);
 }
 
+function contentKey(s: InvoiceSubmission): string {
+  return `${s.payerName}|${s.closingMonth}|${s.claimedAmountTaxIncluded ?? ""}`;
+}
+
 export function saveUploadedSubmissions(submissions: InvoiceSubmission[], month: string): void {
   const store = readStore();
   // Keep submissions from other months; replace only the target month.
   const others = store.submissions.filter((s) => deriveMonth(s) !== month);
-  const next = [...others, ...submissions];
+  // Deduplicate incoming submissions by content fingerprint — same name+month+amount
+  // is the same submission regardless of row number (prevents accumulation on re-upload).
+  const seen = new Set<string>();
+  const deduped = submissions.filter((s) => {
+    const k = contentKey(s);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const next = [...others, ...deduped];
   const nextIds = new Set(next.map((s) => s.id));
   // Remove validation/filing only for IDs that no longer exist.
   for (const id of Object.keys(store.validationResults)) {
@@ -304,5 +361,55 @@ export function saveMember(member: Member): void {
 export function deleteMember(id: string): void {
   const store = readStore();
   store.members = store.members.filter((m) => m.id !== id);
+  writeStore(store);
+}
+
+// ── Expense Claims ────────────────────────────────────────────────────────────
+
+export function loadExpenseClaims(): ExpenseClaim[] {
+  return readStore().expenseClaims;
+}
+
+export function saveExpenseClaim(claim: ExpenseClaim): void {
+  const store = readStore();
+  const idx = store.expenseClaims.findIndex((c) => c.id === claim.id);
+  if (idx >= 0) store.expenseClaims[idx] = claim;
+  else store.expenseClaims.push(claim);
+  writeStore(store);
+}
+
+export function deleteExpenseClaim(id: string): void {
+  const store = readStore();
+  store.expenseClaims = store.expenseClaims.filter((c) => c.id !== id);
+  writeStore(store);
+}
+
+export function updateExpenseClaimStatus(
+  id: string,
+  status: ExpenseClaim["status"],
+  actorName: string,
+  comment?: string,
+): void {
+  const store = readStore();
+  const claim = store.expenseClaims.find((c) => c.id === id);
+  if (!claim) return;
+  const now = new Date().toISOString();
+  claim.status = status;
+  claim.updatedAt = now;
+  if (status === "under_review" || status === "rejected") {
+    claim.reviewedBy = actorName;
+    claim.reviewedAt = now;
+    if (comment) claim.reviewerComment = comment;
+  }
+  if (status === "approved") {
+    claim.approvedBy = actorName;
+    claim.approvedAt = now;
+    claim.reviewedBy = actorName;
+    claim.reviewedAt = now;
+    if (comment) claim.reviewerComment = comment;
+  }
+  if (status === "paid") {
+    claim.paidAt = now;
+  }
   writeStore(store);
 }

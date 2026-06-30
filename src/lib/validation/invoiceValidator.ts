@@ -58,6 +58,18 @@ export function detectTaxMentioned(text: string): boolean {
   return /消費税|税込|税抜|tax|vat/i.test(text);
 }
 
+// ── Name matching ─────────────────────────────────────────────────────────────
+
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_.]/g, "");
+}
+
+function nameContainsMatch(a: string, b: string): boolean {
+  const na = norm(a);
+  const nb = norm(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
 // ── Amount consistency ────────────────────────────────────────────────────────
 
 /**
@@ -173,35 +185,86 @@ export function buildValidationResult(
     issues.push("PROJECT_INFO_MISSING");
   }
 
-  // Fields from extracted PDF
-  const invoiceDateFound = extracted
-    ? !!extracted.invoiceDate
+  // When the PDF was accessible but extraction returned all-null (API failed or unreadable PDF),
+  // show a single clear error instead of misleading DATE_MISSING / TAX_MISSING / AMOUNT_MISMATCH.
+  const extractionCompletelyFailed =
+    pdfAccessible &&
+    !!extracted &&
+    extracted.total === null &&
+    extracted.invoiceDate === null &&
+    extracted.memberName === null &&
+    (!extracted.rawText || extracted.rawText.length === 0);
+
+  if (pdfAccessible && (!extracted || extractionCompletelyFailed)) {
+    issues.push("PDF_PARSE_ERROR: Invoice PDF was downloaded but fields could not be extracted — review manually");
+  }
+
+  // Fields from extracted PDF (only meaningful when extraction produced usable data)
+  const extractionUsable = !!extracted && !extractionCompletelyFailed;
+  const invoiceDateFound  = extractionUsable ? !!extracted!.invoiceDate : false;
+  const taxIncluded       = extractionUsable
+    ? (extracted!.taxAmount !== null || detectTaxMentioned(extracted!.rawText))
     : false;
-  const taxIncluded = extracted
-    ? (extracted.taxAmount !== null || detectTaxMentioned(extracted.rawText))
+  const subtotalFound     = extractionUsable ? extracted!.subtotal !== null : false;
+  const totalFound        = extractionUsable ? extracted!.total !== null : false;
+  const amountConsistent  = extractionUsable
+    ? checkAmountConsistency(extracted!.subtotal, extracted!.taxAmount, extracted!.total, config.amountToleranceAbsolute)
     : false;
-  const subtotalFound = extracted ? extracted.subtotal !== null : false;
-  const totalFound = extracted ? extracted.total !== null : false;
-  const amountConsistent = extracted
-    ? checkAmountConsistency(
-        extracted.subtotal,
-        extracted.taxAmount,
-        extracted.total,
-        config.amountToleranceAbsolute
-      )
-    : false;
-  const amountMatchesSheet = extracted
-    ? checkAmountMatchesSheet(
-        submission.claimedAmountTaxIncluded,
-        extracted.total,
-        config.amountToleranceAbsolute
-      )
+  const amountMatchesSheet = extractionUsable
+    ? checkAmountMatchesSheet(submission.claimedAmountTaxIncluded, extracted!.total, config.amountToleranceAbsolute)
     : false;
 
-  if (!invoiceDateFound && pdfAccessible) issues.push("DATE_MISSING");
-  if (!taxIncluded && pdfAccessible) issues.push("TAX_MISSING");
-  if (!amountMatchesSheet && pdfAccessible && extracted?.total !== null)
-    issues.push("AMOUNT_MISMATCH");
+  // Check submitter name appears in the PDF.
+  // Email payers: can't verify by name in raw text; skip and let memberName carry the check.
+  // Extraction-failed: skip entirely — vacuously passing on empty rawText is misleading.
+  const rawText  = extracted?.rawText ?? "";
+  const rawLower = rawText.toLowerCase();
+  const isEmailPayerName = submission.payerName.includes("@");
+
+  let nameFoundInPdf = true; // default: pass (no false positives when we can't check)
+  if (extractionUsable && !isEmailPayerName) {
+    const nameParts = submission.payerName.toLowerCase().replace(/\s+/g, " ").trim().split(" ").filter((t) => t.length >= 3);
+
+    // Accept if ANY significant token from the submitter name appears in raw text.
+    // Requiring both first AND last name is too strict for multi-language invoices
+    // where names may appear in a different order or partial form.
+    const foundInRaw =
+      rawText.length > 0 &&
+      nameParts.length > 0 &&
+      nameParts.some((t) => rawLower.includes(t));
+
+    const foundInPayeeName =
+      !!extracted!.memberName &&
+      nameContainsMatch(extracted!.memberName, submission.payerName);
+
+    nameFoundInPdf = foundInRaw || foundInPayeeName;
+  }
+
+  // Detect the "partial read" state: rawText was extracted but ALL structured fields are null.
+  // In this case individual DATE_MISSING / TAX_MISSING / PAYEE_NAME_MISMATCH would all be
+  // false-positives — the fields may exist in the PDF but the AI simply couldn't parse them.
+  // Replace the noisy list with a single actionable warning.
+  const allStructuredFieldsNull =
+    extractionUsable &&
+    extracted!.invoiceDate === null &&
+    extracted!.subtotal === null &&
+    extracted!.taxAmount === null &&
+    extracted!.total === null &&
+    extracted!.memberName === null;
+
+  if (allStructuredFieldsNull) {
+    issues.push(
+      "PDF_FIELDS_UNREADABLE: Invoice text was read but date, amounts, and payee name could not be identified — please verify manually"
+    );
+  } else {
+    if (!nameFoundInPdf && pdfAccessible && extractionUsable)
+      issues.push(`PAYEE_NAME_MISMATCH: Submitter name "${submission.payerName}" not found in invoice PDF`);
+    if (!invoiceDateFound && pdfAccessible && extractionUsable) issues.push("DATE_MISSING");
+    if (!taxIncluded && pdfAccessible && extractionUsable) issues.push("TAX_MISSING");
+    if (!amountMatchesSheet && pdfAccessible && extractionUsable && extracted!.total !== null)
+      issues.push(`AMOUNT_MISMATCH: Form "${submission.claimedAmountTaxIncluded}" vs PDF total "${extracted!.total}"`);
+  }
+
   if (duplicateDetected) issues.push("DUPLICATE_FILE");
 
   // Determine final status code

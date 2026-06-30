@@ -19,9 +19,10 @@ import {
   uploadInvoiceExcel,
   fetchAvailableMonths,
   clearAllInvoices,
+  patchSubmissionCurrency,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
-import { monthOptions, formatCurrency, formatTimestamp } from "@/lib/utils";
+import { monthOptions, formatCurrency, formatDateParts } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 
@@ -49,6 +50,8 @@ export default function InvoicesPage() {
   const [rawPreview, setRawPreview] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -115,7 +118,8 @@ export default function InvoicesPage() {
     setValidating(submission.id);
     setError(null);
     try {
-      const result = await validateInvoice(submission, user ?? undefined);
+      const allMonthSubmissions = items.map((i) => i.submission);
+      const result = await validateInvoice(submission, user ?? undefined, allMonthSubmissions);
       setItems((prev) =>
         prev.map((item) =>
           item.submission.id === submission.id
@@ -221,6 +225,13 @@ export default function InvoicesPage() {
       : filterStatus === "SAVED"
       ? items.filter((i) => i.filedDocument != null)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset to page 1 whenever filter or month changes
+  useEffect(() => { setPage(1); }, [filterStatus, month]);
 
   const tabCount = (f: string): number => {
     if (f === "ALL") return items.length;
@@ -372,7 +383,7 @@ export default function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
-                  {filtered.map((item) => {
+                  {paginated.map((item) => {
                     const { submission: s, validation: v } = item;
                     const isValidating = validating === s.id;
                     return (
@@ -384,8 +395,16 @@ export default function InvoicesPage() {
                         </td>
 
                         {/* Submitted at */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.submittedAt ? formatTimestamp(s.submittedAt, language) : <span className="text-stone-300">—</span>}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {s.submittedAt ? (() => {
+                            const { date, time } = formatDateParts(s.submittedAt, language);
+                            return (
+                              <div>
+                                <div className="text-stone-700 text-xs font-medium">{date}</div>
+                                <div className="text-stone-400 text-xs">{time}</div>
+                              </div>
+                            );
+                          })() : <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Month */}
@@ -400,7 +419,27 @@ export default function InvoicesPage() {
 
                         {/* Amount */}
                         <td className="px-4 py-3 text-stone-700 font-mono text-xs whitespace-nowrap">
-                          {formatCurrency(s.claimedAmountTaxIncluded)}
+                          <div className="flex items-center gap-1.5">
+                            {formatCurrency(s.claimedAmountTaxIncluded, s.currency)}
+                            <select
+                              value={s.currency ?? "JPY"}
+                              onChange={async (e) => {
+                                const cur = e.target.value;
+                                await patchSubmissionCurrency(s.id, month, cur);
+                                setItems((prev) => prev.map((it) =>
+                                  it.submission.id === s.id
+                                    ? { ...it, submission: { ...it.submission, currency: cur } }
+                                    : it
+                                ));
+                              }}
+                              className="text-[10px] border border-stone-200 rounded px-1 py-0.5 bg-white text-stone-500 cursor-pointer hover:border-stone-400"
+                              title="Change currency"
+                            >
+                              {["JPY", "USD", "EUR", "GBP", "SGD", "AUD", "CNY", "KRW"].map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
 
                         {/* Attachment */}
@@ -515,10 +554,41 @@ export default function InvoicesPage() {
                 </tbody>
               </table>
 
-            <div className="px-4 py-3 border-t border-stone-100 bg-stone-50">
+            <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-4">
               <p className="text-xs text-stone-400">
                 {filtered.length} / {items.length} {t("items_shown")}
               </p>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ‹ Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n)}
+                      className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                        n === safePage
+                          ? "bg-emerald-500 text-white shadow-sm"
+                          : "text-stone-500 hover:bg-stone-200"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next ›
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -28,6 +28,7 @@ export default function SettingsPage() {
     setUsernameError(null);
     setUsernameSuccess(null);
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setUsernameError("Auth not configured."); setUsernameLoading(false); return; }
     const { error: updateError } = await supabase.auth.updateUser({ data: { username: slug } });
     if (updateError) {
       setUsernameError(updateError.message);
@@ -49,6 +50,7 @@ export default function SettingsPage() {
     setSuccess(null);
 
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
     const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {

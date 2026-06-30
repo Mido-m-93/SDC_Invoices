@@ -48,6 +48,8 @@ import type {
 } from "@/types";
 import { safeValidationResult, parseCurrencyString } from "@/lib/validation/invoiceValidator";
 import {
+  readStore,
+  writeStore,
   loadUploadedSubmissions,
   saveUploadedSubmissions,
   saveValidationResult,
@@ -146,6 +148,11 @@ export class MockDriveService implements IDriveService {
     await delay(100);
     return [];
   }
+
+  async downloadById(_fileId: string): Promise<Uint8Array> {
+    await delay(200);
+    return new Uint8Array([37, 80, 68, 70]); // "%PDF" magic bytes stub
+  }
 }
 
 // ── Mock Validation Service ───────────────────────────────────────────────────
@@ -170,7 +177,7 @@ export class MockValidationService implements IValidationService {
       taxAmount,
       total: claimedTotal,
       taxRate: 0.1,
-      payeeName: submission.payerName,
+      memberName: submission.payerName,
       payerNameOnDoc: null,
       rawText: "消費税",
     };
@@ -230,8 +237,19 @@ export class MockStorageService implements IStorageService {
     saveUploadedSubmissions(submissions, month);
   }
 
+  async patchSubmissionCurrency(submissionId: string, month: string, currency: string): Promise<void> {
+    const all = loadUploadedSubmissions(month);
+    const updated = all.map((s) => s.id === submissionId ? { ...s, currency } : s);
+    saveUploadedSubmissions(updated, month);
+  }
+
   async clearAllSubmissions(): Promise<void> {
     if (typeof window !== "undefined") localStorage.removeItem("sdc_invoice_submissions");
+    const store = readStore();
+    store.submissions = [];
+    store.validationResults = {};
+    store.filedDocuments = {};
+    writeStore(store);
   }
 
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {

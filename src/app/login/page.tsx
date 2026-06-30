@@ -34,6 +34,7 @@ function LoginForm() {
     setSuccess(null);
 
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
 
     if (mode === "signin") {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });

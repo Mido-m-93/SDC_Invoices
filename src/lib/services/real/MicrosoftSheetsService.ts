@@ -57,6 +57,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
   { keywords: ["Start time", "開始時刻"],                                                     field: "submittedAt" },
   { keywords: ["Email Address", "メールアドレス"],                                            field: "email" },
   { keywords: ["Invoice Amount", "請求金額"],                                                 field: "claimedAmountTaxIncluded" },
+  { keywords: ["Currency", "通貨", "currency"],                                               field: "currency" },
   { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                           field: "closingMonth" },
   { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                  field: "projectType" },
   { keywords: ["For Internal Projects Only", "内部案件の場合のみ", "内部案件の場合"],          field: "internalDepartment" },
@@ -99,7 +100,11 @@ function convertSerial(raw: string, mode: "date" | "datetime"): string {
   const num = Number(raw);
   if (isNaN(num) || num < 40000 || num > 60000) return raw;
   const d = excelSerialToDate(mode === "date" ? Math.floor(num) : num);
-  if (mode === "datetime") return d.toISOString();
+  if (mode === "datetime") {
+    // Microsoft Forms Excel export stores "Start time" as JST local time (UTC+9).
+    // Subtract 9 h so the resulting ISO string represents the correct UTC instant.
+    return new Date(d.getTime() - 9 * 60 * 60 * 1000).toISOString();
+  }
   return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 }
 
@@ -130,6 +135,7 @@ function normalizeRow(
     externalProjectName:        get("externalProjectName"),
     projectType:                get("projectType"),
     claimedAmountTaxIncluded:   get("claimedAmountTaxIncluded"),
+    currency:                   get("currency") || undefined,
     invoiceProjectStatus:       "",
     paymentStatus:              "",
     paymentAmount:              "",

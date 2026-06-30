@@ -1,7 +1,7 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import type { InvoiceSubmission, Member, RiskLevel } from "@/types";
-import { extractWithClaude } from "./pdfExtractor";
+import { extractFromPdf } from "./pdfExtractor";
 import {
   listContractFiles,
   downloadContractById,
@@ -19,9 +19,9 @@ export interface AIMatchResult {
   reasoning: string;
 }
 
-let _client: Anthropic | undefined;
-function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _client: Groq | undefined;
+function getClient(): Groq {
+  if (!_client) _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
   return _client;
 }
 
@@ -32,8 +32,8 @@ async function extractInvoiceData(
 ): Promise<{ nameOnDoc: string | null; total: number | null }> {
   try {
     const bytes = await downloadSharePointFile(attachmentUrl);
-    const fields = await extractWithClaude(bytes);
-    return { nameOnDoc: fields.payerNameOnDoc, total: fields.total };
+    const fields = await extractFromPdf(bytes);
+    return { nameOnDoc: fields.memberName, total: fields.total };
   } catch (err) {
     console.warn("[matchingService] Invoice PDF extraction failed:", err);
     return { nameOnDoc: null, total: null };
@@ -48,10 +48,10 @@ async function findAndExtractContract(
 ): Promise<{ fileName: string; contractedAmount: number | null } | null> {
   if (contracts.length === 0) return null;
 
-  // Use Claude to pick the best-matching contract filename for this member name.
+  // Use Groq to pick the best-matching contract filename for this member name.
   const fileList = contracts.map((c) => `- ${c.name} (id: ${c.id})`).join("\n");
-  const pick = await getClient().messages.create({
-    model: "claude-haiku-4-5",
+  const pick = await getClient().chat.completions.create({
+    model: "llama-3.3-70b-versatile",
     max_tokens: 128,
     messages: [
       {
@@ -65,7 +65,7 @@ ${fileList}`,
     ],
   });
 
-  const pickedId = (pick.content[0]?.type === "text" ? pick.content[0].text.trim() : "none")
+  const pickedId = (pick.choices[0]?.message?.content?.trim() ?? "none")
     .replace(/[^A-Za-z0-9_-]/g, "");
 
   const matched = contracts.find((c) => c.id === pickedId);
@@ -74,7 +74,7 @@ ${fileList}`,
   // Download and extract the contracted payment amount from the contract PDF.
   try {
     const bytes = await downloadContractById(matched.siteId, matched.id);
-    const fields = await extractWithClaude(bytes);
+    const fields = await extractFromPdf(bytes);
     return { fileName: matched.name, contractedAmount: fields.total };
   } catch (err) {
     console.warn("[matchingService] Contract extraction failed:", err);
@@ -172,14 +172,16 @@ Respond with ONLY this JSON (no markdown):
   "reasoning": "<brief explanation>"
 }`;
 
-  const response = await getClient().messages.create({
-    model: "claude-haiku-4-5",
+  const response = await getClient().chat.completions.create({
+    model: "llama-3.3-70b-versatile",
     max_tokens: 512,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
   });
 
-  const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "{}";
+  const text = response.choices[0]?.message?.content?.trim() ?? "{}";
 
   try {
     const parsed = JSON.parse(text) as AIMatchResult;

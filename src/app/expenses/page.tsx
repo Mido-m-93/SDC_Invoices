@@ -48,6 +48,8 @@ export default function ExpensesPage() {
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ExpenseClaim | null>(null);
@@ -71,6 +73,31 @@ export default function ExpensesPage() {
   }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    setError(null);
+    setUploadMsg(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res  = await fetch("/api/expenses/upload", { method: "POST", body });
+      const data = await res.json() as { count?: number; error?: string; detectedHeaders?: string[] };
+      if (!res.ok) {
+        setError(data.error ?? "Upload failed");
+      } else {
+        setUploadMsg(`✓ ${data.count} expense claim${data.count === 1 ? "" : "s"} imported from "${file.name}"`);
+        load();
+      }
+    } catch {
+      setError("Upload failed — check the file format");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   function openNew() {
     setEditing(null);
@@ -146,13 +173,34 @@ export default function ExpensesPage() {
       <PageHeader
         title="Expense Claims"
         subtitle="Submit and review expense reimbursement requests"
-        actions={<Button variant="primary" onClick={openNew}>+ New Claim</Button>}
+        actions={
+          <div className="flex items-center gap-3">
+            <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
+              uploading
+                ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
+                : "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+            }`}>
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              {uploading ? "Reading…" : "Upload Excel"}
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
+            </label>
+            <Button variant="primary" onClick={openNew}>+ New Claim</Button>
+          </div>
+        }
       />
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
         ⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.
       </div>
 
+      {uploadMsg && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
+          {uploadMsg}
+          <button onClick={() => setUploadMsg(null)}>×</button>
+        </div>
+      )}
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
           {error}
@@ -177,8 +225,18 @@ export default function ExpensesPage() {
         <p className="text-sm text-stone-400">Loading…</p>
       ) : claims.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No expense claims found.</p>
-          <Button variant="primary" className="mt-4" onClick={openNew}>Submit your first claim</Button>
+          <p className="text-stone-500 text-sm font-medium">No expense claims found.</p>
+          <p className="text-stone-400 text-xs mt-1">Upload a Microsoft Forms Excel export, or add a claim manually.</p>
+          <div className="flex gap-3 justify-center mt-4">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 cursor-pointer hover:bg-emerald-100 transition">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Upload Excel
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
+            </label>
+            <Button variant="secondary" onClick={openNew}>+ New Claim</Button>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
@@ -212,6 +270,15 @@ export default function ExpensesPage() {
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
                       {c.status.replace(/_/g, " ")}
                     </span>
+                    <div className="flex gap-1 mt-1">
+                      {c.receiptUrl && (
+                        <a href={c.receiptUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline" title="View receipt">📎</a>
+                      )}
+                      {c.bankAccount && (
+                        <span className="text-xs text-stone-400" title={c.bankAccount}>🏦</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {c.policyViolations.length > 0 ? (
@@ -305,25 +372,44 @@ export default function ExpensesPage() {
       )}
 
       {/* Approve/Reject modal */}
-      {approvingId && approveAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-            <h2 className="text-base font-semibold mb-4 capitalize">{approveAction} Expense Claim</h2>
-            <Field label="Your Name *">
-              <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
-            </Field>
-            <div className="mt-3">
-              <Field label="Comment">
-                <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment..." />
+      {approvingId && approveAction && (() => {
+        const approvingClaim = claims.find((c) => c.id === approvingId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+              <h2 className="text-base font-semibold mb-1 capitalize">{approveAction} Expense Claim</h2>
+              {approvingClaim && (
+                <p className="text-xs text-stone-500 mb-4">
+                  {approvingClaim.submittedBy} — ¥{approvingClaim.amount.toLocaleString()} ({approvingClaim.expenseDate})
+                </p>
+              )}
+              {approveAction === "approve" && approvingClaim?.bankAccount && (
+                <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-blue-700 mb-1">振込先 / Bank Transfer</p>
+                  <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono leading-relaxed">{approvingClaim.bankAccount}</pre>
+                </div>
+              )}
+              {approveAction === "approve" && approvingClaim && !approvingClaim.bankAccount && (
+                <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                  ⚠ 銀行口座情報がありません — 振込先を別途確認してください
+                </div>
+              )}
+              <Field label="Your Name *">
+                <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
               </Field>
-            </div>
-            <div className="flex justify-end gap-3 mt-5">
-              <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel</Button>
-              <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>{approveAction === "approve" ? "Approve" : "Reject"}</Button>
+              <div className="mt-3">
+                <Field label="Comment">
+                  <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment..." />
+                </Field>
+              </div>
+              <div className="flex justify-end gap-3 mt-5">
+                <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel</Button>
+                <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>{approveAction === "approve" ? "Approve" : "Reject"}</Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </AppShell>
   );
 }

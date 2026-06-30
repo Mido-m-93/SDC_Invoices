@@ -60,6 +60,7 @@ import {
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
+import { MockExpenseService } from "./mock/expenseService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
@@ -139,11 +140,15 @@ export function getDriveService(): IDriveService {
 }
 
 // ── Validation ───────────────────────────────────────────────────────────────
-export function getValidationService(): IValidationService {
+function getValidationService(): IValidationService {
   if (!_validation) {
-    _validation = isMock("NEXT_PUBLIC_USE_MOCK_VALIDATION")
-      ? new MockValidationService()
-      : new RealValidationService();
+    const flag       = process.env.NEXT_PUBLIC_USE_MOCK_VALIDATION;
+    const forceMock  = flag === "true";
+    const forceReal  = flag === "false";
+    const hasApiKey  = !!process.env.ANTHROPIC_API_KEY;
+    // Use real validation when: explicitly opted in, OR API key present and not explicitly mocked
+    const useReal = forceReal || (!forceMock && hasApiKey);
+    _validation = useReal ? new RealValidationService() : new MockValidationService();
   }
   return _validation;
 }
@@ -159,7 +164,7 @@ export function getStorageService(): IStorageService {
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-export function getDashboardService(): IDashboardService {
+function getDashboardService(): IDashboardService {
   if (!_dashboard) {
     _dashboard = isMock("NEXT_PUBLIC_USE_MOCK_DASHBOARD")
       ? new MockDashboardService()
@@ -221,7 +226,9 @@ export function getReminderService(): IReminderService {
 // ── Expense (Phase 8) ────────────────────────────────────────────────────────
 export function getExpenseService(): IExpenseService {
   if (!_expense) {
-    _expense = new SupabaseExpenseService();
+    _expense = isMock("NEXT_PUBLIC_USE_MOCK_EXPENSE")
+      ? new MockExpenseService()
+      : new SupabaseExpenseService();
   }
   return _expense;
 }
@@ -233,7 +240,6 @@ export function getOutboundInvoiceService(): IOutboundInvoiceService {
   }
   return _outboundInvoice;
 }
-export const getOutboundService = getOutboundInvoiceService;
 
 // ── Monthly Close Checklist (Phase 10) ────────────────────────────────────────
 export function getCloseChecklistService(): ICloseChecklistService {
@@ -306,7 +312,7 @@ export function getReportingService(): IReportingService {
 // ── Startup diagnostic (server-side only) ────────────────────────────────────
 // Import and call this once in a server component or API route to log
 // which services are running in real vs mock mode.
-export function logServiceModes(): void {
+function logServiceModes(): void {
   if (typeof window !== "undefined") return; // guard: server only
 
   const services: [string, string][] = [

@@ -85,6 +85,7 @@ export interface IDriveService {
 
   listMonthFolders(rootFolderId: string): Promise<DriveFolder[]>;
   listFilesInFolder(folderId: string): Promise<DriveFile[]>;
+  downloadById(fileId: string): Promise<Uint8Array>;
 }
 
 // ── Validation service ────────────────────────────────────────────────────────
@@ -115,6 +116,9 @@ export interface IStorageService {
 
   /** Load saved submissions for a given month */
   loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]>;
+
+  /** Patch the currency field on a single stored submission */
+  patchSubmissionCurrency(submissionId: string, month: string, currency: string): Promise<void>;
 
   /** List all months that have at least one saved submission */
   listAvailableMonths(): Promise<string[]>;

@@ -6,7 +6,8 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
 import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
-import { formatCurrency, formatTimestamp } from "@/lib/utils";
+import { formatCurrency, formatTimestamp, formatAmount, detectCurrency } from "@/lib/utils";
+import ValidationStages from "@/components/invoice/ValidationStages";
 
 interface Props {
   item: InvoiceListItem;
@@ -16,6 +17,14 @@ interface Props {
 export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
+  const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
+
+  function normalizeDisplayDate(raw: string | null | undefined): string {
+    if (!raw) return "—";
+    const jp = raw.match(/(\d{4})年(\d{1,2})月[\-\s]?(\d{1,2})日?/);
+    if (jp) return `${jp[1]}-${jp[2].padStart(2, "0")}-${jp[3].padStart(2, "0")}`;
+    return raw;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
@@ -48,7 +57,7 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               <Field label={t("field_payer_name")}>{s.payerName}</Field>
               <Field label={t("field_closing_month")}>{s.closingMonth}</Field>
               <Field label={t("field_project_type")}>{s.projectType || t("none")}</Field>
-              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded)}</Field>
+              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded, s.currency)}</Field>
               <Field label={t("field_internal_dept")}>{s.internalDepartment || t("none")}</Field>
               <Field label={t("field_external_project")}>{s.externalProjectName || t("none")}</Field>
               <Field label={t("field_payment_status")}>{s.paymentStatus || t("none")}</Field>
@@ -60,22 +69,18 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               )}
               <Field label={t("field_attachment")} span>
                 {s.invoiceAttachment ? (
-                  <div className="space-y-2">
-                    <a
-                      href={s.invoiceAttachment}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#2d6a4f] underline text-xs font-mono break-all"
-                    >
-                      {s.invoiceAttachment}
-                    </a>
-                    <iframe
-                      src={s.invoiceAttachment}
-                      className="w-full rounded-lg border border-stone-200"
-                      style={{ height: 400 }}
-                      title="Invoice PDF"
-                    />
-                  </div>
+                  <a
+                    href={s.invoiceAttachment}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#235c43]"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Open Attachment
+                  </a>
                 ) : (
                   <span className="text-red-500 text-xs">{t("missing_attachment")}</span>
                 )}
@@ -89,22 +94,25 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               {v.extractedFields ? (
                 <FieldGrid>
                   <Field label={t("field_invoice_date")}>
-                    {v.extractedFields.invoiceDate ?? t("not_found")}
+                    {normalizeDisplayDate(v.extractedFields.invoiceDate)}
                   </Field>
                   <Field label={t("field_subtotal")}>
                     {v.extractedFields.subtotal !== null
-                      ? `¥${v.extractedFields.subtotal.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.subtotal, currency)
                       : t("not_found")}
                   </Field>
                   <Field label={t("field_tax_amount")}>
                     {v.extractedFields.taxAmount !== null
-                      ? `¥${v.extractedFields.taxAmount.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.taxAmount, currency)
                       : t("not_found")}
                   </Field>
                   <Field label={t("field_total")}>
                     {v.extractedFields.total !== null
-                      ? `¥${v.extractedFields.total.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.total, currency)
                       : t("not_found")}
+                  </Field>
+                  <Field label="Member">
+                    {v.extractedFields.memberName ?? t("not_found")}
                   </Field>
                 </FieldGrid>
               ) : (
@@ -113,37 +121,10 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
             </Section>
           )}
 
-          {/* ── Risk assessment ──────────────────────────────────────── */}
-          {v && (v.riskLevel || v.vendorMatched !== undefined) && (
-            <Section title="Risk Assessment">
-              <div className="space-y-3">
-                {v.riskLevel && (
-                  <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
-                    v.riskLevel === "OK" ? "bg-green-50 border border-green-200" :
-                    v.riskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
-                    "bg-amber-50 border border-amber-200"
-                  }`}>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Risk Level</span>
-                    <span className={`text-sm font-bold ${
-                      v.riskLevel === "OK" ? "text-green-700" :
-                      v.riskLevel === "BLOCKED" ? "text-red-700" :
-                      "text-amber-700"
-                    }`}>
-                      {v.riskLevel === "OK" ? "✓ OK" : v.riskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
-                    </span>
-                  </div>
-                )}
-                <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
-                  <ValidationCheck label="Submitter Registered" pass={v.vendorMatched ?? false} />
-                  <ValidationCheck label="Active Member" pass={v.contractMatched ?? false} />
-                </div>
-                {v.reviewerRecommendation && (
-                  <div className="flex items-center gap-2 text-xs text-stone-500 px-1">
-                    <span className="font-medium">Recommended Reviewer:</span>
-                    <span className="text-stone-700 font-semibold">{v.reviewerRecommendation}</span>
-                  </div>
-                )}
-              </div>
+          {/* ── Validation stages ────────────────────────────────────── */}
+          {v && (
+            <Section title="">
+              <ValidationStages v={v} submission={s} />
             </Section>
           )}
 
@@ -156,9 +137,11 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                     {t("review_required")}
                   </p>
                   <ul className="space-y-1">
-                    {v.issues.map((issue) => (
-                      <li key={issue} className="text-xs text-amber-700 font-mono">
-                        • {issue}
+                    {v.issues.flatMap((issue) =>
+                      issue.split("\n").filter(Boolean)
+                    ).map((line, idx) => (
+                      <li key={idx} className="text-xs text-amber-700 font-mono">
+                        • {line}
                       </li>
                     ))}
                   </ul>

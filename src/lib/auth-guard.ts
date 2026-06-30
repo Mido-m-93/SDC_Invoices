@@ -7,6 +7,11 @@ export async function requireAuth(): Promise<
   | { user: { id: string; email: string }; response: null }
   | { user: null; response: NextResponse }
 > {
+  // Dev / mock mode — Supabase not configured, skip auth
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { user: { id: "dev", email: "dev@local" }, response: null };
+  }
+
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

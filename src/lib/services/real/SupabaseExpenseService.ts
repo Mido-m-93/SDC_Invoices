@@ -45,6 +45,7 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     extracted_date: c.extractedDate,
     extracted_vendor: c.extractedVendor,
     policy_violations: c.policyViolations,
+    bank_account: c.bankAccount,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -77,16 +78,25 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     extractedDate: (row.extracted_date as string | null) ?? null,
     extractedVendor: (row.extracted_vendor as string | null) ?? null,
     policyViolations: (row.policy_violations as string[]) ?? [],
+    bankAccount: (row.bank_account as string) ?? "",
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
 }
 
+// Public transport (trains, buses, etc.) does not issue receipts in Japan —
+// the RC経費精算 form explicitly tells submitters not to attach one in that case.
+const TRANSPORT_NO_RECEIPT = /[→↔]|電車|バス|train|bus|subway|公共交通|metro|路線/i;
+
 function checkPolicyViolations(claim: ExpenseClaim): string[] {
   const violations: string[] = [];
-  if (!claim.receiptUrl) violations.push("MISSING_RECEIPT");
+
+  const isNoReceiptTransport =
+    claim.category === "transport" && TRANSPORT_NO_RECEIPT.test(claim.description ?? "");
+
+  if (!claim.receiptUrl && !isNoReceiptTransport) violations.push("MISSING_RECEIPT");
   if (!claim.description) violations.push("MISSING_PURPOSE");
-  if (!claim.projectName && !claim.internalDepartment) violations.push("MISSING_PROJECT");
+  // Project/department not collected by the RC経費精算 form — skip this check.
   if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
     violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
   }

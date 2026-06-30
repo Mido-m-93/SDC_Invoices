@@ -74,13 +74,14 @@ export async function fetchInvoices(month: string): Promise<{ submissions: Invoi
 
 export async function validateInvoice(
   submission: InvoiceSubmission,
-  validatedBy?: string
+  validatedBy?: string,
+  allMonthSubmissions?: InvoiceSubmission[]
 ): Promise<InvoiceValidationResult> {
   const data = await apiFetch<{ results: InvoiceValidationResult[] }>(
     "/api/invoices/validate",
     {
       method: "POST",
-      body: JSON.stringify({ submission, validatedBy }),
+      body: JSON.stringify({ submission, validatedBy, allMonthSubmissions }),
     }
   );
   return data.results[0];
@@ -113,6 +114,17 @@ export async function approveInvoice(
     }
   );
   return data.result;
+}
+
+export async function patchSubmissionCurrency(
+  submissionId: string,
+  month: string,
+  currency: string
+): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices/currency", {
+    method: "PATCH",
+    body: JSON.stringify({ submissionId, month, currency }),
+  });
 }
 
 export async function fileInvoice(
@@ -243,7 +255,7 @@ export async function testNotification(): Promise<{ ok: boolean; message: string
   });
 }
 
-export async function fetchReminderGaps(
+async function fetchReminderGaps(
   month: string,
   type: "missing_invoice" | "stale_review" | "due_date" = "missing_invoice"
 ): Promise<{ data: ReminderGap[] | StaleReview[] | DueDateAlert[] }> {

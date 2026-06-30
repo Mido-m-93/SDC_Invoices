@@ -27,7 +27,7 @@ import type { InvoiceSubmission } from "@/types";
 // Keys must exactly match the header row in the spreadsheet (including spaces,
 // brackets, and punctuation). Add or rename entries here if the sheet changes.
 
-export const COLUMN_MAP: Readonly<Record<string, keyof InvoiceSubmission | null>> = {
+const COLUMN_MAP: Readonly<Record<string, keyof InvoiceSubmission | null>> = {
   "名前":                                                "payerName",
   "請求書の対象月末(締め日)を選択して下さい":               "closingMonth",
   "請求書の添付":                                         "invoiceAttachment",
@@ -90,8 +90,11 @@ function loadCredentials(): { clientEmail: string; privateKey: string } {
     );
   }
 
-  // .env files store \n as a literal backslash-n; convert to real newlines.
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  const fence = "-".repeat(5);
+  const pemRe = new RegExp(`${fence}BEGIN PRIVATE KEY${fence}[\\s\\S]*?${fence}END PRIVATE KEY${fence}`);
+  const cleaned = rawKey.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const pemMatch = cleaned.match(pemRe);
+  const privateKey = pemMatch ? pemMatch[0] + "\n" : cleaned.trim().replace(/^["']|["']$/g, "").trim();
 
   return { clientEmail, privateKey };
 }

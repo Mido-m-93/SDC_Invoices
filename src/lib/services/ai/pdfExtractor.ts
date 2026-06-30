@@ -1,27 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // lib/services/ai/pdfExtractor.ts — PDF field extraction
 //
-// Two strategies, selected automatically at runtime:
-//
+// Strategies (tried in order):
 //   1. Google Document AI  — if GOOGLE_DOCUMENT_AI_PROJECT_ID +
 //                            GOOGLE_DOCUMENT_AI_PROCESSOR_ID are set.
-//                            Reuses GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY.
-//
-//   2. Claude (PDF native) — fallback. Sends the raw PDF bytes directly to
-//                            Claude as a document — no pdf-parse needed.
-//                            Requires ANTHROPIC_API_KEY.
-//
-// Activation (Vercel env vars):
-//   NEXT_PUBLIC_USE_MOCK_VALIDATION=false      → enables real validation
-//   NEXT_PUBLIC_USE_MOCK_DRIVE=false           → fetches real PDFs from Drive
-//   ANTHROPIC_API_KEY                          → required for Claude path
-//   GOOGLE_DOCUMENT_AI_PROJECT_ID              → required for Google Doc AI
-//   GOOGLE_DOCUMENT_AI_PROCESSOR_ID            → required for Google Doc AI
-//   GOOGLE_DOCUMENT_AI_LOCATION                → optional, defaults to "us"
-//   GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY   → shared with Drive service
+//   2. Groq               — free tier LLM; requires GROQ_API_KEY.
+//                            Text extracted with pdfjs-dist (no native deps).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -33,7 +19,7 @@ function emptyExtracted(rawText = ""): ExtractedInvoiceFields {
     taxAmount: null,
     total: null,
     taxRate: null,
-    payeeName: null,
+    memberName: null,
     payerNameOnDoc: null,
     rawText,
   };
@@ -46,86 +32,295 @@ function parseCurrencyStr(str: string | null | undefined): number | null {
   return isNaN(n) ? null : n;
 }
 
+// Claude sometimes returns numeric fields as strings (e.g., "216" or "216 USD").
+// This accepts both number and string forms so we don't miss amounts.
+function parseNumericField(val: unknown): number | null {
+  if (typeof val === "number") return isNaN(val) ? null : val;
+  if (typeof val === "string") return parseCurrencyStr(val);
+  return null;
+}
+
 function normalizeDate(str: string | null | undefined): string | null {
   if (!str) return null;
+  // Japanese date: "2026年4月1日" or "2026年4月-01" (mixed format from AI)
+  const jpMatch = str.match(/(\d{4})年(\d{1,2})月[\-\s]?(\d{1,2})日?/);
+  if (jpMatch) {
+    const year  = jpMatch[1];
+    const month = jpMatch[2].padStart(2, "0");
+    const day   = jpMatch[3].padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   return str;
 }
 
-// ── Strategy 1: Claude with native PDF support ────────────────────────────────
-// Claude reads the PDF bytes directly — no text extraction step needed.
+// ── Regex fallbacks — applied when Claude returns null for a field ────────────
+// These run on rawText that Claude already extracted, so no extra API call needed.
 
-export async function extractWithClaude(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function fallbackDate(text: string): string | null {
+  if (!text) return null;
+  // ISO / slash: 2026-06-01, 2026/06/01
+  const iso = text.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+  // Japanese: 2026年6月1日, 2026年6月
+  const jp = text.match(/(20\d{2})年\s*(\d{1,2})月(?:\s*(\d{1,2})日)?/);
+  if (jp) {
+    const y = jp[1], m = jp[2].padStart(2, "0"), d = (jp[3] ?? "01").padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return null;
+}
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
+function fallbackAmounts(text: string): { total: number | null; subtotal: number | null; taxAmount: number | null } {
+  if (!text) return { total: null, subtotal: null, taxAmount: null };
+  // Collect all numbers that look like currency (4+ digits, optionally with commas or ¥ prefix)
+  const re = /[¥￥]?\s*([\d]{1,3}(?:[,，][\d]{3})+|[\d]{4,})\s*円?/g;
+  const found: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const n = parseFloat(m[1].replace(/[,，]/g, ""));
+    if (!isNaN(n) && n >= 1000) found.push(n);
+  }
+  if (found.length === 0) return { total: null, subtotal: null, taxAmount: null };
+  // Largest number is the most likely total; second-largest is the most likely subtotal
+  const sorted = [...new Set(found)].sort((a, b) => b - a);
+  const total    = sorted[0] ?? null;
+  const subtotal = sorted[1] ?? null;
+  // Heuristic: if total ≈ subtotal × 1.1 (10% tax), derive taxAmount
+  const taxAmount =
+    total !== null && subtotal !== null && Math.abs(total - subtotal * 1.1) < total * 0.05
+      ? Math.round(total - subtotal)
+      : null;
+  return { total, subtotal, taxAmount };
+}
+
+// ── Text extraction helper (used by Groq path) ───────────────────────────────
+// Uses pdfjs-dist legacy build — pure JS, no native dependencies.
+
+async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pageText = (content.items as any[]).map((item) => item.str ?? "").join(" ");
+    pages.push(pageText);
+  }
+  return pages.join("\n");
+}
+
+// ── Strategy 1: Groq (free tier) ─────────────────────────────────────────────
+// Extracts text with pdfjs-dist, then sends to Groq's LLM for field parsing.
+
+async function extractWithGroq(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set");
+  }
+
+  const rawText = await extractTextFromPdf(pdfBytes);
+  if (!rawText.trim()) {
+    console.warn("[pdfExtractor] Groq: no text extracted from PDF (may be a scanned image)");
+    return emptyExtracted();
+  }
+
+  const Groq = (await import("groq-sdk")).default;
+  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+  const response = await client.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 1024,
     messages: [
       {
         role: "user",
-        content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: Buffer.from(pdfBytes).toString("base64"),
-            },
-          },
-          {
-            type: "text",
-            text: `Extract invoice fields from this PDF and return ONLY valid JSON — no markdown, no explanation.
+        content: `Extract invoice fields from the text below and return ONLY valid JSON — no markdown, no explanation.
 
+${rawText.slice(0, 8000)}
+
+Return exactly this JSON:
 {
   "invoiceDate": "YYYY-MM-DD or null",
   "subtotal": number or null,
   "taxAmount": number or null,
   "total": number or null,
   "taxRate": number or null,
-  "payeeName": "company being billed or null",
-  "payerNameOnDoc": "company issuing the invoice or null",
-  "rawText": "first 500 chars of visible text or empty string"
+  "memberName": "the person/company who ISSUED this invoice and receives payment (look for: 氏名, 名前, 請求者, 発行者, Name, From, Issued by) or null",
+  "payerNameOnDoc": "the company/person being BILLED (look for: 御中, 宛名, 請求先, To, Bill To) or null",
+  "rawText": "first 500 chars of the invoice text"
 }
 
 Rules:
-- All monetary amounts must be plain numbers (no symbols or commas)
-- invoiceDate must be YYYY-MM-DD
-- taxRate is a decimal (0.1 for 10%)
-- Return null for anything you cannot find with confidence`,
-          },
-        ] as Anthropic.ContentBlockParam[],
+- Amounts: plain numbers only, strip ¥ ￥ , 円
+- invoiceDate: YYYY-MM-DD; return null if no field explicitly labeled 請求日, 発行日, Issue Date, Invoice Date, or Date issued is found — do NOT guess from context dates
+- taxRate: decimal (0.10 for 10%, 0.08 for 8%)
+- total: if only one amount exists, use it as the total
+- Return null only when a field is genuinely absent`,
       },
     ],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+  const text = response.choices[0]?.message?.content ?? "{}";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: Record<string, unknown> = {};
   try {
     parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
   } catch {
-    return emptyExtracted();
+    console.warn("[pdfExtractor] Groq response JSON parse failed:", text.slice(0, 200));
+    return emptyExtracted(rawText.slice(0, 1000));
   }
 
+  const groqDate     = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null);
+  const groqTotal    = parseNumericField(parsed.total);
+  const groqSubtotal = parseNumericField(parsed.subtotal);
+  const groqTax      = parseNumericField(parsed.taxAmount);
+  const regexAmounts = (groqTotal === null || groqSubtotal === null || groqTax === null)
+    ? fallbackAmounts(rawText)
+    : { total: null, subtotal: null, taxAmount: null };
+
   return {
-    invoiceDate: typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null,
-    subtotal: typeof parsed.subtotal === "number" ? parsed.subtotal : null,
-    taxAmount: typeof parsed.taxAmount === "number" ? parsed.taxAmount : null,
-    total: typeof parsed.total === "number" ? parsed.total : null,
-    taxRate: typeof parsed.taxRate === "number" ? parsed.taxRate : null,
-    payeeName: typeof parsed.payeeName === "string" ? parsed.payeeName : null,
+    invoiceDate:    groqDate,
+    subtotal:       groqSubtotal ?? regexAmounts.subtotal,
+    taxAmount:      groqTax     ?? regexAmounts.taxAmount,
+    total:          groqTotal   ?? regexAmounts.total,
+    taxRate:        parseNumericField(parsed.taxRate),
+    memberName:     typeof parsed.memberName === "string" ? parsed.memberName : null,
     payerNameOnDoc: typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null,
-    rawText: typeof parsed.rawText === "string" ? parsed.rawText : "",
+    rawText:        rawText.slice(0, 1000),
   };
 }
 
-// ── Strategy 2: Google Document AI ───────────────────────────────────────────
+// ── Strategy 2: OpenAI GPT-4o ────────────────────────────────────────────────
+// Uses the Responses API with inline file_data — handles both text and scanned PDFs.
+
+async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const base64Pdf = Buffer.from(pdfBytes).toString("base64");
+  const prompt = `You are an invoice data extraction assistant. Read EVERY page of this PDF carefully and extract the fields below.
+
+Return ONLY a valid JSON object — no markdown fences, no explanation, nothing else.
+
+FIELD DEFINITIONS:
+
+"invoiceDate": The invoice issue date in YYYY-MM-DD. Look for: 請求日, 発行日, Issue Date, Invoice Date, Date issued.
+
+"subtotal": Pre-tax amount as a plain number. Look for: 小計, Subtotal, 税抜. If no tax exists, subtotal = total.
+
+"taxAmount": Tax amount as a plain number. Look for: 消費税, 税額, Consumption Tax, Tax, VAT, GST.
+  - Use 0 if the invoice has a tax column but the value is blank/empty/zero, or says tax-exempt.
+  - Use null ONLY if tax is not mentioned anywhere on the document.
+
+"total": Final billed amount as a plain number. Look for: 合計, 請求金額, Total Amount, Amount Due, Grand Total.
+
+"taxRate": Tax rate as decimal (0.10 = 10%, 0 = tax-exempt). null if not shown.
+
+"memberName": The INDIVIDUAL OR COMPANY WHO SENT THIS INVOICE and will receive payment.
+  - This is the freelancer / contractor / service provider.
+  - Look for a field labeled: Name, 氏名, 名前, 請求者, From, Issued by — or a personal name near the signature/stamp at the bottom.
+  - On invoices from individuals to companies: the INDIVIDUAL'S name is memberName.
+  - IMPORTANT: "Invoice Company Name" or "請求先" or "御中" refers to the RECIPIENT (payerNameOnDoc), NOT the sender.
+
+"payerNameOnDoc": The COMPANY OR PERSON BEING BILLED — who will pay this invoice.
+  - Look for: Invoice Company Name, 請求先, 御中, To, Bill To, Attention, Company Name.
+  - On invoices from individuals to companies: the COMPANY NAME (often 株式会社, 一般社団法人, Co-op, etc.) is payerNameOnDoc.
+
+"rawText": First 800 characters of all visible text, copied exactly.
+
+EXAMPLE — individual invoice to a company:
+  Name: John Smith → memberName: "John Smith"
+  Invoice Company Name: ABC Corp → payerNameOnDoc: "ABC Corp"
+
+RULES:
+- Strip ALL currency symbols: ¥ ￥ $ , 円 USD JPY → plain number only
+- memberName and payerNameOnDoc MUST be different people/entities
+- invoiceDate: YYYY-MM-DD only if an explicitly labeled invoice date field exists (請求日, 発行日, Issue Date, Invoice Date, Date issued). Convert formats: 6/6/2026 → 2026-06-06, 令和8年6月6日 → 2026-06-06. Return null if no labeled date field is found — do NOT use due dates, payment dates, or any unlabeled date.
+- Return null for any field that is genuinely absent or ambiguous — do not guess`;
+
+  const response = await client.responses.create({
+    model: "gpt-4o",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_file",
+            filename: "invoice.pdf",
+            file_data: `data:application/pdf;base64,${base64Pdf}`,
+            detail: "high",
+          },
+          {
+            type: "input_text",
+            text: prompt,
+          },
+        ],
+      },
+    ],
+    max_output_tokens: 1024,
+  });
+
+  const text = response.output_text ?? "{}";
+  console.log("[pdfExtractor] OpenAI raw response:", text.slice(0, 500));
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
+    console.log("[pdfExtractor] OpenAI parsed fields:", JSON.stringify(parsed).slice(0, 400));
+  } catch {
+    console.warn("[pdfExtractor] OpenAI response JSON parse failed:", text.slice(0, 200));
+    return emptyExtracted();
+  }
+
+  const rawText = typeof parsed.rawText === "string" ? parsed.rawText : "";
+  const oaiDate     = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null);
+  const oaiTotal    = parseNumericField(parsed.total);
+  const oaiSubtotal = parseNumericField(parsed.subtotal);
+  const oaiTax      = parseNumericField(parsed.taxAmount);
+  const regexAmounts = (oaiTotal === null || oaiSubtotal === null || oaiTax === null)
+    ? fallbackAmounts(rawText)
+    : { total: null, subtotal: null, taxAmount: null };
+
+  let memberName     = typeof parsed.memberName === "string" ? parsed.memberName : null;
+  let payerNameOnDoc = typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null;
+
+  // Detect swapped names: corporate keywords in memberName means AI got them backwards.
+  const corporatePattern = /株式会社|合同会社|一般社団法人|公益社団法人|NPO|Co-op|Corp|Ltd|Inc|LLC|GmbH/i;
+  if (
+    memberName && payerNameOnDoc &&
+    corporatePattern.test(memberName) &&
+    !corporatePattern.test(payerNameOnDoc)
+  ) {
+    console.warn("[pdfExtractor] Detected swapped names — correcting memberName/payerNameOnDoc");
+    [memberName, payerNameOnDoc] = [payerNameOnDoc, memberName];
+  }
+
+  return {
+    invoiceDate:    oaiDate,
+    subtotal:       oaiSubtotal ?? regexAmounts.subtotal,
+    taxAmount:      oaiTax     ?? regexAmounts.taxAmount,
+    total:          oaiTotal   ?? regexAmounts.total,
+    taxRate:        parseNumericField(parsed.taxRate),
+    memberName,
+    payerNameOnDoc,
+    rawText,
+  };
+}
+
+// ── Strategy 3: Google Document AI ───────────────────────────────────────────
 
 async function getGoogleAccessToken(): Promise<string> {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const rawPk = process.env.GOOGLE_PRIVATE_KEY ?? "";
+  const fence = "-".repeat(5);
+  const pemRe = new RegExp(`${fence}BEGIN PRIVATE KEY${fence}[\\s\\S]*?${fence}END PRIVATE KEY${fence}`);
+  const cleanedPk = rawPk.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const pemBlock = cleanedPk.match(pemRe);
+  const privateKey = pemBlock ? pemBlock[0] + "\n" : cleanedPk.trim().replace(/^["']|["']$/g, "").trim();
 
   if (!clientEmail || !privateKey) {
     throw new Error("GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY are required for Google Document AI");
@@ -164,7 +359,7 @@ async function getGoogleAccessToken(): Promise<string> {
   return access_token;
 }
 
-export async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
+async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
   const projectId = process.env.GOOGLE_DOCUMENT_AI_PROJECT_ID!;
   const processorId = process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID!;
   const location = process.env.GOOGLE_DOCUMENT_AI_LOCATION ?? "us";
@@ -196,19 +391,85 @@ export async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise
     types.map((t) => entities.find((e) => e.type === t)?.mentionText).find(Boolean) ?? null;
 
   return {
-    invoiceDate: normalizeDate(get("invoice_date", "due_date")),
+    invoiceDate: normalizeDate(get("invoice_date")),
     subtotal: parseCurrencyStr(get("subtotal", "subtotal_amount")),
     taxAmount: parseCurrencyStr(get("total_tax_amount", "tax_amount")),
     total: parseCurrencyStr(get("total_amount", "net_amount")),
     taxRate: null,
-    payeeName: get("receiver_name", "bill_to_name"),
-    payerNameOnDoc: get("supplier_name", "vendor_name"),
+    memberName: get("supplier_name", "vendor_name"),    // invoice issuer = the member
+    payerNameOnDoc: get("receiver_name", "bill_to_name"), // company being billed = SDC
     rawText,
   };
 }
 
+// ── Contract field extraction ─────────────────────────────────────────────────
+// Dedicated prompt for member service contracts (業務委託契約) rather than invoices.
+
+export interface ExtractedContractFields {
+  memberName: string | null;
+  contractedAmount: number | null;
+  contractStart: string | null;
+  contractEnd: string | null;
+  paymentTerms: string | null;
+  scope: string | null;
+}
+
+export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
+  const rawText = await extractTextFromPdf(pdfBytes);
+
+  const Groq = (await import("groq-sdk")).default;
+  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+  const response = await client.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 512,
+    messages: [
+      {
+        role: "user",
+        content: `Extract service contract fields from the text below and return ONLY valid JSON — no markdown, no explanation.
+
+${rawText.slice(0, 8000)}
+
+Return exactly this JSON:
+{
+  "memberName": "contractor / service provider name, or null",
+  "contractedAmount": number or null,
+  "contractStart": "YYYY-MM-DD or null",
+  "contractEnd": "YYYY-MM-DD or null",
+  "paymentTerms": "e.g. monthly / per project / one-time, or null",
+  "scope": "brief work scope description, max 100 chars, or null"
+}
+
+Rules:
+- contractedAmount is the agreed payment / fee amount (look for 報酬, 委託料, fee, amount, 金額)
+- contractedAmount must be a plain number with no currency symbols or commas
+- Dates must be YYYY-MM-DD
+- Return null for any field you cannot find with confidence`,
+      },
+    ],
+  });
+
+  const text = response.choices[0]?.message?.content ?? "{}";
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
+  } catch {
+    return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null };
+  }
+
+  return {
+    memberName:       typeof parsed.memberName === "string" ? parsed.memberName : null,
+    contractedAmount: parseNumericField(parsed.contractedAmount),
+    contractStart:    typeof parsed.contractStart === "string" ? parsed.contractStart : null,
+    contractEnd:      typeof parsed.contractEnd === "string" ? parsed.contractEnd : null,
+    paymentTerms:     typeof parsed.paymentTerms === "string" ? parsed.paymentTerms : null,
+    scope:            typeof parsed.scope === "string" ? parsed.scope : null,
+  };
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
-// Google Document AI first (if configured), Claude PDF native as fallback.
+// Priority: Google Document AI → OpenAI GPT-4o → Groq (text-only fallback)
 
 export async function extractFromPdf(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
   const hasGoogleDocAI =
@@ -219,9 +480,23 @@ export async function extractFromPdf(pdfBytes: Uint8Array): Promise<ExtractedInv
     try {
       return await extractWithGoogleDocumentAI(pdfBytes);
     } catch (err) {
-      console.warn("[pdfExtractor] Google Document AI failed, falling back to Claude:", err);
+      console.warn("[pdfExtractor] Google Document AI failed, trying OpenAI:", err);
     }
   }
 
-  return extractWithClaude(pdfBytes);
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      return await extractWithOpenAI(pdfBytes);
+    } catch (err) {
+      console.warn("[pdfExtractor] OpenAI extraction failed, trying Groq:", err);
+    }
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    return await extractWithGroq(pdfBytes);
+  }
+
+  throw new Error(
+    "No extraction strategy configured. Set OPENAI_API_KEY (or GROQ_API_KEY) in .env.local."
+  );
 }

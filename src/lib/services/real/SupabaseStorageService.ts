@@ -29,7 +29,7 @@ const DEFAULT_CONFIG: AppConfig = {
 // ── Row mappers ───────────────────────────────────────────────────────────────
 
 function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     id: s.id,
     snapshot_month: month,
     submission_row_number: s.submissionRowNumber,
@@ -47,6 +47,10 @@ function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, un
     payment_amount: s.paymentAmount,
     payment_processing_status: s.paymentProcessingStatus,
   };
+  // Only include currency if it has a value — omitting it is safe before the
+  // migration runs, whereas passing null for a non-existent column breaks inserts.
+  if (s.currency) row.currency = s.currency;
+  return row;
 }
 
 function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
@@ -62,6 +66,7 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     externalProjectName: row.external_project_name as string,
     projectType: row.project_type as string,
     claimedAmountTaxIncluded: row.claimed_amount_tax_included as string,
+    currency: (row.currency as string) || undefined,
     invoiceProjectStatus: row.invoice_project_status as string,
     paymentStatus: row.payment_status as string,
     paymentAmount: row.payment_amount as string,
@@ -238,6 +243,14 @@ export class SupabaseStorageService implements IStorageService {
     const rows = submissions.map((s) => toSubmissionRow(s, month));
     const { error } = await this.db.from("invoice_submissions").insert(rows);
     if (error) throw new Error(`saveSubmissions (insert): ${error.message}`);
+  }
+
+  async patchSubmissionCurrency(submissionId: string, _month: string, currency: string): Promise<void> {
+    const { error } = await this.db
+      .from("invoice_submissions")
+      .update({ currency })
+      .eq("id", submissionId);
+    if (error) throw new Error(`patchSubmissionCurrency: ${error.message}`);
   }
 
   async clearAllSubmissions(): Promise<void> {

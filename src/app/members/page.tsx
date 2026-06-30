@@ -50,10 +50,12 @@ export default function MembersPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/members");
-      const data = await res.json() as { members: Member[] };
+      if (res.status === 401) { window.location.href = "/login"; return; }
+      const data = await res.json() as { members?: Member[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setMembers(data.members ?? []);
-    } catch {
-      setError("Failed to load members");
+    } catch (e) {
+      setError(`Failed to load members: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ export default function MembersPage() {
       const data = await res.json() as { ok: boolean; added: number; skipped: number; total: number; error?: string };
       if (!data.ok) throw new Error(data.error ?? "Sync failed");
       setSyncResult({ added: data.added, skipped: data.skipped, total: data.total });
-      if (data.added > 0) load();
+      load();
     } catch (e) {
       setError(String(e));
     } finally {

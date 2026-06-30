@@ -36,7 +36,7 @@ const goodExtracted: ExtractedInvoiceFields = {
   taxAmount: 30000,
   total: 330000,
   taxRate: 0.1,
-  payeeName: "田中 太郎",
+  memberName: "田中 太郎",
   payerNameOnDoc: "SDC株式会社",
   rawText: "請求書 2026年5月31日 小計 300,000円 消費税 30,000円 合計 330,000円",
 };

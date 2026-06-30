@@ -7,15 +7,15 @@ import type { Member } from "@/types";
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const { user, response } = await requireAuth();
-  if (!user) return response!;
   try {
+    const { user, response } = await requireAuth();
+    if (!user) return response!;
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") as Member["status"] | null;
     const role = searchParams.get("role") ?? undefined;
     const members = await getMemberService().listMembers({ status: status ?? undefined, role });
     return NextResponse.json({ count: members.length, members });
-  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: "Internal server error" }, { status: 500 }); }
+  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: String(err) }, { status: 500 }); }
 }
 
 export async function POST(req: NextRequest) {

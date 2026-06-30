@@ -52,6 +52,7 @@ export interface InvoiceSubmission {
   externalProjectName: string;         // For External Projects Only
   projectType: string;                 // Invoice Category
   claimedAmountTaxIncluded: string;    // Invoice Amount(local currency)
+  currency?: string;                   // Currency code e.g. USD, JPY (defaults to JPY)
   invoiceProjectStatus: string;
   paymentStatus: string;
   paymentAmount: string;
@@ -65,8 +66,8 @@ export interface ExtractedInvoiceFields {
   taxAmount: number | null;
   total: number | null;
   taxRate: number | null;
-  payeeName: string | null;
-  payerNameOnDoc: string | null;
+  memberName: string | null;       // invoice issuer = the member/contractor (receives payment)
+  payerNameOnDoc: string | null;  // company being billed = SDC
   rawText: string;                     // full extracted text for audit
 }
 
@@ -386,6 +387,7 @@ export interface ExpenseClaim {
   extractedDate: string | null;
   extractedVendor: string | null;
   policyViolations: string[];
+  bankAccount?: string;
   createdAt: string;
   updatedAt: string;
 }
