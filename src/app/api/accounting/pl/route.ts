@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getAccountingService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";

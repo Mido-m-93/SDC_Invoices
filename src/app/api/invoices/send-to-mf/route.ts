@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 // POST /api/invoices/send-to-mf
 import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
@@ -43,13 +45,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Parse billing date from closingMonth (YYYY-MM → YYYY-MM-01 as fallback)
+    // Parse billing date from closingMonth (YYYY-MM â†’ YYYY-MM-01 as fallback)
     const billingDate = parseBillingDate(submission.closingMonth);
 
-    // Parse amount — strip currency symbols, commas, spaces
+    // Parse amount â€” strip currency symbols, commas, spaces
     const amount = parseAmount(submission.claimedAmountTaxIncluded);
 
-    // Fetch the PDF from Drive (optional — attach if available)
+    // Fetch the PDF from Drive (optional â€” attach if available)
     let pdfData: Uint8Array | undefined;
     let pdfFilename: string | undefined;
 
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
           pdfFilename = attachment.filename;
         }
       } catch (driveErr) {
-        // PDF fetch failure is non-fatal — we still register the invoice in MF
+        // PDF fetch failure is non-fatal â€” we still register the invoice in MF
         console.warn("[send-to-mf] Could not fetch PDF from Drive:", driveErr);
       }
     }
@@ -140,8 +142,8 @@ function parseBillingDate(closingMonth: string): string {
       : `${isoMatch[1]}-${isoMatch[2]}-01`;
   }
 
-  // Japanese "2024年3月" or "2024年3月31日"
-  const jpMatch = closingMonth.match(/(\d{4})年(\d{1,2})月(?:(\d{1,2})日)?/);
+  // Japanese "2024å¹´3æœˆ" or "2024å¹´3æœˆ31æ—¥"
+  const jpMatch = closingMonth.match(/(\d{4})å¹´(\d{1,2})æœˆ(?:(\d{1,2})æ—¥)?/);
   if (jpMatch) {
     const y = jpMatch[1];
     const m = jpMatch[2].padStart(2, "0");
@@ -154,7 +156,7 @@ function parseBillingDate(closingMonth: string): string {
 
 function parseAmount(raw: string): number {
   if (!raw) return 0;
-  const cleaned = raw.replace(/[¥,，\s円]/g, "").replace(/[^\d.]/g, "");
+  const cleaned = raw.replace(/[Â¥,ï¼Œ\så††]/g, "").replace(/[^\d.]/g, "");
   const parsed  = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
 }

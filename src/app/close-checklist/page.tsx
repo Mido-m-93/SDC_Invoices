@@ -12,6 +12,7 @@ const STATUS_CONFIG: Record<CloseChecklistItemStatus, { label: string; labelJa: 
   done:        { label: "Done",        labelJa: "完了",     color: "text-green-700",  bg: "bg-green-100" },
   blocked:     { label: "Blocked",     labelJa: "ブロック", color: "text-red-700",    bg: "bg-red-100" },
   na:          { label: "N/A",         labelJa: "対象外",   color: "text-stone-400",  bg: "bg-stone-50" },
+  skipped:     { label: "Skipped",     labelJa: "スキップ", color: "text-stone-400",  bg: "bg-stone-50" },
 };
 
 const CATEGORIES = ["bank", "invoices", "expenses", "vendors", "mf", "tax", "report"];

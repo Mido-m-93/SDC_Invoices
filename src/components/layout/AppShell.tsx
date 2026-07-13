@@ -34,9 +34,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-white text-stone-900">
       <aside className="fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col bg-[#1a3d2b] text-white">
-        {/* Header */}
-        <div className="shrink-0 border-b border-white/10 px-5 py-5">
-          <p className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+        <div className="shrink-0 border-b border-white/10 px-5 py-6">
+          <p className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-white/40">
             SDC
           </p>
           <p className="text-sm font-semibold leading-snug text-white">
@@ -44,57 +43,60 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        {/* Nav + footer scroll together; footer pinned to bottom via mt-auto */}
-        <div className="flex flex-1 flex-col overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
-          <nav className="px-3 py-3">
-            {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={clsx(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-                    active
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:bg-white/5 hover:text-white",
-                  )}
-                >
-                  <Icon size={15} />
-                  <span>{t(key)}</span>
-                </Link>
-              );
-            })}
-          </nav>
+        <nav className="flex-1 overflow-y-auto space-y-1 px-3 py-4">
+          {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
+            const active = pathname.startsWith(href);
 
-          <div className="mt-auto space-y-2 border-t border-white/10 px-4 py-4">
-            <button
-              onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
-            >
-              <GlobeIcon size={12} />
-              {t("language_toggle")}
-            </button>
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={clsx(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                  active
+                    ? "bg-white/10 text-white"
+                    : "text-white/60 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <Icon size={16} />
+                <span>{t(key)}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-            {user && (
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                  style={{ backgroundColor: userColor(user) }}
-                >
-                  {userInitials(user)}
-                </span>
-                <span className="flex-1 truncate text-sm font-medium text-white">{user}</span>
-                <button
-                  onClick={signOut}
-                  title="Sign out"
-                  className="text-white/30 transition hover:text-white"
-                >
-                  <LogoutIcon size={14} />
-                </button>
-              </div>
-            )}
+        <div className="shrink-0 space-y-3 px-4 pb-6 pt-3 border-t border-white/10">
+          <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            {t("warning_no_payment")}
           </div>
+
+          <button
+            onClick={() => setLanguage(language === "ja" ? "en" : "ja")}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 font-mono text-xs text-white/60 transition hover:border-white/20 hover:text-white"
+          >
+            <GlobeIcon size={12} />
+            {t("language_toggle")}
+          </button>
+
+          {/* Current user + logout */}
+          {user && (
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5">
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                style={{ backgroundColor: userColor(user) }}
+              >
+                {userInitials(user)}
+              </span>
+              <span className="flex-1 text-sm font-medium text-white truncate">{user}</span>
+              <button
+                onClick={signOut}
+                title="Sign out"
+                className="text-white/30 hover:text-white transition"
+              >
+                <LogoutIcon size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 

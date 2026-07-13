@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const updated = {
       ...existing,
-      status: decision,
+      status: decision as import("@/types").ExpenseStatus,
       reviewedBy:      reviewedBy ?? "reviewer",
       reviewedAt:      new Date().toISOString(),
       reviewerComment: reviewerComment ?? existing.reviewerComment,

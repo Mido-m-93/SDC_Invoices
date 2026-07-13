@@ -6,11 +6,12 @@ import clsx from "clsx";
 import type { OutboundInvoice, OutboundStatus } from "@/types";
 
 const STATUS_COLORS: Record<OutboundStatus, string> = {
-  draft:    "bg-stone-100 text-stone-600",
-  sent:     "bg-blue-50 text-blue-700",
-  paid:     "bg-green-50 text-green-700",
-  overdue:  "bg-red-50 text-red-700",
-  cancelled: "bg-stone-100 text-stone-500",
+  draft:            "bg-stone-100 text-stone-600",
+  pending_approval: "bg-amber-50 text-amber-700",
+  sent:             "bg-blue-50 text-blue-700",
+  paid:             "bg-green-50 text-green-700",
+  overdue:          "bg-red-50 text-red-700",
+  cancelled:        "bg-stone-100 text-stone-500",
 };
 
 type FilterStatus = "all" | OutboundStatus;

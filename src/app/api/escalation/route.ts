@@ -1,10 +1,10 @@
+﻿export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { getStorageService, getNotificationService } from "@/lib/services";
 import { EscalationService } from "@/lib/services/real/EscalationService";
 
-export const dynamic = 'force-dynamic';
-
-// POST /api/escalation — check all recent months for BLOCKED invoices and escalate
+// POST /api/escalation â€” check all recent months for BLOCKED invoices and escalate
 export async function POST() {
   try {
     const storage      = getStorageService();

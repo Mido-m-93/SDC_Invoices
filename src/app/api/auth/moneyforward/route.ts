@@ -1,4 +1,6 @@
-// GET /api/auth/moneyforward — redirect to MF OAuth authorization page
+﻿export const dynamic = "force-dynamic";
+
+// GET /api/auth/moneyforward â€” redirect to MF OAuth authorization page
 import { NextResponse } from "next/server";
 import { buildMFAuthUrl } from "@/lib/services/real/MoneyForwardService";
 
