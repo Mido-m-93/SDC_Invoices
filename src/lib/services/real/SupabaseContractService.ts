@@ -14,7 +14,10 @@ function toRow(c: Contract): Record<string, unknown> {
     currency: c.currency,
     payment_terms: c.paymentTerms,
     status: c.status,
+    proposal_id: c.proposalId ?? null,
+    contract_folder_url: c.contractFolderUrl ?? null,
     created_at: c.createdAt,
+    // client_id and client_name added by migration 011 — omitted until migration is run
   };
 }
 
@@ -22,6 +25,8 @@ function fromRow(row: Record<string, unknown>): Contract {
   return {
     id: row.id as string,
     vendorId: row.vendor_id as string,
+    clientId: (row.client_id as string | null) ?? undefined,
+    clientName: (row.client_name as string | null) ?? undefined,
     projectName: row.project_name as string,
     startDate: row.start_date as string,
     endDate: row.end_date as string,
@@ -29,6 +34,8 @@ function fromRow(row: Record<string, unknown>): Contract {
     currency: row.currency as string,
     paymentTerms: row.payment_terms as string,
     status: row.status as Contract["status"],
+    proposalId: (row.proposal_id as string | null) ?? undefined,
+    contractFolderUrl: (row.contract_folder_url as string | null) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

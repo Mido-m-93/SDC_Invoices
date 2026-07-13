@@ -61,11 +61,13 @@ const SEED_CLIENTS: Client[] = [
 ];
 
 const SEED_PROPOSALS: Proposal[] = [
-  { id: "prop-001", vendorId: "cli-001", projectName: "SDC Japan システム開発支援 Phase 2",   proposalDate: "2026-06-01", estimatedAmount: 3200000, currency: "JPY", description: "Phase 2 of the SDC Japan system development support contract. Covers API integration, testing, and deployment.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-01T09:00:00.000Z" },
-  { id: "prop-002", vendorId: "cli-004", projectName: "京都ロボティクス AI パイロット",         proposalDate: "2026-06-15", estimatedAmount: 1800000, currency: "JPY", description: "Pilot AI integration project for Kyoto Robotics Lab. Includes data analysis, model training, and reporting dashboard.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-15T10:00:00.000Z" },
-  { id: "prop-003", vendorId: "cli-002", projectName: "大阪テック クラウド移行支援",            proposalDate: "2026-05-10", estimatedAmount: 4500000, currency: "JPY", description: "Full cloud migration support for Osaka Tech Partners. AWS setup, CI/CD pipeline, monitoring.", status: "accepted",  contractId: "con-001", folderUrl: "", createdAt: "2026-05-10T09:00:00.000Z" },
-  { id: "prop-004", vendorId: "cli-003", projectName: "RoboCo-op Singapore Onboarding",      proposalDate: "2026-04-20", estimatedAmount: 2100000, currency: "JPY", description: "Onboarding and setup for RoboCo-op Singapore entity. Legal, HR, and IT infrastructure.", status: "draft",     contractId: "", folderUrl: "", createdAt: "2026-04-20T09:00:00.000Z" },
-  { id: "prop-005", vendorId: "cli-006", projectName: "Legacy Corp DX Consultation",          proposalDate: "2026-02-01", estimatedAmount: 900000,  currency: "JPY", description: "Digital transformation consultation. Proposal rejected — budget constraints.", status: "rejected",  contractId: "", folderUrl: "", createdAt: "2026-02-01T09:00:00.000Z" },
+  { id: "prop-001", clientId: "cli-001", clientName: "SDC Japan",           projectName: "SDC Japan システム開発支援 Phase 2",   proposalDate: "2026-06-01", estimatedAmount: 3200000, currency: "JPY", description: "Phase 2 of the SDC Japan system development support contract. Covers API integration, testing, and deployment.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-01T09:00:00.000Z" },
+  { id: "prop-002", clientId: "cli-004", clientName: "Kyoto Robotics Lab",  projectName: "京都ロボティクス AI パイロット",         proposalDate: "2026-06-15", estimatedAmount: 1800000, currency: "JPY", description: "Pilot AI integration project for Kyoto Robotics Lab. Includes data analysis, model training, and reporting dashboard.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-06-15T10:00:00.000Z" },
+  { id: "prop-003", clientId: "cli-002", clientName: "Osaka Tech Partners", projectName: "大阪テック クラウド移行支援",            proposalDate: "2026-05-10", estimatedAmount: 4500000, currency: "JPY", description: "Full cloud migration support for Osaka Tech Partners. AWS setup, CI/CD pipeline, monitoring.", status: "accepted",  contractId: "con-001", folderUrl: "", createdAt: "2026-05-10T09:00:00.000Z" },
+  { id: "prop-004", clientId: "cli-003", clientName: "RoboCo-op Singapore", projectName: "RoboCo-op Singapore Onboarding",      proposalDate: "2026-04-20", estimatedAmount: 2100000, currency: "JPY", description: "Onboarding and setup for RoboCo-op Singapore entity. Legal, HR, and IT infrastructure.", status: "draft",     contractId: "", folderUrl: "", createdAt: "2026-04-20T09:00:00.000Z" },
+  { id: "prop-005", clientId: "cli-006", clientName: "Legacy Corp",         projectName: "Legacy Corp DX Consultation",          proposalDate: "2026-02-01", estimatedAmount: 900000,  currency: "JPY", description: "Digital transformation consultation. Proposal rejected — budget constraints.", status: "rejected",  contractId: "", folderUrl: "", createdAt: "2026-02-01T09:00:00.000Z" },
+  // ── TEST PIPELINE RECORD (Fukuoka Digital — matches lead-t01) ──
+  { id: "prop-t01", clientId: "cli-005", clientName: "Fukuoka Digital",     projectName: "ECサイト全面リニューアル — フルスタック開発", proposalDate: "2026-07-10", estimatedAmount: 3800000, currency: "JPY", description: "Full-stack redevelopment of Fukuoka Digital's e-commerce platform. Scope: Next.js frontend, Node.js API, PostgreSQL migration, and 3-month delivery support.", status: "submitted", contractId: "", folderUrl: "", createdAt: "2026-07-10T09:00:00.000Z" },
 ];
 
 const SEED_LEADS: Lead[] = [
@@ -77,6 +79,13 @@ const SEED_LEADS: Lead[] = [
   { id: "lead-006", clientId: "",        clientName: "Sendai Smart City",   contactName: "阿部 智子",   contactEmail: "abe@sendai-smartcity.jp",    source: "partner",  stage: "proposal_sent", title: "スマートシティ データ基盤 構築",           estimatedValue: 12000000,currency: "JPY", probability: 55, expectedCloseDate: "2026-07-31", assignedTo: "Mariam Hassan",   proposalId: "prop-001", notes: "Proposal submitted 2026-06-10. Follow up next week.", lostReason: "", createdAt: "2026-05-15T09:00:00.000Z", updatedAt: "2026-06-10T16:00:00.000Z" },
   { id: "lead-007", clientId: "cli-002", clientName: "Osaka Tech Partners", contactName: "中村 花子",   contactEmail: "nakamura@otp.co.jp",        source: "referral", stage: "negotiation",   title: "クラウド移行 Phase 2 エンジニアリング支援", estimatedValue: 4800000, currency: "JPY", probability: 80, expectedCloseDate: "2026-07-15", assignedTo: "Ahmad Khalil",    proposalId: "prop-003", notes: "Contract terms under review. Legal sign-off pending.", lostReason: "", createdAt: "2026-04-01T09:00:00.000Z", updatedAt: "2026-06-25T14:00:00.000Z" },
   { id: "lead-008", clientId: "cli-003", clientName: "RoboCo-op Singapore", contactName: "Lee Mei Ling", contactEmail: "meilin@roboco-op.sg",      source: "partner",  stage: "won",           title: "Singapore Entity Setup & IT Infrastructure", estimatedValue: 2100000, currency: "JPY", probability: 100,expectedCloseDate: "2026-06-01", assignedTo: "Noraldeen Ahmed", proposalId: "prop-003", notes: "Won. Contract signed 2026-06-01. Now in delivery.", lostReason: "", createdAt: "2026-03-01T09:00:00.000Z", updatedAt: "2026-06-01T09:00:00.000Z" },
+  // ── TEST PIPELINE RECORD (Fukuoka Digital — proposal stage, ready to advance) ──
+  { id: "lead-t01", clientId: "cli-005", clientName: "Fukuoka Digital",     contactName: "佐藤 幸子",   contactEmail: "sato@fukuoka-digital.jp",   source: "inbound",  stage: "proposal_sent", title: "ECサイト全面リニューアル — フルスタック開発", estimatedValue: 3800000, currency: "JPY", probability: 65, expectedCloseDate: "2026-08-31", assignedTo: "Mohamad Alayoubi", proposalId: "prop-t01", notes: "TEST RECORD — full pipeline chain. Proposal submitted, awaiting client decision.", lostReason: "", createdAt: "2026-07-01T09:00:00.000Z", updatedAt: "2026-07-10T09:00:00.000Z" },
+];
+
+const SEED_CONTRACTS: Contract[] = [
+  // Completes the Osaka Tech Partners chain: prop-003 (accepted) → con-001
+  { id: "con-001", vendorId: "", clientId: "cli-002", clientName: "Osaka Tech Partners", projectName: "大阪テック クラウド移行支援", startDate: "2026-07-01", endDate: "2027-06-30", expectedMonthlyAmount: 375000, currency: "JPY", paymentTerms: "月末締め翌月末払い", status: "active", proposalId: "prop-003", contractFolderUrl: "", createdAt: "2026-06-15T09:00:00.000Z" },
 ];
 
 export function readStore(): MockStore {
@@ -96,11 +105,11 @@ export function readStore(): MockStore {
     expenseClaims: [],
   };
   try {
-    if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
+    if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
     const raw = fs.readFileSync(STORE_PATH, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     // Handle legacy format where the file was a plain submissions array
-    if (Array.isArray(parsed)) return { ...empty, submissions: parsed, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
+    if (Array.isArray(parsed)) return { ...empty, submissions: parsed, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
     const store = parsed as Partial<MockStore>;
     return {
       submissions:       store.submissions ?? [],
@@ -109,7 +118,7 @@ export function readStore(): MockStore {
       runs:              store.runs ?? [],
       logs:              store.logs ?? [],
       vendors:           store.vendors ?? [],
-      contracts:         store.contracts ?? [],
+      contracts:         store.contracts?.length    ? store.contracts    : SEED_CONTRACTS,
       proposals:         store.proposals?.length    ? store.proposals    : SEED_PROPOSALS,
       paymentRecords:    store.paymentRecords ?? [],
       clients:           store.clients?.length      ? store.clients      : SEED_CLIENTS,
@@ -118,7 +127,7 @@ export function readStore(): MockStore {
       expenseClaims:     store.expenseClaims?.length ? store.expenseClaims : SEED_EXPENSES,
     };
   } catch {
-    return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
+    return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
   }
 }
 

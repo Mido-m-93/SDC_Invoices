@@ -206,7 +206,8 @@ export interface Vendor {
 // ── Proposal ─────────────────────────────────────────────────────────────────
 export interface Proposal {
   id: string;
-  vendorId: string;
+  clientId: string;       // proposal sent TO a client (was vendorId)
+  clientName?: string;    // display name resolved from Client record
   projectName: string;
   proposalDate: string;
   estimatedAmount: number;
@@ -221,7 +222,9 @@ export interface Proposal {
 // ── Contract master ───────────────────────────────────────────────────────────
 export interface Contract {
   id: string;
-  vendorId: string;
+  vendorId: string;            // contractor delivering the work (may be "" for client-only contracts)
+  clientId?: string;           // client the contract is for (pipeline: Proposal → Contract)
+  clientName?: string;         // display name
   projectName: string;
   startDate: string;
   endDate: string;

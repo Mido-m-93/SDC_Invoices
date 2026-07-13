@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const proposal: Proposal = {
       id: generateId("prop"),
-      vendorId: body.vendorId ?? "",
+      clientId: body.clientId ?? "",
+      clientName: body.clientName,
       projectName: body.projectName ?? "",
       proposalDate: body.proposalDate ?? "",
       estimatedAmount: body.estimatedAmount ?? 0,
