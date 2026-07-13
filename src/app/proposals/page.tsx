@@ -124,7 +124,7 @@ export default function ProposalsPage() {
     try {
       const res = await fetch(`/api/proposals/${p.id}/accept`, { method: "POST" });
       const data = await res.json() as { success: boolean; proposal: Proposal; contract: { id: string; projectName: string }; leadsAdvanced: number; error?: string };
-      if (!res.ok) { setError(data.error ?? "Failed to accept proposal"); return; }
+      if (!res.ok) { setError(`Accept failed: ${data.error ?? "unknown error"}`); return; }
       const client = clients.find(c => c.id === p.clientId);
       setAcceptedResult({
         proposal: data.proposal,

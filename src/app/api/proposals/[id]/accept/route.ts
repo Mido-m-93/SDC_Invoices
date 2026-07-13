@@ -31,16 +31,21 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       clientName: proposal.clientName || undefined,
       projectName: proposal.projectName,
       startDate: now.slice(0, 10),
-      endDate: "",
+      endDate: now.slice(0, 10),   // placeholder — user fills in Contracts page
       expectedMonthlyAmount: 0,
       currency: proposal.currency,
       paymentTerms: "",
       status: "active" as const,
       proposalId: proposal.id,
-      contractFolderUrl: proposal.folderUrl || undefined,
+      contractFolderUrl: undefined,
       createdAt: now,
     };
-    await contractSvc.saveContract(contract);
+    try {
+      await contractSvc.saveContract(contract);
+    } catch (contractErr) {
+      const msg = contractErr instanceof Error ? contractErr.message : String(contractErr);
+      throw new Error(`saveContract failed: ${msg}`);
+    }
 
     // 2. Mark proposal as accepted and link the contract
     const updatedProposal = { ...proposal, status: "accepted" as const, contractId };
@@ -67,7 +72,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       leadsAdvanced: linkedLeads.length,
     });
   } catch (err) {
-    console.error("[API ERROR] accept proposal", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[API ERROR] accept proposal", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
