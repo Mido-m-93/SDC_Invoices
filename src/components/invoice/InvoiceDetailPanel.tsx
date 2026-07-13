@@ -12,9 +12,11 @@ import ValidationStages from "@/components/invoice/ValidationStages";
 interface Props {
   item: InvoiceListItem;
   onClose: () => void;
+  onSendToMF?: (item: InvoiceListItem) => void;
+  sendingToMF?: boolean;
 }
 
-export default function InvoiceDetailPanel({ item, onClose }: Props) {
+export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
   const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
@@ -125,6 +127,31 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
           {v && (
             <Section title="">
               <ValidationStages v={v} submission={s} />
+              {onSendToMF && (
+                <div className="mt-3">
+                  {!v.mfBillingUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={!!sendingToMF}
+                      onClick={() => onSendToMF(item)}
+                    >
+                      💴 {t("action_send_to_mf")}
+                    </Button>
+                  )}
+                  {v.mfBillingUrl && (
+                    <a
+                      href={v.mfBillingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                      title={t("mf_sent")}
+                    >
+                      💴 {t("action_view_in_mf")}
+                    </a>
+                  )}
+                </div>
+              )}
             </Section>
           )}
 

@@ -66,6 +66,14 @@ export async function clearAllInvoices(): Promise<void> {
   await apiFetch<{ ok: boolean }>("/api/invoices", { method: "DELETE" });
 }
 
+export async function deleteInvoices(ids: string[]): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
 export async function fetchInvoices(month: string): Promise<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }> {
   return apiFetch<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }>(
     `/api/invoices?month=${encodeURIComponent(month)}`
@@ -151,6 +159,16 @@ export async function fileInvoiceBulk(
   return apiFetch("/api/invoices/file/bulk", {
     method: "POST",
     body: JSON.stringify({ validations }),
+  });
+}
+
+export async function sendInvoiceToMoneyForward(
+  submission: InvoiceSubmission,
+  validation: InvoiceValidationResult
+): Promise<{ billingId: string; billingUrl: string }> {
+  return apiFetch("/api/invoices/send-to-mf", {
+    method: "POST",
+    body: JSON.stringify({ submission, validation }),
   });
 }
 
