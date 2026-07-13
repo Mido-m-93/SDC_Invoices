@@ -125,6 +125,11 @@ export function truncate(s: string, max = 40): string {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+// ── Currency detection ────────────────────────────────────────────────────────
+export function detectCurrency(raw: string): "JPY" | "USD" {
+  return /\$/.test(raw) ? "USD" : "JPY";
+}
+
 // ── Currency display ──────────────────────────────────────────────────────────
 export function formatCurrency(raw: string): string {
   const n = parseFloat(raw.replace(/[^0-9.]/g, ""));

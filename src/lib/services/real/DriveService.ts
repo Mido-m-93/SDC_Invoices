@@ -105,4 +105,33 @@ export class RealDriveService implements IDriveService {
     });
     return (res.data.files?.length ?? 0) > 0;
   }
+
+  async listMonthFolders(rootFolderId: string): Promise<import("@/types").DriveFolder[]> {
+    const drive = await this.getDrive();
+    const res = await drive.files.list({
+      q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: "files(id,name)",
+      orderBy: "name desc",
+    });
+    return (res.data.files ?? []).map((f) => ({
+      folderId: f.id ?? "",
+      folderName: f.name ?? "",
+    }));
+  }
+
+  async listFilesInFolder(folderId: string): Promise<import("@/types").DriveFile[]> {
+    const drive = await this.getDrive();
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: "files(id,name,mimeType,webViewLink,createdTime)",
+      orderBy: "name asc",
+    });
+    return (res.data.files ?? []).map((f) => ({
+      fileId: f.id ?? "",
+      fileName: f.name ?? "",
+      mimeType: f.mimeType ?? "",
+      webViewLink: f.webViewLink ?? "",
+      createdAt: f.createdTime ?? undefined,
+    }));
+  }
 }

@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getOutboundInvoiceService } from "@/lib/services";
 import { generateId } from "@/lib/utils";

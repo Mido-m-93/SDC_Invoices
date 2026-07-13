@@ -136,6 +136,16 @@ export class MockDriveService implements IDriveService {
     // Simulate: the filed document for sub-005 already exists
     return params.filename.startsWith("中村 美咲_");
   }
+
+  async listMonthFolders(_rootFolderId: string): Promise<import("@/types").DriveFolder[]> {
+    await delay(200);
+    return [];
+  }
+
+  async listFilesInFolder(_folderId: string): Promise<import("@/types").DriveFile[]> {
+    await delay(200);
+    return [];
+  }
 }
 
 // ── Mock Validation Service ───────────────────────────────────────────────────

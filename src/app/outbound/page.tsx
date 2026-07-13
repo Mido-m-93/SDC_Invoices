@@ -6,11 +6,12 @@ import clsx from "clsx";
 import type { OutboundInvoice, OutboundStatus } from "@/types";
 
 const STATUS_COLORS: Record<OutboundStatus, string> = {
-  draft:    "bg-stone-100 text-stone-600",
-  sent:     "bg-blue-50 text-blue-700",
-  paid:     "bg-green-50 text-green-700",
-  overdue:  "bg-red-50 text-red-700",
-  cancelled: "bg-stone-100 text-stone-500",
+  draft:            "bg-stone-100 text-stone-600",
+  pending_approval: "bg-amber-50 text-amber-700",
+  sent:             "bg-blue-50 text-blue-700",
+  paid:             "bg-green-50 text-green-700",
+  overdue:          "bg-red-50 text-red-700",
+  cancelled:        "bg-stone-100 text-stone-500",
 };
 
 type FilterStatus = "all" | OutboundStatus;
@@ -79,7 +80,7 @@ export default function OutboundPage() {
     paid: invoices.filter((i) => i.status === "paid").length,
     overdue: invoices.filter((i) => i.status === "overdue").length,
   };
-  const totalUnpaid = invoices.filter((i) => i.status === "sent" || i.status === "overdue").reduce((s, i) => s + i.amount, 0);
+  const totalUnpaid = invoices.filter((i) => i.status === "sent" || i.status === "overdue").reduce((s, i) => s + (i.amount ?? 0), 0);
 
   const filtered = filter === "all" ? invoices : invoices.filter((i) => i.status === filter);
 
@@ -154,7 +155,7 @@ export default function OutboundPage() {
                       {inv.clientEmail && <p className="text-xs text-stone-400">{inv.clientEmail}</p>}
                     </td>
                     <td className="px-4 py-3 text-stone-600">{inv.projectName}</td>
-                    <td className="px-4 py-3 font-mono text-stone-700">¥{inv.amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 font-mono text-stone-700">¥{(inv.amount ?? 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-stone-500">{inv.billingDate}</td>
                     <td className="px-4 py-3 text-stone-500">{inv.dueDate || "—"}</td>
                     <td className="px-4 py-3">
@@ -237,7 +238,7 @@ export default function OutboundPage() {
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between"><dt className="text-stone-500">Client</dt><dd className="font-medium">{selected.clientName}</dd></div>
               <div className="flex justify-between"><dt className="text-stone-500">Project</dt><dd>{selected.projectName}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Amount</dt><dd className="font-mono">¥{selected.amount.toLocaleString()}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">Amount</dt><dd className="font-mono">¥{(selected.amount ?? 0).toLocaleString()}</dd></div>
               <div className="flex justify-between"><dt className="text-stone-500">Due Date</dt><dd>{selected.dueDate || "—"}</dd></div>
               <div className="flex justify-between"><dt className="text-stone-500">Status</dt>
                 <dd><span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium capitalize", STATUS_COLORS[selected.status])}>{selected.status}</span></dd>

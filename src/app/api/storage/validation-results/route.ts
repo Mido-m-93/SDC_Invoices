@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 // src/app/api/storage/validation-results/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";

@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 // src/app/api/dashboard/stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     const allFresh = await getSheetsService().loadSubmissions(month);
     console.log(`[stats] stored=${stored.length} allFresh=${allFresh.length} month=${month}`);
-    console.log(`[stats] fresh closingMonths:`, allFresh.map(s => `row${s.submissionRowNumber}:${s.closingMonth}→${parseSnapshotMonth(s.closingMonth)}`));
+    console.log(`[stats] fresh closingMonths:`, allFresh.map(s => `row${s.submissionRowNumber}:${s.closingMonth}â†’${parseSnapshotMonth(s.closingMonth)}`));
 
     const newRows = allFresh
       .filter((s) => parseSnapshotMonth(s.closingMonth) === month)

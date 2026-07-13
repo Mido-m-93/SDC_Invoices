@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 // src/app/api/invoices/validate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getValidationService, getStorageService, getVendorService, getContractService } from "@/lib/services";
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
     const validationSvc = getValidationService();
     const baseResults = await validationSvc.validateBatch(targets);
 
-    // AI vendor/contract matching — runs in parallel for all submissions
+    // AI vendor/contract matching â€” runs in parallel for all submissions
     const [vendors, contracts] = await Promise.all([
       getVendorService().listVendors().catch((err) => {
         console.error("[validate] listVendors failed:", err);

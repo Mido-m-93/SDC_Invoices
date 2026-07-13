@@ -33,8 +33,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
-      <aside className="fixed inset-y-0 left-0 z-40 w-[220px] bg-[#1a3d2b] text-white">
-        <div className="border-b border-white/10 px-5 py-6">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col bg-[#1a3d2b] text-white">
+        <div className="shrink-0 border-b border-white/10 px-5 py-6">
           <p className="mb-1 font-mono text-xs uppercase tracking-[0.2em] text-white/40">
             SDC
           </p>
@@ -43,7 +43,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <nav className="space-y-1 px-3 py-4">
+        <nav className="flex-1 overflow-y-auto space-y-1 px-3 py-4">
           {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
             const active = pathname.startsWith(href);
 
@@ -65,7 +65,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 w-full space-y-3 px-4 pb-6">
+        <div className="shrink-0 space-y-3 px-4 pb-6 pt-3 border-t border-white/10">
           <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
             {t("warning_no_payment")}
           </div>

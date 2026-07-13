@@ -1,3 +1,5 @@
+﻿export const dynamic = "force-dynamic";
+
 // src/app/api/invoices/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
@@ -21,14 +23,14 @@ export async function GET(req: NextRequest) {
 
     // Pull the latest responses from Microsoft Forms (OneDrive Excel / Graph API).
     // MicrosoftSheetsService returns ALL rows regardless of month, so we filter
-    // by the correct month using parseSnapshotMonth which handles M/D/YY, YYYY年M月,
+    // by the correct month using parseSnapshotMonth which handles M/D/YY, YYYYå¹´Mæœˆ,
     // ISO, and other formats.
     const allFresh = await getSheetsService().loadSubmissions(month);
     const freshForMonth = allFresh.filter(
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
 
-    // Build a row-number → submittedAt map so we can overlay the submission date
+    // Build a row-number â†’ submittedAt map so we can overlay the submission date
     // onto every row in the response. submittedAt comes from the Excel "Start time"
     // column and is not stored in the DB, so we re-derive it on every load.
     const submittedAtByRow = new Map(
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
     );
 
     // Find genuinely new rows (row number not yet in storage).
-    // We never remove existing rows — only append — so old data is never wiped.
+    // We never remove existing rows â€” only append â€” so old data is never wiped.
     const newRows = freshForMonth
       .filter((s) => !storedRowNumbers.has(s.submissionRowNumber))
       .map((s) => ({ ...s, id: storedIdByRow.get(s.submissionRowNumber) ?? s.id }));

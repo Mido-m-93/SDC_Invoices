@@ -97,6 +97,13 @@ export interface InvoiceValidationResult {
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
+  // Reviewer fields
+  reviewerComment?: string;
+  escalatedAt?: string;
+  // Money Forward integration
+  mfBillingId?: string;
+  mfBillingUrl?: string;
+  mfSentAt?: string;
 }
 
 // ── Stored document record (after successful Drive upload) ───────────────────
@@ -272,7 +279,8 @@ export type ReminderType =
   | "due_date_approaching"
   | "due_date_overdue"
   | "missing_expense_receipt"
-  | "stale_expense_review";
+  | "stale_expense_review"
+  | "escalation";
 
 export type ReminderChannel = "teams" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";
@@ -431,6 +439,12 @@ export interface OutboundInvoice {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // Extended fields used by SupabaseOutboundService / outbound page
+  clientEmail?: string;
+  amount?: number;
+  billingDate?: string;
+  driveFileId?: string;
+  driveFileUrl?: string;
 }
 
 export interface OutboundInvoiceSummary {
@@ -446,7 +460,7 @@ export interface OutboundInvoiceSummary {
 
 // ── Phase 10: Monthly close checklist ─────────────────────────────────────────
 
-export type CloseChecklistItemStatus = "pending" | "in_progress" | "done" | "blocked" | "na";
+export type CloseChecklistItemStatus = "pending" | "in_progress" | "done" | "blocked" | "na" | "skipped";
 
 export interface CloseChecklistItem {
   id: string;
@@ -592,6 +606,44 @@ export interface AccountingSummary {
   entryCount: number;
   draftCount: number;
   currency: string;
+}
+
+// ── Type aliases for compatibility ───────────────────────────────────────────
+export type ChecklistItemStatus = CloseChecklistItemStatus;
+export type OutboundStatus = OutboundInvoiceStatus;
+
+// Simpler checklist item shape used by SupabaseCloseService / MockCloseService
+export interface MonthlyChecklistItem {
+  id: string;
+  month: string;
+  category: string;
+  title: string;
+  description?: string;
+  status: CloseChecklistItemStatus;
+  completedBy?: string;
+  completedAt?: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface BankSyncStatus {
+  lastSyncAt: string | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  message: string;
+  unresolvedCount: number;
+}
+
+export interface DriveFolder {
+  folderId: string;
+  folderName: string;
+}
+
+export interface DriveFile {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  webViewLink: string;
+  createdAt?: string;
 }
 
 // ── Phase 11: Reporting Dashboard ─────────────────────────────────────────────

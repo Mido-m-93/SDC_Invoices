@@ -32,6 +32,10 @@ import type {
   CloseChecklistItem,
   MonthlyCloseChecklist,
   CloseChecklistItemStatus,
+  MonthlyChecklistItem,
+  BankSyncStatus,
+  DriveFolder,
+  DriveFile,
   Client,
   ClientStatus,
   Lead,
@@ -58,39 +62,28 @@ export interface ISheetsService {
 
 // ── Drive service ─────────────────────────────────────────────────────────────
 export interface IDriveService {
-  /**
-   * Fetch the raw bytes (or metadata) of an attachment by its URL.
-   */
   fetchAttachment(
     url: string
   ): Promise<{ filename: string; mimeType: string; data: Uint8Array } | null>;
 
-  /**
-   * Upload a PDF to the target Drive folder with the given filename.
-   * Returns the Drive file ID and web view link.
-   */
   uploadPdf(params: {
     folderId: string;
     filename: string;
     data: Uint8Array;
   }): Promise<{ fileId: string; webViewLink: string }>;
 
-  /**
-   * Ensure a monthly subfolder exists under the root folder.
-   * Returns the folder ID.
-   */
   ensureMonthFolder(params: {
     rootFolderId: string;
     folderName: string;
   }): Promise<string>;
 
-  /**
-   * Check if a file with the given name already exists in the folder.
-   */
   checkDuplicate(params: {
     folderId: string;
     filename: string;
   }): Promise<boolean>;
+
+  listMonthFolders(rootFolderId: string): Promise<DriveFolder[]>;
+  listFilesInFolder(folderId: string): Promise<DriveFile[]>;
 }
 
 // ── Validation service ────────────────────────────────────────────────────────
@@ -213,6 +206,11 @@ export interface IExpenseService {
   deleteClaim(id: string): Promise<void>;
   updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void>;
   validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
+  // Aliases used by some routes / services
+  listExpenses?(filters?: { status?: string; month?: string }): Promise<ExpenseClaim[]>;
+  getExpense?(id: string): Promise<ExpenseClaim | null>;
+  saveExpense?(claim: ExpenseClaim): Promise<void>;
+  deleteExpense?(id: string): Promise<void>;
 }
 
 // ── Outbound invoice service (Phase 9) ────────────────────────────────────────
@@ -297,4 +295,20 @@ export interface IAccountingService {
 // ── Reporting service (Phase 11) ──────────────────────────────────────────────
 export interface IReportingService {
   getKPIs(month: string): Promise<ReportingKPIs>;
+}
+
+// ── Close service (alternate interface used by SupabaseCloseService) ──────────
+export interface ICloseService {
+  getChecklist(month: string): Promise<MonthlyChecklistItem[]>;
+  saveChecklistItem(item: MonthlyChecklistItem): Promise<void>;
+  initChecklist(month: string): Promise<MonthlyChecklistItem[]>;
+  getBankSyncStatus(): Promise<BankSyncStatus>;
+}
+
+// ── Outbound service (alternate interface used by SupabaseOutboundService) ────
+export interface IOutboundService {
+  listOutbound(filters?: { status?: string }): Promise<OutboundInvoice[]>;
+  getOutbound(id: string): Promise<OutboundInvoice | null>;
+  saveOutbound(invoice: OutboundInvoice): Promise<void>;
+  deleteOutbound(id: string): Promise<void>;
 }
