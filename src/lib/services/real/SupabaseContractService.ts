@@ -6,7 +6,7 @@ import type { Contract } from "@/types";
 function toRow(c: Contract): Record<string, unknown> {
   return {
     id: c.id,
-    vendor_id: c.vendorId,
+    vendor_id: c.vendorId || null,  // null for client-only contracts (no vendor)
     project_name: c.projectName,
     start_date: c.startDate,
     end_date: c.endDate,
