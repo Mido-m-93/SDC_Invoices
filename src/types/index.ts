@@ -417,7 +417,7 @@ export type OutboundInvoiceStatus =
   | "paid"
   | "cancelled";
 
-export type OutboundStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
+// OutboundStatus defined below as alias for OutboundInvoiceStatus
 
 export interface OutboundInvoice {
   id: string;
@@ -490,21 +490,7 @@ export interface MonthlyCloseChecklist {
   completedAt: string | null;
 }
 
-// Close-service types (used by src/app/close, src/app/api/close, src/lib/services/*CloseService)
-export type ChecklistItemStatus = "pending" | "done" | "skipped" | "blocked";
-
-export interface MonthlyChecklistItem {
-  id: string;
-  month: string;
-  category: string;
-  title: string;
-  description?: string;
-  status: ChecklistItemStatus;
-  completedBy?: string;
-  completedAt?: string;
-  notes?: string;
-  sortOrder: number;
-}
+// ChecklistItemStatus and MonthlyChecklistItem defined below with full type aliases
 
 export interface BankSyncStatus {
   lastSyncAt: string | null;

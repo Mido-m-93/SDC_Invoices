@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // GET /api/auth/moneyforward/callback â€” exchange authorization code for tokens
 import { NextRequest, NextResponse } from "next/server";

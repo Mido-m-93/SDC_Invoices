@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // POST /api/invoices/send-to-mf
 import { NextRequest, NextResponse } from "next/server";

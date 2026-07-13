@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // GET /api/auth/moneyforward â€” redirect to MF OAuth authorization page
 import { NextResponse } from "next/server";

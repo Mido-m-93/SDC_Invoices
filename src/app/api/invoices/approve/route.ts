@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // src/app/api/invoices/approve/route.ts
 // POST /api/invoices/approve

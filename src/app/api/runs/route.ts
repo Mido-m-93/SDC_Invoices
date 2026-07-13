@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // src/app/api/runs/route.ts
 import { NextResponse } from "next/server";

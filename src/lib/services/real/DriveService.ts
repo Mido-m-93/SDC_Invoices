@@ -1,23 +1,33 @@
 import "server-only";
 import { google } from "googleapis";
+import { JWT } from "google-auth-library";
 import type { IDriveService } from "../types";
 
-export class RealDriveService implements IDriveService {
-  private auth;
+function parsePrivateKey(raw: string | undefined): string {
+  if (!raw) return "";
+  const cleaned = raw
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  // Extract just the PEM block, stripping any surrounding JSON noise (quotes, commas, etc.)
+  const fence = "-".repeat(5);
+  const pemRe = new RegExp(`${fence}BEGIN PRIVATE KEY${fence}[\\s\\S]*?${fence}END PRIVATE KEY${fence}`);
+  const pem = cleaned.match(pemRe);
+  return pem ? pem[0] + "\n" : cleaned.trim();
+}
 
-  constructor() {
-    this.auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      },
+export class RealDriveService implements IDriveService {
+  private getAuth() {
+    return new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: parsePrivateKey(process.env.GOOGLE_PRIVATE_KEY),
       scopes: ["https://www.googleapis.com/auth/drive"],
     });
   }
 
   private async getDrive() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return google.drive({ version: "v3", auth: await this.auth.getClient() as any });
+    return google.drive({ version: "v3", auth: this.getAuth() });
   }
 
   async fetchAttachment(url: string) {
@@ -30,9 +40,9 @@ export class RealDriveService implements IDriveService {
     }
     const fileId = fileIdMatch[1];
     const drive = await this.getDrive();
-    const meta = await drive.files.get({ fileId, fields: "name,mimeType" });
+    const meta = await drive.files.get({ fileId, fields: "name,mimeType", supportsAllDrives: true });
     const res = await drive.files.get(
-      { fileId, alt: "media" },
+      { fileId, alt: "media", supportsAllDrives: true },
       { responseType: "arraybuffer" }
     );
     return {
@@ -102,36 +112,47 @@ export class RealDriveService implements IDriveService {
     const res = await drive.files.list({
       q: `'${folderId}' in parents and name='${filename}' and trashed=false`,
       fields: "files(id)",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
     return (res.data.files?.length ?? 0) > 0;
   }
 
-  async listMonthFolders(rootFolderId: string): Promise<import("@/types").DriveFolder[]> {
+  async listMonthFolders(rootFolderId: string) {
     const drive = await this.getDrive();
     const res = await drive.files.list({
       q: `'${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: "files(id,name)",
       orderBy: "name desc",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
-    return (res.data.files ?? []).map((f) => ({
-      folderId: f.id ?? "",
-      folderName: f.name ?? "",
-    }));
+    return (res.data.files ?? []).map((f) => ({ folderId: f.id!, folderName: f.name! }));
   }
 
-  async listFilesInFolder(folderId: string): Promise<import("@/types").DriveFile[]> {
+  async listFilesInFolder(folderId: string) {
     const drive = await this.getDrive();
     const res = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: "files(id,name,mimeType,webViewLink,createdTime)",
-      orderBy: "name asc",
+      fields: "files(id,name,mimeType,webViewLink)",
+      orderBy: "name",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
     return (res.data.files ?? []).map((f) => ({
-      fileId: f.id ?? "",
-      fileName: f.name ?? "",
-      mimeType: f.mimeType ?? "",
+      fileId: f.id!,
+      filename: f.name!,
+      mimeType: f.mimeType ?? "application/octet-stream",
       webViewLink: f.webViewLink ?? "",
-      createdAt: f.createdTime ?? undefined,
     }));
+  }
+
+  async downloadById(fileId: string): Promise<Uint8Array> {
+    const drive = await this.getDrive();
+    const res = await drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" }
+    );
+    return new Uint8Array(res.data as ArrayBuffer);
   }
 }

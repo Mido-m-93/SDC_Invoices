@@ -48,6 +48,8 @@ import type {
 } from "@/types";
 import { safeValidationResult, parseCurrencyString } from "@/lib/validation/invoiceValidator";
 import {
+  readStore,
+  writeStore,
   loadUploadedSubmissions,
   saveUploadedSubmissions,
   saveValidationResult,
@@ -137,14 +139,19 @@ export class MockDriveService implements IDriveService {
     return params.filename.startsWith("中村 美咲_");
   }
 
-  async listMonthFolders(_rootFolderId: string): Promise<import("@/types").DriveFolder[]> {
-    await delay(200);
+  async listMonthFolders(_rootFolderId: string) {
+    await delay(100);
     return [];
   }
 
-  async listFilesInFolder(_folderId: string): Promise<import("@/types").DriveFile[]> {
-    await delay(200);
+  async listFilesInFolder(_folderId: string) {
+    await delay(100);
     return [];
+  }
+
+  async downloadById(_fileId: string): Promise<Uint8Array> {
+    await delay(200);
+    return new Uint8Array([37, 80, 68, 70]); // "%PDF" magic bytes stub
   }
 }
 
@@ -170,7 +177,7 @@ export class MockValidationService implements IValidationService {
       taxAmount,
       total: claimedTotal,
       taxRate: 0.1,
-      payeeName: submission.payerName,
+      memberName: submission.payerName,
       payerNameOnDoc: null,
       rawText: "消費税",
     };
@@ -192,66 +199,34 @@ function enrichWithRisk(
   result: InvoiceValidationResult,
   submission: InvoiceSubmission
 ): InvoiceValidationResult {
-  const vendors = loadVendors();
-  const contracts = loadContracts();
+  const members = loadMembers();
   const payerNorm = normalizeForMatch(submission.payerName);
+  const emailNorm = (submission.email ?? "").toLowerCase().trim();
 
-  const vendor = vendors.find(
-    (v) =>
-      v.status === "active" &&
-      [v.name, ...v.aliases].some((n) => normalizeForMatch(n) === payerNorm)
+  const member = members.find(
+    (m) =>
+      normalizeForMatch(m.displayName) === payerNorm ||
+      (emailNorm && m.email.toLowerCase() === emailNorm)
   );
 
-  const vendorMatched = !!vendor;
-  let contractMatched = false;
-  let contractId: string | undefined;
-  let activeContract: Contract | undefined;
+  const vendorMatched   = !!member;
+  const contractMatched = member?.status === "active";
 
-  if (vendor) {
-    const today = new Date().toISOString().slice(0, 10);
-    activeContract = contracts.find(
-      (c) =>
-        c.vendorId === vendor.id &&
-        c.status === "active" &&
-        c.startDate <= today &&
-        c.endDate >= today
-    );
-    contractMatched = !!activeContract;
-    contractId = activeContract?.id;
-  }
-
-  // Risk scoring
   let riskLevel: import("@/types").RiskLevel;
   let reviewerRecommendation: string;
 
-  if (vendorMatched && !contractMatched) {
-    // Known vendor but no active contract — blocked
-    riskLevel = "BLOCKED";
-    reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-  } else if (!vendorMatched) {
-    // Unknown vendor — needs review
+  if (!vendorMatched) {
     riskLevel = "NEEDS_REVIEW";
     reviewerRecommendation = "Accounting Lead";
-  } else if (
-    activeContract &&
-    submission.claimedAmountTaxIncluded &&
-    activeContract.expectedMonthlyAmount > 0
-  ) {
-    const claimed = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 0;
-    const tolerance = activeContract.expectedMonthlyAmount * 0.1; // 10% tolerance
-    if (Math.abs(claimed - activeContract.expectedMonthlyAmount) > tolerance) {
-      riskLevel = "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-    } else {
-      riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting";
-    }
+  } else if (!contractMatched) {
+    riskLevel = "BLOCKED";
+    reviewerRecommendation = "Accounting Lead";
   } else {
     riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-    reviewerRecommendation = vendor?.defaultReviewer || "Accounting";
+    reviewerRecommendation = member!.department || "Accounting";
   }
 
-  return { ...result, vendorMatched, contractMatched, contractId, riskLevel, reviewerRecommendation };
+  return { ...result, vendorMatched, contractMatched, riskLevel, reviewerRecommendation };
 }
 
 // ── Mock Storage Service ──────────────────────────────────────────────────────
@@ -260,6 +235,21 @@ export class MockStorageService implements IStorageService {
 
   async saveSubmissions(submissions: InvoiceSubmission[], month: string): Promise<void> {
     saveUploadedSubmissions(submissions, month);
+  }
+
+  async patchSubmissionCurrency(submissionId: string, month: string, currency: string): Promise<void> {
+    const all = loadUploadedSubmissions(month);
+    const updated = all.map((s) => s.id === submissionId ? { ...s, currency } : s);
+    saveUploadedSubmissions(updated, month);
+  }
+
+  async clearAllSubmissions(): Promise<void> {
+    if (typeof window !== "undefined") localStorage.removeItem("sdc_invoice_submissions");
+    const store = readStore();
+    store.submissions = [];
+    store.validationResults = {};
+    store.filedDocuments = {};
+    writeStore(store);
   }
 
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {

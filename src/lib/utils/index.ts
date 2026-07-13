@@ -23,11 +23,22 @@ export function formatTimestamp(iso: string, lang: Language = "ja"): string {
   }
 }
 
-export function currentISOTimestamp(): string {
+export function formatDateParts(iso: string, lang: Language = "ja"): { date: string; time: string } {
+  try {
+    const d = parseISO(iso);
+    return lang === "ja"
+      ? { date: format(d, "yyyy年MM月dd日", { locale: ja }), time: format(d, "HH:mm") }
+      : { date: format(d, "MMM d, yyyy"), time: format(d, "HH:mm") };
+  } catch {
+    return { date: iso, time: "" };
+  }
+}
+
+function currentISOTimestamp(): string {
   return new Date().toISOString();
 }
 
-export function currentYearMonth(): string {
+function currentYearMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
@@ -126,13 +137,51 @@ export function truncate(s: string, max = 40): string {
 }
 
 // ── Currency detection ────────────────────────────────────────────────────────
-export function detectCurrency(raw: string): "JPY" | "USD" {
-  return /\$/.test(raw) ? "USD" : "JPY";
+// Matches symbols, ISO codes, and written names (any case, singular/plural).
+const CURRENCY_PATTERNS: Array<{ patterns: (string | RegExp)[]; code: string }> = [
+  { code: "USD", patterns: ["$", "USD", /\bdollars?\b/i] },
+  { code: "EUR", patterns: ["€", "EUR", /\beuros?\b/i] },
+  { code: "GBP", patterns: ["£", "GBP", /\bpounds?\b/i, /\bsterling\b/i] },
+  { code: "KRW", patterns: ["₩", "KRW", /\bwon\b/i] },
+  { code: "CNY", patterns: ["CNY", "RMB", /\byuan\b/i, /\brenminbi\b/i] },
+  { code: "SGD", patterns: ["SGD", /\bsingapore\s*dollars?\b/i] },
+  { code: "AUD", patterns: ["AUD", /\baustralian\s*dollars?\b/i] },
+  { code: "JPY", patterns: ["JPY", /\byen\b/i, /\b円\b/, /\b円$/] },
+];
+
+export function detectCurrency(raw: string): string {
+  if (!raw) return "JPY";
+  for (const { code, patterns } of CURRENCY_PATTERNS) {
+    for (const p of patterns) {
+      if (typeof p === "string" ? raw.toUpperCase().includes(p) : p.test(raw)) {
+        return code;
+      }
+    }
+  }
+  return "JPY";
 }
 
+const CURRENCY_FORMAT: Record<string, { symbol: string; locale: string }> = {
+  JPY: { symbol: "¥",    locale: "ja-JP" },
+  USD: { symbol: "$",    locale: "en-US" },
+  EUR: { symbol: "€",    locale: "de-DE" },
+  GBP: { symbol: "£",    locale: "en-GB" },
+  KRW: { symbol: "₩",   locale: "ko-KR" },
+  CNY: { symbol: "¥",    locale: "zh-CN" },
+  SGD: { symbol: "S$",   locale: "en-SG" },
+  AUD: { symbol: "A$",   locale: "en-AU" },
+};
+
 // ── Currency display ──────────────────────────────────────────────────────────
-export function formatCurrency(raw: string): string {
+export function formatCurrency(raw: string, currencyOverride?: string): string {
   const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
   if (isNaN(n)) return raw || "—";
-  return `¥${n.toLocaleString("ja-JP")}`;
+  const currency = currencyOverride ?? detectCurrency(raw);
+  const { symbol, locale } = CURRENCY_FORMAT[currency] ?? CURRENCY_FORMAT.JPY;
+  return `${symbol}${n.toLocaleString(locale)}`;
+}
+
+export function formatAmount(n: number, currency: string): string {
+  const { symbol, locale } = CURRENCY_FORMAT[currency] ?? CURRENCY_FORMAT.JPY;
+  return `${symbol}${n.toLocaleString(locale)}`;
 }

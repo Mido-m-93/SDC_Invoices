@@ -1,5 +1,3 @@
-﻿export const dynamic = "force-dynamic";
-
 // src/app/api/invoices/upload/route.ts
 // POST /api/invoices/upload
 // Accepts a CSV or Excel file exported from Microsoft Forms,
@@ -13,7 +11,9 @@ import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 import { getStorageService } from "@/lib/services";
 
-// â”€â”€ Encoding detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export const dynamic = 'force-dynamic';
+
+// ── Encoding detection ────────────────────────────────────────────────────────
 function decodeBuffer(buffer: Buffer): { text: string; encoding: string } {
   // Check for explicit BOM
   if (buffer[0] === 0xFF && buffer[1] === 0xFE)
@@ -27,23 +27,23 @@ function decodeBuffer(buffer: Buffer): { text: string; encoding: string } {
   // Check if the buffer is valid UTF-8 by trying a fatal decode
   try {
     new TextDecoder("utf-8", { fatal: true }).decode(slice);
-    // No error â†’ valid UTF-8
+    // No error → valid UTF-8
     return {
       text: new TextDecoder("utf-8").decode(slice),
       encoding: start === 3 ? "utf-8-bom" : "utf-8",
     };
   } catch {
-    // Invalid UTF-8 â€” assume Shift-JIS (CP932), common for Japanese Excel CSV on Windows
+    // Invalid UTF-8 — assume Shift-JIS (CP932), common for Japanese Excel CSV on Windows
     return { text: iconv.decode(slice, "shift_jis"), encoding: "shift_jis" };
   }
 }
 
-// â”€â”€ Pure-JS CSV parser â€” handles quoted multiline fields (RFC 4180) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pure-JS CSV parser — handles quoted multiline fields (RFC 4180) ───────────
 // Microsoft Forms CSV headers contain embedded newlines (e.g. "For External
 // Projects Only:\nPlease select the project name."). A simple line-split
 // breaks those headers. This parser scans char-by-char so quoted newlines survive.
 function parseCSVText(text: string): Record<string, string>[] {
-  const input = text.replace(/^ï»¿/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const input = text.replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   const allRows: string[][] = [];
   let row: string[] = [];
@@ -78,31 +78,41 @@ function parseCSVText(text: string): Record<string, string>[] {
   });
 }
 
-// â”€â”€ Column keyword matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Column keyword matching ───────────────────────────────────────────────────
 type FieldName = keyof InvoiceSubmission | "email";
 
 // Matches your exact Microsoft Forms column headers (bilingual Japanese/English).
 // Most-specific rules first to avoid false matches.
 const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
-  { keywords: ["Start time", "é–‹å§‹æ™‚åˆ»"],                                                    field: "submittedAt" },
-  { keywords: ["Email Address", "ãƒ¡ãƒ¼ãƒ«ã‚¢ãƒ‰ãƒ¬ã‚¹"],                                           field: "email" },
-  { keywords: ["Invoice Amount", "è«‹æ±‚é‡‘é¡"],                                                field: "claimedAmountTaxIncluded" },
-  { keywords: ["Which month", "invoice cover", "ç¨¼åƒæœˆ", "å¯¾è±¡æœˆ"],                          field: "closingMonth" },
-  { keywords: ["Invoice Category", "Internal Project or External", "å†…è¨³"],                 field: "projectType" },
-  { keywords: ["For Internal Projects Only", "å†…éƒ¨æ¡ˆä»¶ã®å ´åˆã®ã¿"],                           field: "internalDepartment" },
-  { keywords: ["For External Projects Only", "select the project name", "å¤–éƒ¨æ¡ˆä»¶ã®å ´åˆã®ã¿"],field: "externalProjectName" },
-  { keywords: ["upload only one invoice", "supported files (PDF)", "Invoice Attachment", "è«‹æ±‚æ›¸ã®æ·»ä»˜", "è«‹æ±‚æ›¸ãƒ•ã‚¡ã‚¤ãƒ«"], field: "invoiceAttachment" },
-  { keywords: ["Additional Notes", "ç‰¹è¨˜äº‹é …", "å‚™è€ƒ"],                                      field: "notes" },
-  { keywords: ["Name", "åå‰"],                                                              field: "payerName" },
+  { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
+  { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
+  { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
+  { keywords: ["Currency", "通貨", "currency"],                                              field: "currency" },
+  { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
+  { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                 field: "projectType" },
+  { keywords: ["For Internal Projects Only", "内部案件の場合のみ"],                           field: "internalDepartment" },
+  { keywords: ["For External Projects Only", "select the project name", "外部案件の場合のみ"],field: "externalProjectName" },
+  { keywords: ["upload only one invoice", "supported files (PDF)", "Invoice Attachment", "請求書の添付", "請求書ファイル"], field: "invoiceAttachment" },
+  { keywords: ["Additional Notes", "特記事項", "備考"],                                      field: "notes" },
+  { keywords: ["Name", "名前"],                                                              field: "payerName" },
 ];
 
 function buildFieldMap(headers: string[]): Map<string, FieldName> {
   const map = new Map<string, FieldName>();
+  const bestLength = new Map<FieldName, number>();
   for (const header of headers) {
     const lower = header.toLowerCase();
     for (const rule of KEYWORD_RULES) {
       if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-        if (!map.has(header)) map.set(header, rule.field);
+        const prev = bestLength.get(rule.field) ?? 0;
+        if (header.length > prev) {
+          // Remove the shorter previous mapping for this field
+          for (const [h, f] of Array.from(map.entries())) {
+            if (f === rule.field) { map.delete(h); break; }
+          }
+          map.set(header, rule.field);
+          bestLength.set(rule.field, header.length);
+        }
         break;
       }
     }
@@ -110,21 +120,28 @@ function buildFieldMap(headers: string[]): Map<string, FieldName> {
   return map;
 }
 
-// â”€â”€ Date conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Date conversion ───────────────────────────────────────────────────────────
 function convertExcelDate(value: string): string {
   const num = Number(value);
   if (!isNaN(num) && num > 40000 && num < 60000) {
     const date = new Date(Math.round((num - 25569) * 86400 * 1000));
-    return `${date.getUTCFullYear()}å¹´${date.getUTCMonth() + 1}æœˆ`;
+    return `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月`;
   }
   return value;
 }
 
 function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, rowIndex: number): InvoiceSubmission {
   const values = new Map<FieldName, string>();
+  const headerLengths = new Map<FieldName, number>();
   for (const [header, field] of Array.from(fieldMap)) {
     const val = (row[header] ?? "").toString().trim();
-    if (val !== "") values.set(field, val);
+    // Prefer the more specific (longer) column header when multiple headers map
+    // to the same field — e.g. custom question "Name1" should win over the
+    // MS Forms built-in respondent "名前" column which contains the uploader's name.
+    if (val !== "" && header.length > (headerLengths.get(field) ?? 0)) {
+      values.set(field, val);
+      headerLengths.set(field, header.length);
+    }
   }
   const get = (f: FieldName) => values.get(f) ?? "";
   return {
@@ -140,6 +157,7 @@ function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, 
     externalProjectName:      get("externalProjectName"),
     projectType:              get("projectType"),
     claimedAmountTaxIncluded: get("claimedAmountTaxIncluded"),
+    currency:                 get("currency") || undefined,
     invoiceProjectStatus:     "",
     paymentStatus:            "",
     paymentAmount:            "",
@@ -147,7 +165,7 @@ function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, 
   };
 }
 
-// â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -187,9 +205,12 @@ export async function POST(req: NextRequest) {
       .filter((s) => s.payerName !== "");
 
     // Derive YYYY-MM month from first submission's closingMonth for storage key.
-    // Handles: "2026å¹´5æœˆ", "2026-05", "2026-05-01", "4/23/26" (MM/DD/YY), "04/2026"
+    // Handles: "2026年5月", "2026-05", "2026-05-01", "4/23/26" (MM/DD/YY), "04/2026"
     const firstMonth = submissions[0]?.closingMonth ?? "";
     const snapshotMonth = parseSnapshotMonth(firstMonth);
+
+    console.log("[upload] detectedHeaders:", JSON.stringify(detectedHeaders));
+    console.log("[upload] headerMapping:", JSON.stringify(headerMapping));
 
     await getStorageService().saveSubmissions(submissions, snapshotMonth);
 

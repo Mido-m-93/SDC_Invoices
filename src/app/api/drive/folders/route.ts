@@ -1,4 +1,3 @@
-﻿export const dynamic = "force-dynamic";
 
 // GET /api/drive/folders?month=2025-06
 //

@@ -1,10 +1,11 @@
-﻿export const dynamic = "force-dynamic";
-
 // src/app/api/dashboard/stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSheetsService, getStorageService } from "@/lib/services";
-import { parseSnapshotMonth } from "@/lib/utils";
+import { getStorageService } from "@/lib/services";
 import type { DashboardStats } from "@/types";
+
+export const dynamic = 'force-dynamic';
+
+export const maxDuration = 25;
 
 const ERROR_CODES = new Set([
   "PDF_LINK_ERROR",
@@ -24,25 +25,9 @@ export async function GET(req: NextRequest) {
     );
   }
   try {
-    // Sync fresh responses from Microsoft Forms, same logic as /api/invoices.
-    const stored = await getStorageService().loadSubmissionsFromStore(month);
-    const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
-
-    const allFresh = await getSheetsService().loadSubmissions(month);
-    console.log(`[stats] stored=${stored.length} allFresh=${allFresh.length} month=${month}`);
-    console.log(`[stats] fresh closingMonths:`, allFresh.map(s => `row${s.submissionRowNumber}:${s.closingMonth}â†’${parseSnapshotMonth(s.closingMonth)}`));
-
-    const newRows = allFresh
-      .filter((s) => parseSnapshotMonth(s.closingMonth) === month)
-      .filter((s) => !storedRowNumbers.has(s.submissionRowNumber));
-    console.log(`[stats] newRows=${newRows.length}`);
-
-    let submissions = stored;
-    if (newRows.length > 0) {
-      const allToSave = [...stored, ...newRows];
-      await getStorageService().saveSubmissions(allToSave, month);
-      submissions = allToSave;
-    }
+    // Read only from storage — syncing from Microsoft Forms happens on the invoices page
+    const submissions = await getStorageService().loadSubmissionsFromStore(month);
+    console.log(`[stats] stored=${submissions.length} month=${month}`);
 
     const ids = submissions.map((s) => s.id);
 
@@ -72,9 +57,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(stats);
   } catch (err) {
+    const detail = String(err);
     console.error("[GET /api/dashboard/stats]", err);
     return NextResponse.json(
-      { error: "Failed to load dashboard stats", detail: String(err) },
+      { error: `Stats error: ${detail}`, detail },
       { status: 500 }
     );
   }
