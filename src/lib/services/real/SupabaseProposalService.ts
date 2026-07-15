@@ -8,6 +8,7 @@ function toRow(p: Proposal): Record<string, unknown> {
     id: p.id,
     vendor_id: "",          // NOT NULL legacy column — kept empty, client_id is the real link
     client_id: p.clientId,
+    client_name: p.clientName ?? null,
     project_name: p.projectName,
     proposal_date: p.proposalDate,
     estimated_amount: p.estimatedAmount,

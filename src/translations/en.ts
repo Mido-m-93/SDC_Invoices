@@ -153,6 +153,7 @@ const en = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
+  nav_pipeline_sync: "Pipeline Sync",
   nav_clients: "Clients",
   nav_leads: "Leads",
   nav_members: "Members",

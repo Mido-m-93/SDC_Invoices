@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import ClientPicker from "@/components/ui/ClientPicker";
 import type { Proposal, Client } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -324,23 +325,15 @@ export default function ProposalsPage() {
                 <input className={input} value={form.projectName} onChange={e => set("projectName", e.target.value)} placeholder="Project or engagement name" />
               </Field>
               <Field label="Client">
-                <select
+                <ClientPicker
+                  clients={clients}
+                  clientId={form.clientId}
+                  clientName={form.clientName ?? ""}
+                  onChange={(clientId, clientName) => setForm(f => ({ ...f, clientId, clientName }))}
+                  onClientCreated={(c) => setClients(cs => [...cs, c])}
                   className={input}
-                  value={form.clientId}
-                  onChange={(e) => {
-                    const client = clients.find(c => c.id === e.target.value);
-                    setForm(f => ({ ...f, clientId: e.target.value, clientName: client?.name ?? f.clientName }));
-                  }}
-                >
-                  <option value="">— Select client —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                />
               </Field>
-              {!form.clientId && (
-                <Field label="Client Name (if not in list)">
-                  <input className={input} value={form.clientName ?? ""} onChange={e => set("clientName", e.target.value)} placeholder="Client company name" />
-                </Field>
-              )}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Proposal Date">
                   <input type="date" className={input} value={form.proposalDate} onChange={e => set("proposalDate", e.target.value)} />
