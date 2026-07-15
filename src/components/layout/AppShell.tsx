@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
   { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
   { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
+  { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
@@ -280,4 +281,7 @@ function AccountingIcon({ size = 18 }: { size?: number }) {
 }
 function ChartIcon({ size = 18 }: { size?: number }) {
   return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>);
+}
+function SyncIcon({ size = 18 }: { size?: number }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
 }

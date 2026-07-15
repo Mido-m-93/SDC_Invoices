@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import LeadKanban from "@/components/pipeline/LeadKanban";
+import ClientPicker from "@/components/ui/ClientPicker";
 import type { Lead, LeadStage, Client } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -283,20 +284,14 @@ export default function LeadsPage() {
                 <input className={input} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Deal or opportunity title" />
               </Field>
               <Field label="Client">
-                <select
+                <ClientPicker
+                  clients={clients}
+                  clientId={form.clientId}
+                  clientName={form.clientName}
+                  onChange={(clientId, clientName) => setForm(f => ({ ...f, clientId, clientName }))}
+                  onClientCreated={(c) => setClients(cs => [...cs, c])}
                   className={input}
-                  value={form.clientId}
-                  onChange={(e) => {
-                    const client = clients.find(c => c.id === e.target.value);
-                    setForm(f => ({ ...f, clientId: e.target.value, clientName: client?.name ?? f.clientName }));
-                  }}
-                >
-                  <option value="">— Select from clients list (optional) —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Client Name">
-                <input className={input} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} placeholder="Company name (freetext if not in list)" />
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Contact Name">
