@@ -1,6 +1,7 @@
 "use client";
 // src/components/invoice/InvoiceDetailPanel.tsx
 
+import { useState } from "react";
 import { useLanguage } from "@/translations";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
@@ -20,6 +21,98 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
   const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
+
+  // ── Add as Vendor state ───────────────────────────────────────────────────
+  const [addingVendor, setAddingVendor]     = useState(false);
+  const [vendorName, setVendorName]         = useState(s.payerName ?? "");
+  const [vendorSaving, setVendorSaving]     = useState(false);
+  const [vendorAdded, setVendorAdded]       = useState(false);
+  const [vendorError, setVendorError]       = useState<string | null>(null);
+  const [savedVendorId, setSavedVendorId]   = useState<string | null>(null);
+
+  // ── Add as Contract state ─────────────────────────────────────────────────
+  const [addingContract, setAddingContract]       = useState(false);
+  const [contractProject, setContractProject]     = useState(s.externalProjectName ?? s.projectType ?? "");
+  const [contractStart, setContractStart]         = useState("");
+  const [contractEnd, setContractEnd]             = useState("");
+  const [contractSaving, setContractSaving]       = useState(false);
+  const [contractAdded, setContractAdded]         = useState(false);
+  const [contractError, setContractError]         = useState<string | null>(null);
+
+  // ── Derived / optimistic state ────────────────────────────────────────────
+  const effectiveVendorMatched   = (v?.vendorMatched   ?? false) || vendorAdded;
+  const effectiveContractMatched = (v?.contractMatched ?? false) || contractAdded;
+  const effectiveRiskLevel = (() => {
+    if (!v?.riskLevel || v.riskLevel === "OK" || v.riskLevel === "BLOCKED") return v?.riskLevel;
+    if (effectiveVendorMatched && effectiveContractMatched) return "OK";
+    return v.riskLevel;
+  })();
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  async function handleAddVendor() {
+    if (!vendorName.trim()) return;
+    setVendorSaving(true);
+    setVendorError(null);
+    try {
+      const res = await fetch("/api/vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: vendorName.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as { vendor: { id: string } };
+      setSavedVendorId(data.vendor.id);
+      setVendorAdded(true);
+      setAddingVendor(false);
+    } catch (err) {
+      setVendorError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVendorSaving(false);
+    }
+  }
+
+  async function handleAddContract() {
+    setContractSaving(true);
+    setContractError(null);
+    try {
+      // Resolve vendorId: use just-created vendor, or look up by name
+      let vendorId = savedVendorId;
+      if (!vendorId) {
+        const res = await fetch("/api/vendors");
+        if (res.ok) {
+          const data = await res.json() as { vendors: Array<{ id: string; name: string }> };
+          const match = data.vendors.find(
+            (vnd) => vnd.name.toLowerCase() === (s.payerName ?? "").toLowerCase()
+          );
+          vendorId = match?.id ?? null;
+        }
+      }
+      const res = await fetch("/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorId: vendorId ?? "",
+          projectName: contractProject.trim(),
+          startDate: contractStart,
+          endDate: contractEnd,
+          currency,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      setContractAdded(true);
+      setAddingContract(false);
+    } catch (err) {
+      setContractError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setContractSaving(false);
+    }
+  }
 
   function normalizeDisplayDate(raw: string | null | undefined): string {
     if (!raw) return "—";
@@ -45,7 +138,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
             <h2 className="text-lg font-semibold text-stone-900">{s.payerName}</h2>
           </div>
           <div className="flex items-center gap-3">
-            {v && <StatusBadge code={v.statusCode} />}
+            {v && <StatusBadge code={effectiveRiskLevel ?? v.statusCode} />}
             <Button variant="ghost" size="sm" onClick={onClose}>
               <CloseIcon />
             </Button>
@@ -153,6 +246,140 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
                 </div>
               )}
             </Section>
+          )}
+
+          {/* ── Add as Vendor banner ─────────────────────────────────── */}
+          {v && !effectiveVendorMatched && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-amber-800">
+                  ⚠️ Vendor not registered
+                </p>
+                {!addingVendor && (
+                  <button
+                    onClick={() => setAddingVendor(true)}
+                    className="text-xs font-semibold text-amber-700 underline hover:text-amber-900"
+                  >
+                    + Add as Vendor
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-amber-700 mb-3">
+                &ldquo;{s.payerName}&rdquo; is not in the vendor list. Add them to clear this flag.
+              </p>
+              {addingVendor && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                    placeholder="Vendor name"
+                    className="w-full rounded border border-amber-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  {vendorError && (
+                    <p className="text-xs text-red-600">{vendorError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      disabled={vendorSaving || !vendorName.trim()}
+                      onClick={handleAddVendor}
+                      className="rounded bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {vendorSaving ? "Saving…" : "Save Vendor"}
+                    </button>
+                    <button
+                      onClick={() => setAddingVendor(false)}
+                      className="text-xs text-amber-700 underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {vendorAdded && (
+            <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3">
+              <p className="text-sm font-semibold text-green-800">✓ Vendor added successfully</p>
+            </div>
+          )}
+
+          {/* ── Add as Contract banner ───────────────────────────────── */}
+          {v && !effectiveContractMatched && (
+            <div className="rounded-lg border border-blue-300 bg-blue-50 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-blue-800">
+                  📄 No active contract found
+                </p>
+                {!addingContract && (
+                  <button
+                    onClick={() => setAddingContract(true)}
+                    className="text-xs font-semibold text-blue-700 underline hover:text-blue-900"
+                  >
+                    + Add Contract
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-blue-700 mb-3">
+                No contract on file for &ldquo;{s.payerName}&rdquo;. Add one to clear this flag.
+              </p>
+              {addingContract && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={contractProject}
+                    onChange={(e) => setContractProject(e.target.value)}
+                    placeholder="Project name"
+                    className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">Start date</label>
+                      <input
+                        type="date"
+                        value={contractStart}
+                        onChange={(e) => setContractStart(e.target.value)}
+                        className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">End date</label>
+                      <input
+                        type="date"
+                        value={contractEnd}
+                        onChange={(e) => setContractEnd(e.target.value)}
+                        className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+                  {contractError && (
+                    <p className="text-xs text-red-600">{contractError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      disabled={contractSaving}
+                      onClick={handleAddContract}
+                      className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {contractSaving ? "Saving…" : "Save Contract"}
+                    </button>
+                    <button
+                      onClick={() => setAddingContract(false)}
+                      className="text-xs text-blue-700 underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {contractAdded && (
+            <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3">
+              <p className="text-sm font-semibold text-green-800">✓ Contract added successfully</p>
+            </div>
           )}
 
           {/* ── Validation results ───────────────────────────────────── */}
