@@ -113,13 +113,15 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
   // Always prefer this over the form's payerName, which may be a nickname or email.
   const pdfPayeeName  = v.extractedFields?.memberName ?? null;
   const displayName   = pdfPayeeName ?? (isEmailPayer ? null : rawPayerName);
-  const nameMismatch  = pdfIssues.some((i) => i.startsWith("PAYEE_NAME_MISMATCH"));
-
   const amountLine = formAmount && pdfTotal !== null
     ? t("stage1_amount_line").replace("{form}", formAmount).replace("{pdf}", String(pdfTotal)) + (v.amountMatchesSheet ? " ✓" : " ✗")
     : null;
-  const nameLine = displayName
-    ? (nameMismatch ? t("stage1_name_missing") : t("stage1_name_found")).replace("{name}", displayName)
+  // If the AI extracted a memberName, that name came FROM the PDF — it's always "found".
+  // Only show ✗ when extraction found no member name at all.
+  const nameLine = pdfPayeeName
+    ? t("stage1_name_found").replace("{name}", pdfPayeeName)
+    : rawPayerName && !isEmailPayer
+    ? t("stage1_name_missing").replace("{name}", rawPayerName)
     : isEmailPayer
     ? t("stage1_email_payer")
     : null;
