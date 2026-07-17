@@ -218,7 +218,40 @@ async function fetchExcelFromOneDrive(): Promise<Buffer> {
   return Buffer.from(await fileRes.arrayBuffer());
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// ── GET: list OneDrive files to find the correct item ID ─────────────────────
+export async function GET() {
+  const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN"] as const)
+    .filter((k) => !process.env[k]);
+  if (missing.length > 0)
+    return NextResponse.json({ error: `Missing: ${missing.join(", ")}` }, { status: 500 });
+
+  try {
+    const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
+    const token    = await getGraphToken();
+
+    const driveRes = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const { id: driveId } = await driveRes.json() as { id: string };
+
+    // List Excel files in the drive root and Forms folder
+    const listRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size&$top=20`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const { value: files } = await listRes.json() as { value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number }> };
+
+    return NextResponse.json({
+      hint: "Copy the 'id' of your Forms Excel file and set it as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel",
+      files: files.map((f) => ({ id: f.id, name: f.name, lastModified: f.lastModifiedDateTime, sizeKB: Math.round(f.size / 1024) })),
+    });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
+// ── POST: sync claims from OneDrive Excel ─────────────────────────────────────
 export async function POST() {
   // Validate required env vars before making any network calls
   const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN", "MICROSOFT_EXPENSE_EXCEL_ITEM_ID"] as const)
