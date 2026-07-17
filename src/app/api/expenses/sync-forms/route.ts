@@ -9,7 +9,6 @@
 //   MICROSOFT_EXPENSE_EXCEL_ITEM_ID  (OneDrive drive item ID of the Forms Excel)
 
 import { NextRequest, NextResponse } from "next/server";
-import { read, utils } from "xlsx";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
 
@@ -190,58 +189,53 @@ async function getGraphToken(): Promise<string> {
   return access_token;
 }
 
-async function fetchExcelFromOneDrive(): Promise<Buffer> {
-  const ownerUpn    = process.env.MICROSOFT_OWNER_UPN!;
-  const itemId      = process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID!;
-  const token       = await getGraphToken();
-
-  // MICROSOFT_EXPENSE_EXCEL_ITEM_ID may be stored as "driveId|itemId" (from GET endpoint)
-  // or as a plain item ID (legacy). Support both formats.
-  const pipeIdx = itemId.indexOf("|");
+// Resolve driveId + itemId from the env var (supports "driveId|itemId" or plain itemId)
+async function resolveItemRef(token: string): Promise<{ driveId: string; itemId: string }> {
+  const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
+  const raw      = process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID!;
+  const pipeIdx  = raw.indexOf("|");
   if (pipeIdx !== -1) {
-    const driveId  = itemId.slice(0, pipeIdx);
-    const realItem = itemId.slice(pipeIdx + 1);
-    const fileRes  = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${realItem}/content`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-    );
-    if (!fileRes.ok) {
-      const body = await fileRes.text().catch(() => "");
-      throw new Error(`Excel file download failed ${fileRes.status}: ${body}`);
-    }
-    return Buffer.from(await fileRes.arrayBuffer());
+    return { driveId: raw.slice(0, pipeIdx), itemId: raw.slice(pipeIdx + 1) };
   }
-
-  // Plain item ID: try personal OneDrive first, then fall back to user-scoped item lookup
+  // Plain item ID — resolve the user's personal drive ID
   const driveRes = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
     { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
   );
-  if (!driveRes.ok) {
-    const body = await driveRes.text().catch(() => "");
-    throw new Error(`OneDrive drive lookup failed ${driveRes.status}: ${body}`);
-  }
+  if (!driveRes.ok) throw new Error(`Drive lookup failed ${driveRes.status}`);
   const { id: driveId } = await driveRes.json() as { id: string };
+  return { driveId, itemId: raw };
+}
 
-  // Try personal drive first
-  let fileRes = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
-    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-  );
+// Fetch live rows via the Excel Workbook API — always returns current data,
+// bypasses the file-content snapshot that can lag behind Forms submissions.
+async function fetchRowsViaWorkbookApi(): Promise<Record<string, unknown>[]> {
+  const token              = await getGraphToken();
+  const { driveId, itemId } = await resolveItemRef(token);
+  const base               = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook`;
+  const hdr                = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
-  // If not found in personal drive, try accessing the item directly across all drives
-  if (fileRes.status === 404) {
-    fileRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/items/${itemId}/content`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-    );
-  }
+  // Get the first worksheet
+  const wsRes = await fetch(`${base}/worksheets`, { headers: hdr, cache: "no-store" });
+  if (!wsRes.ok) throw new Error(`Workbook worksheets failed ${wsRes.status}: ${await wsRes.text()}`);
+  const { value: sheets } = await wsRes.json() as { value: Array<{ id: string; name: string }> };
+  if (!sheets.length) throw new Error("No worksheets found");
+  const sheetId = encodeURIComponent(sheets[0].id);
 
-  if (!fileRes.ok) {
-    const body = await fileRes.text().catch(() => "");
-    throw new Error(`Excel file download failed ${fileRes.status}: ${body}`);
-  }
-  return Buffer.from(await fileRes.arrayBuffer());
+  // Read the used range (all rows that have data)
+  const rangeRes = await fetch(`${base}/worksheets/${sheetId}/usedRange`, { headers: hdr, cache: "no-store" });
+  if (!rangeRes.ok) throw new Error(`usedRange failed ${rangeRes.status}: ${await rangeRes.text()}`);
+  const { values } = await rangeRes.json() as { values: unknown[][] };
+
+  if (!values || values.length < 2) return [];
+
+  // First row is headers, rest are data
+  const headers = (values[0] as string[]).map((h) => String(h ?? "").trim());
+  return values.slice(1).map((row) => {
+    const record: Record<string, unknown> = {};
+    headers.forEach((h, i) => { record[h] = row[i] ?? ""; });
+    return record;
+  });
 }
 
 // ── GET: list OneDrive files to find the correct item ID ─────────────────────
@@ -302,13 +296,8 @@ export async function POST(_req: NextRequest) {
   }
 
   try {
-    const buffer    = await fetchExcelFromOneDrive();
-    const workbook  = read(buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName)
-      return NextResponse.json({ error: "No sheets found in workbook" }, { status: 400 });
-
-    const rows    = utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" });
+    // Use the Excel Workbook API (live data) instead of file download (may be cached snapshot)
+    const rows    = await fetchRowsViaWorkbookApi();
     const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
     const fieldMap = buildFieldMap(headers);
 
