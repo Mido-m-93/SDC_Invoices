@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus } from "@/types";
+import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
@@ -58,6 +58,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [validationPanel, setValidationPanel] = useState<{ claim: ExpenseClaim; result: ExpenseValidationResult } | null>(null);
   const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
@@ -139,9 +140,14 @@ export default function ExpensesPage() {
 
   async function handleValidate(id: string) {
     setValidating(id);
+    const claim = claims.find((c) => c.id === id) ?? null;
     try {
-      await fetch(`/api/expenses/${id}/validate`, { method: "POST" });
+      const res  = await fetch(`/api/expenses/${id}/validate`, { method: "POST" });
+      const data = await res.json() as { result?: ExpenseValidationResult };
       load();
+      if (data.result && claim) {
+        setValidationPanel({ claim, result: data.result });
+      }
     } catch { setError("Validation failed"); }
     finally { setValidating(null); }
   }
@@ -446,11 +452,134 @@ export default function ExpensesPage() {
           </div>
         );
       })()}
+
+      {/* Validation result panel */}
+      {validationPanel && (
+        <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
+          <div className="absolute inset-0 bg-stone-900/20 backdrop-blur-[1px]" onClick={() => setValidationPanel(null)} />
+          <div className="relative bg-white h-full w-full max-w-md shadow-2xl overflow-y-auto flex flex-col">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-6 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-400 mb-0.5">Validation Result</p>
+                <h2 className="text-base font-semibold text-stone-900">{validationPanel.claim.submittedBy}</h2>
+              </div>
+              <button onClick={() => setValidationPanel(null)} className="text-stone-400 hover:text-stone-600">
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 px-6 py-5 space-y-5">
+              {/* Risk badge */}
+              <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${
+                validationPanel.result.riskLevel === "OK"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : validationPanel.result.riskLevel === "NEEDS_REVIEW"
+                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
+                {validationPanel.result.riskLevel === "OK" ? "✓ Claim looks good" :
+                 validationPanel.result.riskLevel === "NEEDS_REVIEW" ? "⚠ Needs review" :
+                 "✕ Blocked — action required"}
+              </div>
+
+              {/* Stage 1: Receipt */}
+              <ValidationStageBlock
+                number={1}
+                title="Receipt Check"
+                subtitle="Receipt is accessible and amount matches"
+                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt}
+                warn={validationPanel.result.receiptMissing}
+                lines={[
+                  validationPanel.result.receiptMissing ? "✕ No receipt attached" :
+                    validationPanel.result.receiptAccessible ? "✓ Receipt accessible" : "✕ Receipt URL not reachable",
+                  validationPanel.result.extractedAmount !== null
+                    ? `Extracted amount: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? "✓ matches" : "✗ differs from claim"}`
+                    : "Amount: could not extract from receipt",
+                  validationPanel.result.extractedDate
+                    ? `Date: ${validationPanel.result.extractedDate} ✓`
+                    : "Date: not found in receipt",
+                  validationPanel.result.extractedVendor
+                    ? `Vendor: ${validationPanel.result.extractedVendor}`
+                    : null,
+                ].filter((l): l is string => l !== null)}
+              />
+
+              {/* Stage 2: Policy */}
+              <ValidationStageBlock
+                number={2}
+                title="Policy Compliance"
+                subtitle="No policy violations detected"
+                pass={validationPanel.result.policyViolations.length === 0}
+                warn={false}
+                lines={
+                  validationPanel.result.policyViolations.length === 0
+                    ? ["✓ No policy violations"]
+                    : validationPanel.result.policyViolations.map((v) => `✕ ${v.replace(/_/g, " ")}`)
+                }
+              />
+
+              {/* Stage 3: Category */}
+              <ValidationStageBlock
+                number={3}
+                title="Category & Amount"
+                subtitle="Category is valid and amount is present"
+                pass={validationPanel.result.categoryValid && validationPanel.claim.amount > 0}
+                warn={false}
+                lines={[
+                  `Category: ${validationPanel.claim.category.replace(/_/g, " ")} ${validationPanel.result.categoryValid ? "✓" : "✗"}`,
+                  `Claimed amount: JPY ${validationPanel.claim.amount.toLocaleString()}`,
+                  validationPanel.claim.bankAccount ? `Bank account: on file ✓` : "Bank account: not provided",
+                ]}
+                isLast
+              />
+            </div>
+
+            <div className="sticky bottom-0 bg-white border-t border-stone-100 px-6 py-4">
+              <Button variant="secondary" size="sm" onClick={() => setValidationPanel(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
 
 const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";
+
+function ValidationStageBlock({ number, title, subtitle, pass, warn, lines, isLast }: {
+  number: number; title: string; subtitle: string;
+  pass: boolean; warn: boolean; lines: string[]; isLast?: boolean;
+}) {
+  const status = warn ? "warn" : pass ? "pass" : "fail";
+  const colors = {
+    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: "Passed" },
+    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: "Warning" },
+    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: "Failed" },
+  }[status];
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ${colors.num}`}>{number}</div>
+        {!isLast && <div className="mt-1 h-full w-px bg-stone-200" />}
+      </div>
+      <div className={`mb-3 flex-1 rounded-xl border px-4 py-3 ${colors.card}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-stone-800">{title}</p>
+            <p className="text-xs text-stone-500">{subtitle}</p>
+          </div>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${colors.badge}`}>
+            {colors.icon} {colors.label}
+          </span>
+        </div>
+        <div className={`mt-2 space-y-0.5 text-xs leading-relaxed ${colors.text}`}>
+          {lines.map((l, i) => <p key={i}>{l}</p>)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
