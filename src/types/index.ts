@@ -408,6 +408,8 @@ export interface ExpenseValidationResult {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  memberMatched: boolean;
+  contractFileName: string | null;
 }
 
 // ── Phase 9: Outbound invoice support ─────────────────────────────────────────

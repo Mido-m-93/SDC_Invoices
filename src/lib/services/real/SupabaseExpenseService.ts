@@ -220,6 +220,8 @@ export class SupabaseExpenseService implements IExpenseService {
       extractedAmount,
       extractedDate,
       extractedVendor,
+      memberMatched:    false,
+      contractFileName: null,
     };
   }
 }

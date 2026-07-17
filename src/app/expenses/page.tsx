@@ -472,65 +472,59 @@ export default function ExpensesPage() {
             <div className="flex-1 px-6 py-5 space-y-5">
               {/* Risk badge */}
               <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${
-                validationPanel.result.riskLevel === "OK"
+                validationPanel.result.memberMatched && validationPanel.result.amountMatchesReceipt
                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : validationPanel.result.riskLevel === "NEEDS_REVIEW"
-                  ? "bg-amber-50 text-amber-700 border border-amber-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
+                  : !validationPanel.result.memberMatched
+                  ? "bg-red-50 text-red-700 border border-red-200"
+                  : "bg-amber-50 text-amber-700 border border-amber-200"
               }`}>
-                {validationPanel.result.riskLevel === "OK" ? "✓ Claim looks good" :
-                 validationPanel.result.riskLevel === "NEEDS_REVIEW" ? "⚠ Needs review" :
-                 "✕ Blocked — action required"}
+                {validationPanel.result.memberMatched && validationPanel.result.amountMatchesReceipt
+                  ? "✓ Claim verified — member registered and receipt matches"
+                  : !validationPanel.result.memberMatched
+                  ? "✕ Submitter not found in SharePoint — cannot approve"
+                  : "⚠ Member registered — receipt needs review"}
               </div>
 
-              {/* Stage 1: Receipt */}
+              {/* Stage 1: SharePoint member check */}
               <ValidationStageBlock
                 number={1}
-                title="Receipt Check"
-                subtitle="Receipt is accessible and amount matches"
-                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt}
-                warn={validationPanel.result.receiptMissing}
+                title="SharePoint Member Check"
+                subtitle="Submitter is a registered member in SharePoint"
+                pass={validationPanel.result.memberMatched}
+                warn={false}
                 lines={[
-                  validationPanel.result.receiptMissing ? "✕ No receipt attached" :
-                    validationPanel.result.receiptAccessible ? "✓ Receipt accessible" : "✕ Receipt URL not reachable",
-                  validationPanel.result.extractedAmount !== null
-                    ? `Extracted amount: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? "✓ matches" : "✗ differs from claim"}`
-                    : "Amount: could not extract from receipt",
-                  validationPanel.result.extractedDate
-                    ? `Date: ${validationPanel.result.extractedDate} ✓`
-                    : "Date: not found in receipt",
-                  validationPanel.result.extractedVendor
-                    ? `Vendor: ${validationPanel.result.extractedVendor}`
-                    : null,
-                ].filter((l): l is string => l !== null)}
+                  validationPanel.result.memberMatched
+                    ? `✓ "${validationPanel.claim.submittedBy}" found in SharePoint contracts`
+                    : `✕ "${validationPanel.claim.submittedBy}" not found in SharePoint contracts`,
+                  validationPanel.result.contractFileName
+                    ? `Contract: ${validationPanel.result.contractFileName}`
+                    : "",
+                ].filter(Boolean)}
               />
 
-              {/* Stage 2: Policy */}
+              {/* Stage 2: Receipt match */}
               <ValidationStageBlock
                 number={2}
-                title="Policy Compliance"
-                subtitle="No policy violations detected"
-                pass={validationPanel.result.policyViolations.length === 0}
-                warn={false}
-                lines={
-                  validationPanel.result.policyViolations.length === 0
-                    ? ["✓ No policy violations"]
-                    : validationPanel.result.policyViolations.map((v) => `✕ ${v.replace(/_/g, " ")}`)
-                }
-              />
-
-              {/* Stage 3: Category */}
-              <ValidationStageBlock
-                number={3}
-                title="Category & Amount"
-                subtitle="Category is valid and amount is present"
-                pass={validationPanel.result.categoryValid && validationPanel.claim.amount > 0}
-                warn={false}
+                title="Receipt vs Submission"
+                subtitle="AI-extracted receipt data matches what the submitter provided"
+                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt}
+                warn={validationPanel.result.receiptMissing || !validationPanel.result.receiptAccessible}
                 lines={[
-                  `Category: ${validationPanel.claim.category.replace(/_/g, " ")} ${validationPanel.result.categoryValid ? "✓" : "✗"}`,
-                  `Claimed amount: JPY ${validationPanel.claim.amount.toLocaleString()}`,
-                  validationPanel.claim.bankAccount ? `Bank account: on file ✓` : "Bank account: not provided",
-                ]}
+                  validationPanel.result.receiptMissing
+                    ? "✕ No receipt attached"
+                    : validationPanel.result.receiptAccessible
+                    ? "✓ Receipt accessible"
+                    : "✕ Receipt URL not reachable",
+                  validationPanel.result.extractedAmount !== null
+                    ? `Receipt amount: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? "✓ matches submitted" : `✗ submitted was JPY ${validationPanel.claim.amount.toLocaleString()}`}`
+                    : "Amount: could not extract from receipt",
+                  validationPanel.result.extractedDate
+                    ? `Receipt date: ${validationPanel.result.extractedDate} ✓`
+                    : "Date: not found in receipt",
+                  validationPanel.result.extractedVendor
+                    ? `Vendor on receipt: ${validationPanel.result.extractedVendor}`
+                    : "",
+                ].filter(Boolean)}
                 isLast
               />
             </div>
