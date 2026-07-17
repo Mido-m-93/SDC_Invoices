@@ -161,45 +161,47 @@ export async function POST(req: NextRequest) {
             const payerNorm  = normName(searchName);
             const FOLDER_MIME = "application/vnd.google-apps.folder";
 
-            // Build month candidates from the submission's closing month
-            // so we only match Drive files from the SAME billing period.
+            // Determine the billing month and locate its Drive subfolder.
+            // Scoping to the month folder avoids cross-month false positives without
+            // requiring the month to appear in the filename (our template is
+            // {payerName}_{originalFilename} which has no month component).
             const parsedMonth = parseSnapshotMonth(sub.closingMonth); // "YYYY-MM" or "unknown"
-            const MONTH_NAMES = ["january","february","march","april","may","june","july","august","september","october","november","december"];
-            let driveYearStr = "";
-            // Patterns that include the year — no cross-year or project-name false positives.
-            const strictMonthCandidates: string[] = [];
-            // Short Japanese patterns (e.g. "6月") — only accepted when the year also appears in the filename.
-            const looseMonthCandidates: string[] = [];
+
+            // Resolve month subfolder under the root (try Japanese "YYYY年MM月" format first,
+            // then ISO "YYYY-MM" as a fallback).
+            let monthFolderId: string | null = null;
             if (parsedMonth !== "unknown") {
               const [yearStr, monthStr] = parsedMonth.split("-");
-              driveYearStr = yearStr;
-              const monthNum   = parseInt(monthStr, 10);
-              const mName      = MONTH_NAMES[monthNum - 1];  // "june"
-              const mNameShort = mName.slice(0, 3);          // "jun"
-              strictMonthCandidates.push(
-                `${yearStr}-${monthStr}`,         // "2026-06"
-                `${yearStr}/${monthStr}`,         // "2026/06"
-                `${yearStr}${monthStr}`,          // "202606"
-                `${mName}_${yearStr}`,            // "june_2026"
-                `${mName} ${yearStr}`,            // "june 2026"
-                `${yearStr}_${mName}`,            // "2026_june"
-                `${yearStr} ${mName}`,            // "2026 june"
-                `${mNameShort}_${yearStr}`,       // "jun_2026"
-                `${mNameShort} ${yearStr}`,       // "jun 2026"
-                `${yearStr}_${mNameShort}`,       // "2026_jun"
-                `${yearStr} ${mNameShort}`,       // "2026 jun"
-              );
-              // Japanese month markers — require year present elsewhere in filename
-              looseMonthCandidates.push(`${monthNum}月`, `${monthStr}月`); // "6月", "06月"
+              const folderCandidates = [`${yearStr}年${monthStr}月`, `${yearStr}-${monthStr}`];
+              for (const folderName of folderCandidates) {
+                const folderRes = await drive.files.list({
+                  q: `name = '${folderName}' and mimeType = '${FOLDER_MIME}' and '${rootFolderId}' in parents and trashed=false`,
+                  fields: "files(id,name)",
+                  supportsAllDrives: true,
+                  includeItemsFromAllDrives: true,
+                  pageSize: 1,
+                });
+                const mf = folderRes.data.files?.[0];
+                if (mf?.id) {
+                  monthFolderId = mf.id;
+                  console.log(`[Drive check] Month folder "${folderName}" found (id=${monthFolderId})`);
+                  break;
+                }
+              }
+              if (!monthFolderId) {
+                console.log(`[Drive check] Month folder for ${parsedMonth} not found — will search entire root`);
+              }
             }
 
             // Build name search from first 2 meaningful tokens of the resolved name
             const tokens = searchName.trim().split(/\s+/).filter(t => t.length > 2).slice(0, 2);
             if (!tokens.length) return null;
-            // Drive API has no `in ancestors` — search by name across all accessible files
-            // (service account only has access to the shared folder tree)
-            const nameQ = tokens.map(t => `name contains '${t}'`).join(" and ");
-            const q = `${nameQ} and mimeType != '${FOLDER_MIME}' and trashed=false`;
+            const nameQ = tokens.map(t => `name contains '${t.replace(/'/g, "\\'")}'`).join(" and ");
+            // Search within the month folder if found; otherwise scan the whole root hierarchy.
+            const scopeQ = monthFolderId
+              ? `'${monthFolderId}' in parents`
+              : `'${rootFolderId}' in ancestors`;
+            const q = `${nameQ} and ${scopeQ} and mimeType != '${FOLDER_MIME}' and trashed=false`;
 
             console.log(`[Drive check] searching "${searchName}" month=${parsedMonth}${isEmail ? ` (from PDF, original="${sub.payerName}")` : ""} q="${q}"`);
             const res = await drive.files.list({
@@ -210,25 +212,9 @@ export async function POST(req: NextRequest) {
               pageSize: 20,
             });
 
-            const found = (res.data.files ?? []).find(f => {
-              if (!normName(f.name!).includes(payerNorm)) return false;
-              // Only flag as duplicate if the file is from the SAME billing month+year.
-              // Strict candidates include year+month combos (no cross-year false positives).
-              // Loose Japanese patterns (e.g. "6月") are also accepted but only when the year
-              // appears elsewhere in the filename (prevents matching June invoices from other years).
-              if (parsedMonth !== "unknown") {
-                const fnLower   = (f.name ?? "").toLowerCase();
-                const strict    = strictMonthCandidates.some(c => fnLower.includes(c));
-                const loose     = looseMonthCandidates.some(c => fnLower.includes(c)) && driveYearStr && fnLower.includes(driveYearStr);
-                if (!strict && !loose) {
-                  console.log(`[Drive check] Skipping "${f.name}" — month (${parsedMonth}) not confirmed in filename`);
-                  return false;
-                }
-              }
-              return true;
-            });
+            const found = (res.data.files ?? []).find(f => normName(f.name!).includes(payerNorm));
             if (!found) {
-              console.log(`[Drive check] No match for "${searchName}" month=${parsedMonth} (results=${res.data.files?.map(f => f.name).join(", ")})`);
+              console.log(`[Drive check] No match for "${searchName}" in ${monthFolderId ? "month folder" : "root"} (results=${res.data.files?.map(f => f.name).join(", ")})`);
               return null;
             }
             console.log(`[Drive check] Found: "${found.name}" for "${searchName}" (month=${parsedMonth}) — extracting amount for comparison`);
