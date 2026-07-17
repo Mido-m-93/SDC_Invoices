@@ -1,3 +1,4 @@
+
 // src/app/api/invoices/file/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -16,7 +17,7 @@ const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
  * POST /api/invoices/file
  * Body: { submissionId: string, validation: InvoiceValidationResult }
  *
- * ⚠ Phase 1: Only stores — never triggers payment.
+ * âš  Phase 1: Only stores â€” never triggers payment.
  * Requires validation.statusCode === "READY".
  */
 export async function POST(req: NextRequest) {

@@ -17,10 +17,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_ICON: Record<ChecklistItemStatus, string> = {
-  pending: "○",
-  done:    "✓",
-  skipped: "—",
-  blocked: "✗",
+  pending:     "○",
+  in_progress: "◑",
+  done:        "✓",
+  blocked:     "✗",
+  na:          "–",
+  skipped:     "—",
 };
 
 const BANK_SYNC_COLOR: Record<string, string> = {

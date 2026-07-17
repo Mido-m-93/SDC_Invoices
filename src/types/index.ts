@@ -206,7 +206,8 @@ export interface Vendor {
 // ── Proposal ─────────────────────────────────────────────────────────────────
 export interface Proposal {
   id: string;
-  vendorId: string;
+  clientId: string;       // proposal sent TO a client (was vendorId)
+  clientName?: string;    // display name resolved from Client record
   projectName: string;
   proposalDate: string;
   estimatedAmount: number;
@@ -221,7 +222,9 @@ export interface Proposal {
 // ── Contract master ───────────────────────────────────────────────────────────
 export interface Contract {
   id: string;
-  vendorId: string;
+  vendorId: string;            // contractor delivering the work (may be "" for client-only contracts)
+  clientId?: string;           // client the contract is for (pipeline: Proposal → Contract)
+  clientName?: string;         // display name
   projectName: string;
   startDate: string;
   endDate: string;
@@ -417,7 +420,7 @@ export type OutboundInvoiceStatus =
   | "paid"
   | "cancelled";
 
-export type OutboundStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
+// OutboundStatus defined below as alias for OutboundInvoiceStatus
 
 export interface OutboundInvoice {
   id: string;
@@ -464,7 +467,7 @@ export interface OutboundInvoiceSummary {
 
 // ── Phase 10: Monthly close checklist ─────────────────────────────────────────
 
-export type CloseChecklistItemStatus = "pending" | "in_progress" | "done" | "blocked" | "na";
+export type CloseChecklistItemStatus = "pending" | "in_progress" | "done" | "blocked" | "na" | "skipped";
 
 export interface CloseChecklistItem {
   id: string;
@@ -490,21 +493,7 @@ export interface MonthlyCloseChecklist {
   completedAt: string | null;
 }
 
-// Close-service types (used by src/app/close, src/app/api/close, src/lib/services/*CloseService)
-export type ChecklistItemStatus = "pending" | "done" | "skipped" | "blocked";
-
-export interface MonthlyChecklistItem {
-  id: string;
-  month: string;
-  category: string;
-  title: string;
-  description?: string;
-  status: ChecklistItemStatus;
-  completedBy?: string;
-  completedAt?: string;
-  notes?: string;
-  sortOrder: number;
-}
+// ChecklistItemStatus and MonthlyChecklistItem defined below with full type aliases
 
 export interface BankSyncStatus {
   lastSyncAt: string | null;
@@ -633,6 +622,44 @@ export interface AccountingSummary {
   entryCount: number;
   draftCount: number;
   currency: string;
+}
+
+// ── Type aliases for compatibility ───────────────────────────────────────────
+export type ChecklistItemStatus = CloseChecklistItemStatus;
+export type OutboundStatus = OutboundInvoiceStatus;
+
+// Simpler checklist item shape used by SupabaseCloseService / MockCloseService
+export interface MonthlyChecklistItem {
+  id: string;
+  month: string;
+  category: string;
+  title: string;
+  description?: string;
+  status: CloseChecklistItemStatus;
+  completedBy?: string;
+  completedAt?: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface BankSyncStatus {
+  lastSyncAt: string | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  message: string;
+  unresolvedCount: number;
+}
+
+export interface DriveFolder {
+  folderId: string;
+  folderName: string;
+}
+
+export interface DriveFile {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  webViewLink: string;
+  createdAt?: string;
 }
 
 // ── Phase 11: Reporting Dashboard ─────────────────────────────────────────────

@@ -387,9 +387,11 @@ export class MockClientService implements IClientService {
 }
 
 export class MockLeadService implements ILeadService {
-  async listLeads(filters?: { stage?: LeadStage }): Promise<Lead[]> {
-    const all = loadLeads();
-    if (filters?.stage) return all.filter(l => l.stage === filters.stage);
+  async listLeads(filters?: { stage?: LeadStage; assignedTo?: string; clientId?: string }): Promise<Lead[]> {
+    let all = loadLeads();
+    if (filters?.stage) all = all.filter(l => l.stage === filters.stage);
+    if (filters?.assignedTo) all = all.filter(l => l.assignedTo === filters.assignedTo);
+    if (filters?.clientId) all = all.filter(l => l.clientId === filters.clientId);
     return all;
   }
   async getLead(id: string): Promise<Lead | null> { return loadLeads().find(l => l.id === id) ?? null; }

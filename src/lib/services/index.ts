@@ -240,7 +240,7 @@ export function getOutboundInvoiceService(): IOutboundInvoiceService {
   }
   return _outboundInvoice;
 }
-export const getCloseService = getCloseChecklistService;
+export const getOutboundService = getOutboundInvoiceService;
 
 // ── Monthly Close Checklist (Phase 10) ────────────────────────────────────────
 export function getCloseChecklistService(): ICloseChecklistService {

@@ -54,7 +54,6 @@ function fromRow(row: Record<string, unknown>): OutboundInvoice {
     approvedAt: (row.approved_at as string) || null,
     createdAt: row.created_at as string,
     updatedAt: (row.updated_at as string) || (row.created_at as string),
-    // Compact outbound fields
     amount,
     billingDate,
     driveFileId: (row.drive_file_id as string) || undefined,

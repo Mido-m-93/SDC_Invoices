@@ -1,4 +1,5 @@
-// GET /api/auth/moneyforward/callback — exchange authorization code for tokens
+
+// GET /api/auth/moneyforward/callback â€” exchange authorization code for tokens
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeMFCode } from "@/lib/services/real/MoneyForwardService";
 

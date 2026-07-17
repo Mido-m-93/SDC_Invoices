@@ -1,23 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import type { Lead, LeadStage } from "@/types";
+import LeadKanban from "@/components/pipeline/LeadKanban";
+import type { Lead, LeadStage, Client } from "@/types";
 import { generateId } from "@/lib/utils";
 
 const STAGES: LeadStage[] = ["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "on_hold"];
 
 const STAGE_LABELS: Record<LeadStage, string> = {
-  new: "New",
-  contacted: "Contacted",
-  qualified: "Qualified",
-  proposal_sent: "Proposal Sent",
-  negotiation: "Negotiation",
-  won: "Won",
-  lost: "Lost",
-  on_hold: "On Hold",
+  new: "New", contacted: "Contacted", qualified: "Qualified",
+  proposal_sent: "Proposal Sent", negotiation: "Negotiation",
+  won: "Won", lost: "Lost", on_hold: "On Hold",
 };
 
 const STAGE_COLORS: Record<LeadStage, string> = {
@@ -26,36 +22,22 @@ const STAGE_COLORS: Record<LeadStage, string> = {
   qualified: "bg-indigo-100 text-indigo-700",
   proposal_sent: "bg-violet-100 text-violet-700",
   negotiation: "bg-amber-100 text-amber-700",
-  won: "bg-green-100 text-green-700",
+  won: "bg-emerald-100 text-emerald-700",
   lost: "bg-red-100 text-red-600",
   on_hold: "bg-orange-100 text-orange-700",
 };
 
 const EMPTY_FORM: Omit<Lead, "id" | "createdAt" | "updatedAt" | "proposalId"> = {
-  title: "",
-  clientId: "",
-  clientName: "",
-  contactName: "",
-  contactEmail: "",
-  source: "inbound",
-  stage: "new",
-  estimatedValue: 0,
-  currency: "JPY",
-  probability: 0,
-  expectedCloseDate: "",
-  assignedTo: "",
-  notes: "",
-  lostReason: "",
+  title: "", clientId: "", clientName: "", contactName: "", contactEmail: "",
+  source: "inbound", stage: "new", estimatedValue: 0, currency: "JPY",
+  probability: 0, expectedCloseDate: "", assignedTo: "", notes: "", lostReason: "",
 };
-
-interface LeadSummaryByStage {
-  byStage: Record<LeadStage, number>;
-}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [summary, setSummary] = useState<LeadSummaryByStage | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
   const [stageFilter, setStageFilter] = useState<LeadStage | "all">("all");
+  const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
@@ -66,18 +48,34 @@ export default function LeadsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/leads");
-      const data = await res.json() as { leads: Lead[]; summary?: LeadSummaryByStage };
-      setLeads(data.leads ?? []);
-      if (data.summary) setSummary(data.summary);
+      const [lRes, cRes] = await Promise.all([
+        fetch("/api/leads"),
+        fetch("/api/clients"),
+      ]);
+      const lData = await lRes.json() as { leads: Lead[] };
+      const cData = await cRes.json() as { clients: Client[] };
+      setLeads(lData.leads ?? []);
+      setClients(cData.clients ?? []);
     } catch {
-      setError("Failed to load leads");
+      setError("Failed to load data");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const summary = useMemo(() => {
+    const active = leads.filter(l => !["won", "lost"].includes(l.stage));
+    const won = leads.filter(l => l.stage === "won");
+    return {
+      total: leads.length,
+      active: active.length,
+      pipelineValue: active.reduce((s, l) => s + l.estimatedValue, 0),
+      won: won.length,
+      wonValue: won.reduce((s, l) => s + l.estimatedValue, 0),
+    };
+  }, [leads]);
 
   function openNew() {
     setEditing(null);
@@ -123,23 +121,67 @@ export default function LeadsPage() {
     load();
   }
 
+  async function handleStageChange(id: string, stage: LeadStage) {
+    try {
+      await fetch(`/api/leads/${id}/stage`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      setLeads(ls => ls.map(l => l.id === id ? { ...l, stage } : l));
+    } catch {
+      setError("Failed to update stage");
+    }
+  }
+
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const filtered = stageFilter === "all" ? leads : leads.filter((l) => l.stage === stageFilter);
 
-  const stageCount = (stage: LeadStage): number => {
-    if (summary) return summary.byStage[stage] ?? 0;
-    return leads.filter((l) => l.stage === stage).length;
-  };
+  const stageCount = (stage: LeadStage) => leads.filter((l) => l.stage === stage).length;
 
   return (
     <AppShell>
       <PageHeader
         title="Lead Pipeline"
         subtitle="Sales pipeline from prospect to won deal"
-        actions={<Button variant="primary" onClick={openNew}>+ Add Lead</Button>}
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "table" ? "bg-white shadow text-stone-800" : "text-stone-500 hover:text-stone-700"}`}
+              >
+                Table
+              </button>
+              <button
+                onClick={() => setViewMode("board")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${viewMode === "board" ? "bg-white shadow text-stone-800" : "text-stone-500 hover:text-stone-700"}`}
+              >
+                Board
+              </button>
+            </div>
+            <Button variant="primary" onClick={openNew}>+ Add Lead</Button>
+          </div>
+        }
       />
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-4 gap-4 mb-5">
+        {[
+          { label: "Total Leads", value: summary.total },
+          { label: "Active Pipeline", value: `¥${summary.pipelineValue.toLocaleString("ja-JP")}`, sub: `${summary.active} leads` },
+          { label: "Won", value: summary.won, sub: summary.wonValue > 0 ? `¥${summary.wonValue.toLocaleString("ja-JP")}` : undefined },
+          { label: "Stages", value: STAGES.filter(s => stageCount(s) > 0).length + " active" },
+        ].map(({ label, value, sub }) => (
+          <div key={label} className="bg-white rounded-xl border border-stone-200 px-4 py-3">
+            <div className="text-xs text-stone-400 font-medium mb-1">{label}</div>
+            <div className="text-lg font-semibold text-stone-800">{value}</div>
+            {sub && <div className="text-xs text-stone-400 mt-0.5">{sub}</div>}
+          </div>
+        ))}
+      </div>
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
@@ -148,41 +190,40 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Stage filter pills */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          onClick={() => setStageFilter("all")}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-            stageFilter === "all"
-              ? "bg-[#1a3d2b] text-white border-[#1a3d2b]"
-              : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
-          }`}
-        >
-          All
-          <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${stageFilter === "all" ? "bg-white/20" : "bg-stone-100"}`}>
-            {leads.length}
-          </span>
-        </button>
-        {STAGES.map((stage) => (
+      {/* Stage filter pills (table mode only) */}
+      {viewMode === "table" && (
+        <div className="flex flex-wrap gap-2 mb-4">
           <button
-            key={stage}
-            onClick={() => setStageFilter(stage)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-              stageFilter === stage
-                ? "bg-[#1a3d2b] text-white border-[#1a3d2b]"
-                : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
-            }`}
+            onClick={() => setStageFilter("all")}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${stageFilter === "all" ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"}`}
           >
-            {STAGE_LABELS[stage]}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${stageFilter === stage ? "bg-white/20" : "bg-stone-100"}`}>
-              {stageCount(stage)}
-            </span>
+            All
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${stageFilter === "all" ? "bg-white/20" : "bg-stone-100"}`}>{leads.length}</span>
           </button>
-        ))}
-      </div>
+          {STAGES.map((stage) => (
+            <button
+              key={stage}
+              onClick={() => setStageFilter(stage)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${stageFilter === stage ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"}`}
+            >
+              {STAGE_LABELS[stage]}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${stageFilter === stage ? "bg-white/20" : "bg-stone-100"}`}>{stageCount(stage)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-stone-400">Loading…</p>
+      ) : viewMode === "board" ? (
+        leads.length === 0 ? (
+          <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+            <p className="text-stone-400 text-sm">No leads yet.</p>
+            <Button variant="primary" className="mt-4" onClick={openNew}>Add your first lead</Button>
+          </div>
+        ) : (
+          <LeadKanban leads={leads} onEdit={openEdit} onStageChange={handleStageChange} />
+        )
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-400 text-sm">No leads found.</p>
@@ -197,7 +238,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 text-left">Client</th>
                 <th className="px-4 py-3 text-left">Stage</th>
                 <th className="px-4 py-3 text-left">Value</th>
-                <th className="px-4 py-3 text-left">Probability (%)</th>
+                <th className="px-4 py-3 text-left">Prob.</th>
                 <th className="px-4 py-3 text-left">Expected Close</th>
                 <th className="px-4 py-3 text-left">Assigned To</th>
                 <th className="px-4 py-3 text-left">Actions</th>
@@ -214,9 +255,7 @@ export default function LeadsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-stone-700">
-                    {l.estimatedValue > 0
-                      ? `${l.currency === "JPY" ? "¥" : l.currency + " "}${l.estimatedValue.toLocaleString()}`
-                      : "—"}
+                    {l.estimatedValue > 0 ? `¥${l.estimatedValue.toLocaleString()}` : "—"}
                   </td>
                   <td className="px-4 py-3 text-stone-600">{l.probability > 0 ? `${l.probability}%` : "—"}</td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{l.expectedCloseDate || "—"}</td>
@@ -243,14 +282,22 @@ export default function LeadsPage() {
               <Field label="Title *">
                 <input className={input} value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Deal or opportunity title" />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Client ID">
-                  <input className={input} value={form.clientId} onChange={(e) => set("clientId", e.target.value)} placeholder="client-001" />
-                </Field>
-                <Field label="Client Name">
-                  <input className={input} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} placeholder="Acme Corp" />
-                </Field>
-              </div>
+              <Field label="Client">
+                <select
+                  className={input}
+                  value={form.clientId}
+                  onChange={(e) => {
+                    const client = clients.find(c => c.id === e.target.value);
+                    setForm(f => ({ ...f, clientId: e.target.value, clientName: client?.name ?? f.clientName }));
+                  }}
+                >
+                  <option value="">— Select from clients list (optional) —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Client Name">
+                <input className={input} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} placeholder="Company name (freetext if not in list)" />
+              </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Contact Name">
                   <input className={input} value={form.contactName} onChange={(e) => set("contactName", e.target.value)} placeholder="Jane Smith" />
@@ -272,9 +319,7 @@ export default function LeadsPage() {
                 </Field>
                 <Field label="Stage">
                   <select className={input} value={form.stage} onChange={(e) => set("stage", e.target.value as LeadStage)}>
-                    {STAGES.map((s) => (
-                      <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-                    ))}
+                    {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
                   </select>
                 </Field>
               </div>
@@ -284,9 +329,9 @@ export default function LeadsPage() {
                 </Field>
                 <Field label="Currency">
                   <select className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
-                    <option value="JPY">JPY — Japanese Yen</option>
-                    <option value="USD">USD — US Dollar</option>
-                    <option value="EUR">EUR — Euro</option>
+                    <option value="JPY">JPY</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
                   </select>
                 </Field>
               </div>

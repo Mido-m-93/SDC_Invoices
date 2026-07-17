@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { getAccountingService } from "@/lib/services";
 import { generateId } from "@/lib/utils";

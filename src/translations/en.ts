@@ -249,6 +249,9 @@ const en = {
   config_payment_terms: "Payment terms (days after end of closing month)",
   config_escalation_recipient: "Escalation recipient",
   config_escalation_placeholder: "Email address or Teams mention",
+  action_send_to_mf: "Send to Money Forward",
+  mf_sent: "Sent to Money Forward",
+  action_view_in_mf: "View in Money Forward",
 } as const;
 
 export default en;

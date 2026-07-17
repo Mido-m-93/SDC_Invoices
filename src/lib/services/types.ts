@@ -214,6 +214,11 @@ export interface IExpenseService {
   deleteClaim(id: string): Promise<void>;
   updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void>;
   validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
+  // Aliases used by some routes / services
+  listExpenses?(filters?: { status?: string; month?: string }): Promise<ExpenseClaim[]>;
+  getExpense?(id: string): Promise<ExpenseClaim | null>;
+  saveExpense?(claim: ExpenseClaim): Promise<void>;
+  deleteExpense?(id: string): Promise<void>;
 }
 
 // ── Outbound invoice service (Phase 9) ────────────────────────────────────────

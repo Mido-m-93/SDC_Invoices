@@ -60,3 +60,5 @@ automation/**/logs/
 # Excel データ
 *.xlsx
 *.xls
+
+.vercel

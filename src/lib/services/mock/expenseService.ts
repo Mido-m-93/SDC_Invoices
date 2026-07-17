@@ -54,7 +54,6 @@ export class MockExpenseService implements IExpenseService {
         ? "NEEDS_REVIEW"
         : "OK";
 
-    // Persist updated violations back to disk
     saveExpenseClaim({ ...claim, policyViolations: violations, updatedAt: new Date().toISOString() });
 
     return {
@@ -72,4 +71,15 @@ export class MockExpenseService implements IExpenseService {
       extractedVendor:      claim.extractedVendor,
     };
   }
+
+  async listExpenses(filters?: { status?: string; month?: string }): Promise<ExpenseClaim[]> {
+    let list = loadExpenseClaims();
+    if (filters?.status) list = list.filter((c) => c.status === filters.status);
+    if (filters?.month)  list = list.filter((c) => c.submittedAt.startsWith(filters.month!));
+    return list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  }
+
+  async getExpense(id: string): Promise<ExpenseClaim | null> { return this.getClaim(id); }
+  async saveExpense(claim: ExpenseClaim): Promise<void> { return this.saveClaim(claim); }
+  async deleteExpense(id: string): Promise<void> { return this.deleteClaim(id); }
 }

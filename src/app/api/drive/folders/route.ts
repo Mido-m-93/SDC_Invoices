@@ -1,9 +1,10 @@
+
 // GET /api/drive/folders?month=2025-06
 //
 // Returns month subfolders (no ?month) or all files inside a specific month folder.
 //
-// Without ?month  → { folders: DriveFolder[] }
-// With    ?month  → { folderId, files: DriveFile[] }
+// Without ?month  â†’ { folders: DriveFolder[] }
+// With    ?month  â†’ { folderId, files: DriveFile[] }
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDriveService } from "@/lib/services";

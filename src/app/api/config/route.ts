@@ -1,3 +1,4 @@
+
 // src/app/api/config/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";

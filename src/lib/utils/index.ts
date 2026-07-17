@@ -185,9 +185,3 @@ export function formatAmount(n: number, currency: string): string {
   const { symbol, locale } = CURRENCY_FORMAT[currency] ?? CURRENCY_FORMAT.JPY;
   return `${symbol}${n.toLocaleString(locale)}`;
 }
-
-export function detectCurrency(raw: string): string {
-  if (/[$＄]/.test(raw)) return "USD";
-  if (/[€]/.test(raw)) return "EUR";
-  return "JPY";
-}

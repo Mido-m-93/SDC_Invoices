@@ -6,7 +6,8 @@ import type { Proposal } from "@/types";
 function toRow(p: Proposal): Record<string, unknown> {
   return {
     id: p.id,
-    vendor_id: p.vendorId,
+    vendor_id: "",          // NOT NULL legacy column — kept empty, client_id is the real link
+    client_id: p.clientId,
     project_name: p.projectName,
     proposal_date: p.proposalDate,
     estimated_amount: p.estimatedAmount,
@@ -22,15 +23,17 @@ function toRow(p: Proposal): Record<string, unknown> {
 function fromRow(row: Record<string, unknown>): Proposal {
   return {
     id: row.id as string,
-    vendorId: row.vendor_id as string,
+    // handle legacy rows that stored vendor_id before the rename
+    clientId: ((row.client_id ?? row.vendor_id) as string) ?? "",
+    clientName: (row.client_name as string | null) ?? undefined,
     projectName: row.project_name as string,
     proposalDate: row.proposal_date as string,
     estimatedAmount: row.estimated_amount as number,
     currency: row.currency as string,
     description: row.description as string,
     status: row.status as Proposal["status"],
-    contractId: row.contract_id as string | undefined,
-    folderUrl: row.folder_url as string | undefined,
+    contractId: (row.contract_id as string | null) ?? undefined,
+    folderUrl: (row.folder_url as string | null) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

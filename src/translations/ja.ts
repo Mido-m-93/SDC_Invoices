@@ -249,6 +249,9 @@ const ja = {
   config_payment_terms: "支払期日の基準（締め月末日から何日後）",
   config_escalation_recipient: "エスカレーション通知先",
   config_escalation_placeholder: "メールアドレス または Teamsのメンション",
+  action_send_to_mf: "Money Forwardへ送信",
+  mf_sent: "Money Forwardに送信済み",
+  action_view_in_mf: "Money Forwardで確認",
 } as const;
 
 export default ja;
