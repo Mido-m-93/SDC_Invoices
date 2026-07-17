@@ -310,7 +310,7 @@ async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoice
     console.log("[pdfExtractor] OpenAI Responses raw:", responseText.slice(0, 400));
     return parseOpenAIResponse(responseText);
   } finally {
-    await client.files.del(uploadedFile.id).catch((e: unknown) =>
+    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
       console.warn("[pdfExtractor] File cleanup failed:", e)
     );
   }
