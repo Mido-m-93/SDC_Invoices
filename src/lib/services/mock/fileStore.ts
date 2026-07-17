@@ -18,6 +18,8 @@ import type {
   Lead,
   Member,
   ExpenseClaim,
+  StagedPipelineRecord,
+  PipelineSyncAuditEntry,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -37,6 +39,8 @@ interface MockStore {
   leads: Lead[];
   members: Member[];
   expenseClaims: ExpenseClaim[];
+  stagedPipelineRecords: StagedPipelineRecord[];
+  pipelineAuditLog: PipelineSyncAuditEntry[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -103,6 +107,8 @@ export function readStore(): MockStore {
     leads: [],
     members: [],
     expenseClaims: [],
+    stagedPipelineRecords: [],
+    pipelineAuditLog: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -125,6 +131,8 @@ export function readStore(): MockStore {
       leads:             store.leads?.length        ? store.leads        : SEED_LEADS,
       members:           store.members ?? [],
       expenseClaims:     store.expenseClaims?.length ? store.expenseClaims : SEED_EXPENSES,
+      stagedPipelineRecords: store.stagedPipelineRecords ?? [],
+      pipelineAuditLog:      store.pipelineAuditLog ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -421,4 +429,29 @@ export function updateExpenseClaimStatus(
     claim.paidAt = now;
   }
   writeStore(store);
+}
+
+// ── Pipeline sync — staged records + audit log ────────────────────────────────
+
+export function loadStagedPipelineRecords(): StagedPipelineRecord[] {
+  return readStore().stagedPipelineRecords;
+}
+
+export function saveStagedPipelineRecord(record: StagedPipelineRecord): void {
+  const store = readStore();
+  const idx = store.stagedPipelineRecords.findIndex((r) => r.id === record.id);
+  if (idx >= 0) store.stagedPipelineRecords[idx] = record;
+  else store.stagedPipelineRecords.push(record);
+  writeStore(store);
+}
+
+export function appendPipelineAuditEntry(entry: PipelineSyncAuditEntry): void {
+  const store = readStore();
+  store.pipelineAuditLog.push(entry);
+  writeStore(store);
+}
+
+export function loadPipelineAuditLog(recordId?: string): PipelineSyncAuditEntry[] {
+  const all = readStore().pipelineAuditLog;
+  return recordId ? all.filter((e) => e.recordId === recordId) : all;
 }

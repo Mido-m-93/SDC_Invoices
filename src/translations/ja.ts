@@ -153,6 +153,7 @@ const ja = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "取引先",
   nav_contracts: "契約",
+  nav_pipeline_sync: "パイプライン同期",
   nav_clients: "取引先",
   nav_leads: "リード",
   nav_members: "メンバー",

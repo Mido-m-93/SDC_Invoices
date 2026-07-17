@@ -518,6 +518,7 @@ export interface Client {
   taxRegistrationNumber: string;
   status: ClientStatus;
   notes: string;
+  aliases?: string[]; // alternate names learned from pipeline-sync corrections
   createdAt: string;
   updatedAt: string;
 }
@@ -687,4 +688,47 @@ export interface ReportingKPIs {
   activeVendors: number;
   activeContracts: number;
   vendorsWithMissingInvoice: number;
+}
+
+// ── Pipeline Sync (Notion + SharePoint → matching → review queue) ────────────
+export type PipelineSourceType = "notion" | "sharepoint";
+export type PipelineRecordStatus = "auto_linked" | "needs_review" | "approved" | "rejected";
+
+export interface PipelineMatchCandidate {
+  clientId: string;
+  clientName: string;
+  score: number; // 0–1
+}
+
+export interface StagedPipelineRecord {
+  id: string;
+  source: PipelineSourceType;
+  sourceRef: string;
+  rawClientName: string;
+  projectName: string;
+  stageOrStatus: string;
+  estimatedAmount: number | null;
+  currency: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  notes: string | null;
+  matchedClientId: string | null;
+  matchedClientName: string | null;
+  matchConfidence: number; // 0–1
+  matchCandidates: PipelineMatchCandidate[];
+  status: PipelineRecordStatus;
+  reviewerComment: string | null;
+  createdLeadId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PipelineSyncAuditEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: "sync" | "extract" | "match" | "approve" | "reject";
+  recordId: string | null;
+  source: PipelineSourceType | null;
+  detail: string;
 }
