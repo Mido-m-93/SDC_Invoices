@@ -109,9 +109,10 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
   const pdfTotal      = v.extractedFields?.total ?? v.extractedFields?.subtotal ?? null;
   const rawPayerName  = submission?.payerName?.trim() ?? null;
   const isEmailPayer  = !!rawPayerName?.includes("@");
+  // memberName = the actual name on the invoice PDF (who issued it).
+  // Always prefer this over the form's payerName, which may be a nickname or email.
   const pdfPayeeName  = v.extractedFields?.memberName ?? null;
-  // When the submitter provided an email, show the PDF-extracted payee name instead
-  const displayName   = isEmailPayer ? pdfPayeeName : rawPayerName;
+  const displayName   = pdfPayeeName ?? (isEmailPayer ? null : rawPayerName);
   const nameMismatch  = pdfIssues.some((i) => i.startsWith("PAYEE_NAME_MISMATCH"));
 
   const amountLine = formAmount && pdfTotal !== null
@@ -162,10 +163,8 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
     !driveIssue  ? "pass" :
     "warn";
 
-  // For email payers, show the PDF-extracted name (the actual search term) not the email
-  const driveSearchLabel = isEmailPayer
-    ? (pdfPayeeName ?? "this submitter")
-    : (rawPayerName ?? "this payer");
+  // Always show the AI-extracted member name for Drive search label; fall back to form name
+  const driveSearchLabel = pdfPayeeName ?? rawPayerName ?? "this member";
 
   const currency = detectCurrency(submission?.claimedAmountTaxIncluded ?? "");
   const pdfAmountStr = pdfTotal !== null ? formatAmount(pdfTotal, currency) : null;
