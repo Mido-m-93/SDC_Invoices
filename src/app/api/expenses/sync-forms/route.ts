@@ -191,11 +191,28 @@ async function getGraphToken(): Promise<string> {
 }
 
 async function fetchExcelFromOneDrive(): Promise<Buffer> {
-  const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
-  const itemId   = process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID!;
-  const token    = await getGraphToken();
+  const ownerUpn    = process.env.MICROSOFT_OWNER_UPN!;
+  const itemId      = process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID!;
+  const token       = await getGraphToken();
 
-  // Resolve the user's personal OneDrive drive ID
+  // MICROSOFT_EXPENSE_EXCEL_ITEM_ID may be stored as "driveId|itemId" (from GET endpoint)
+  // or as a plain item ID (legacy). Support both formats.
+  const pipeIdx = itemId.indexOf("|");
+  if (pipeIdx !== -1) {
+    const driveId  = itemId.slice(0, pipeIdx);
+    const realItem = itemId.slice(pipeIdx + 1);
+    const fileRes  = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${realItem}/content`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!fileRes.ok) {
+      const body = await fileRes.text().catch(() => "");
+      throw new Error(`Excel file download failed ${fileRes.status}: ${body}`);
+    }
+    return Buffer.from(await fileRes.arrayBuffer());
+  }
+
+  // Plain item ID: try personal OneDrive first, then fall back to user-scoped item lookup
   const driveRes = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -206,11 +223,20 @@ async function fetchExcelFromOneDrive(): Promise<Buffer> {
   }
   const { id: driveId } = await driveRes.json() as { id: string };
 
-  // Download the Excel file content
-  const fileRes = await fetch(
+  // Try personal drive first
+  let fileRes = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+
+  // If not found in personal drive, try accessing the item directly across all drives
+  if (fileRes.status === 404) {
+    fileRes = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/items/${itemId}/content`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
   if (!fileRes.ok) {
     const body = await fileRes.text().catch(() => "");
     throw new Error(`Excel file download failed ${fileRes.status}: ${body}`);
@@ -235,16 +261,26 @@ export async function GET() {
     );
     const { id: driveId } = await driveRes.json() as { id: string };
 
-    // List Excel files in the drive root and Forms folder
+    // List Excel files — search personal OneDrive
     const listRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size&$top=20`,
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=30`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    const { value: files } = await listRes.json() as { value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number }> };
+    const { value: files } = await listRes.json() as {
+      value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string } }>
+    };
 
     return NextResponse.json({
-      hint: "Copy the 'id' of your Forms Excel file and set it as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel",
-      files: files.map((f) => ({ id: f.id, name: f.name, lastModified: f.lastModifiedDateTime, sizeKB: Math.round(f.size / 1024) })),
+      hint: "Use the 'envValue' (driveId|itemId) as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel",
+      files: files.map((f) => {
+        const fDriveId = f.parentReference?.driveId ?? driveId;
+        return {
+          name:         f.name,
+          envValue:     `${fDriveId}|${f.id}`,
+          lastModified: f.lastModifiedDateTime,
+          sizeKB:       Math.round(f.size / 1024),
+        };
+      }),
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
