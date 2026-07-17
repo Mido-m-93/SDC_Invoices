@@ -284,7 +284,12 @@ async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoice
   // Upload to OpenAI Files API first, then reference by file_id — the officially
   // supported way to process PDFs with the Responses API.
   console.log("[pdfExtractor] OpenAI path B: uploading PDF to Files API for vision");
-  const fileBlob = new File([pdfBytes], "invoice.pdf", { type: "application/pdf" });
+  // Uint8Array.buffer may be SharedArrayBuffer — slice to a plain ArrayBuffer for File ctor
+  const plainBuffer = pdfBytes.buffer.slice(
+    pdfBytes.byteOffset,
+    pdfBytes.byteOffset + pdfBytes.byteLength
+  ) as ArrayBuffer;
+  const fileBlob = new File([plainBuffer], "invoice.pdf", { type: "application/pdf" });
   const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
   console.log(`[pdfExtractor] OpenAI Files API upload ok: ${uploadedFile.id}`);
   try {

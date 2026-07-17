@@ -151,13 +151,17 @@ export async function POST(req: NextRequest) {
             const normName = (s: string) => s.toLowerCase().replace(/[\s_\-.　]+/g, "");
             const isEmail  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sub.payerName.trim());
 
-            // If payerName is an email, use the PDF-extracted payee name instead
+            // Always prefer the AI-extracted name from the invoice PDF (memberName).
+            // The form's payerName may be misspelled, an email, or different from what
+            // is actually printed on the invoice — the AI reads the real document.
+            // Fall back to the form name only when extraction produced no name.
             const pdfPayeeName = baseResults[idx]?.extractedFields?.memberName ?? null;
-            if (isEmail && !pdfPayeeName) {
-              console.log(`[Drive check] "${sub.payerName}" is an email with no PDF payee name — cannot verify`);
+            const searchName = pdfPayeeName ?? (!isEmail ? sub.payerName : null);
+            if (!searchName) {
+              console.log(`[Drive check] "${sub.payerName}" is an email with no PDF-extracted name — cannot verify`);
               return { cannotVerify: true, reason: "payerName is an email address and no name was found in the invoice PDF" };
             }
-            const searchName = isEmail ? pdfPayeeName! : sub.payerName;
+            console.log(`[Drive check] search name: "${searchName}"${pdfPayeeName ? " (from PDF)" : " (from form, no PDF extraction)"}`);
             const payerNorm  = normName(searchName);
             const FOLDER_MIME = "application/vnd.google-apps.folder";
 
