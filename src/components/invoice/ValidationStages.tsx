@@ -1,6 +1,7 @@
 "use client";
 import type { InvoiceValidationResult, InvoiceSubmission } from "@/types";
 import { useLanguage } from "@/translations";
+import { formatAmount, detectCurrency } from "@/lib/utils";
 
 type StageStatus = "pass" | "warn" | "fail";
 
@@ -166,9 +167,17 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
     ? (pdfPayeeName ?? "this submitter")
     : (rawPayerName ?? "this payer");
 
+  const currency = detectCurrency(submission?.claimedAmountTaxIncluded ?? "");
+  const pdfAmountStr = pdfTotal !== null ? formatAmount(pdfTotal, currency) : null;
+
   const stage3Detail = (() => {
     if (driveSkipped) return `⚠ ${driveSkipped.replace(/^drive check skipped:\s*/i, "").trim()} — ${t("stage3_manual")}`;
-    if (!driveIssue) return t("stage3_ok").replace("{name}", driveSearchLabel);
+    if (!driveIssue) {
+      const base = t("stage3_ok").replace("{name}", driveSearchLabel);
+      return pdfAmountStr
+        ? `${base}\n${language === "ja" ? `照合した金額: ${pdfAmountStr}` : `Checked amount: ${pdfAmountStr}`}`
+        : base;
+    }
     if (language !== "ja") return driveIssue;
     // Translate the Drive filing message line by line
     return driveIssue
