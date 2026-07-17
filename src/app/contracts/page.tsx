@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import type { Contract, Vendor } from "@/types";
+import { useLanguage } from "@/translations";
 
 const EMPTY_CONTRACT: Omit<Contract, "id" | "createdAt"> = {
   vendorId: "",
@@ -18,6 +19,7 @@ const EMPTY_CONTRACT: Omit<Contract, "id" | "createdAt"> = {
 };
 
 export default function ContractsPage() {
+  const { t } = useLanguage();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,11 +41,11 @@ export default function ContractsPage() {
       setContracts(cData.contracts ?? []);
       setVendors(vData.vendors ?? []);
     } catch {
-      setError("Failed to load contracts");
+      setError(t("contracts_load_error"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,14 +70,14 @@ export default function ContractsPage() {
       setShowForm(false);
       load();
     } catch {
-      setError("Failed to save contract");
+      setError(t("contracts_save_error"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this contract?")) return;
+    if (!confirm(t("contracts_delete_confirm"))) return;
     await fetch(`/api/contracts/${id}`, { method: "DELETE" });
     load();
   }
@@ -85,12 +87,18 @@ export default function ContractsPage() {
 
   const vendorName = (id: string) => vendors.find((v) => v.id === id)?.name ?? id;
 
+  const statusLabel = (status: Contract["status"]) => {
+    if (status === "active") return t("contracts_status_active");
+    if (status === "expired") return t("contracts_status_expired");
+    return t("contracts_status_cancelled");
+  };
+
   return (
     <AppShell>
       <PageHeader
-        title="Contract Master"
-        subtitle="Active contracts used for invoice amount and period validation"
-        actions={<Button variant="primary" onClick={openNew}>+ Add Contract</Button>}
+        title={t("contracts_title")}
+        subtitle={t("contracts_subtitle")}
+        actions={<Button variant="primary" onClick={openNew}>{t("contracts_add")}</Button>}
       />
 
       {error && (
@@ -101,24 +109,24 @@ export default function ContractsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : contracts.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No contracts registered yet.</p>
-          <Button variant="primary" className="mt-4" onClick={openNew}>Add your first contract</Button>
+          <p className="text-stone-400 text-sm">{t("contracts_empty")}</p>
+          <Button variant="primary" className="mt-4" onClick={openNew}>{t("contracts_add_first")}</Button>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">Vendor</th>
-                <th className="px-4 py-3 text-left">Project</th>
-                <th className="px-4 py-3 text-left">Period</th>
-                <th className="px-4 py-3 text-left">Monthly Amount</th>
-                <th className="px-4 py-3 text-left">Payment Terms</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_vendor")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_project")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_period")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_monthly_amount")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_payment_terms")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -139,12 +147,12 @@ export default function ContractsPage() {
                       c.status === "expired" ? "bg-stone-100 text-stone-500" :
                       "bg-red-100 text-red-600"
                     }`}>
-                      {c.status}
+                      {statusLabel(c.status)}
                     </span>
                   </td>
                   <td className="px-4 py-3 flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("contracts_action_edit")}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("contracts_action_delete")}</Button>
                   </td>
                 </tr>
               ))}
@@ -157,53 +165,53 @@ export default function ContractsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{editing ? "Edit Contract" : "Add Contract"}</h2>
+              <h2 className="text-base font-semibold">{editing ? t("contracts_modal_edit_title") : t("contracts_modal_add_title")}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <Field label="Vendor *">
+              <Field label={t("contracts_field_vendor")}>
                 <select className={input} value={form.vendorId} onChange={(e) => set("vendorId", e.target.value)}>
-                  <option value="">— Select vendor —</option>
+                  <option value="">{t("contracts_select_vendor")}</option>
                   {vendors.filter((v) => v.status === "active").map((v) => (
                     <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Project Name">
-                <input className={input} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} placeholder="Project or engagement name" />
+              <Field label={t("contracts_field_project_name")}>
+                <input className={input} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} placeholder={t("contracts_placeholder_project_name")} />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Start Date *">
+                <Field label={t("contracts_field_start_date")}>
                   <input type="date" className={input} value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
                 </Field>
-                <Field label="End Date *">
+                <Field label={t("contracts_field_end_date")}>
                   <input type="date" className={input} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} />
                 </Field>
               </div>
-              <Field label="Expected Monthly Amount (¥)">
+              <Field label={t("contracts_field_monthly_amount")}>
                 <input type="number" className={input} value={form.expectedMonthlyAmount || ""} onChange={(e) => set("expectedMonthlyAmount", Number(e.target.value))} placeholder="330000" />
               </Field>
-              <Field label="Currency">
+              <Field label={t("contracts_field_currency")}>
                 <select className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
-                  <option value="JPY">JPY — Japanese Yen</option>
-                  <option value="USD">USD — US Dollar</option>
-                  <option value="EUR">EUR — Euro</option>
+                  <option value="JPY">{t("contracts_currency_jpy")}</option>
+                  <option value="USD">{t("contracts_currency_usd")}</option>
+                  <option value="EUR">{t("contracts_currency_eur")}</option>
                 </select>
               </Field>
-              <Field label="Payment Terms">
-                <input className={input} value={form.paymentTerms} onChange={(e) => set("paymentTerms", e.target.value)} placeholder="月末締め翌月末払い" />
+              <Field label={t("contracts_field_payment_terms")}>
+                <input className={input} value={form.paymentTerms} onChange={(e) => set("paymentTerms", e.target.value)} placeholder="e.g. 月末締め翌月末払い (net 60, end of month)" />
               </Field>
-              <Field label="Status">
+              <Field label={t("contracts_field_status")}>
                 <select className={input} value={form.status} onChange={(e) => set("status", e.target.value as Contract["status"])}>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="active">{t("contracts_status_active")}</option>
+                  <option value="expired">{t("contracts_status_expired")}</option>
+                  <option value="cancelled">{t("contracts_status_cancelled")}</option>
                 </select>
               </Field>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button variant="primary" loading={saving} onClick={handleSave}>Save Contract</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>{t("contracts_save_button")}</Button>
             </div>
           </div>
         </div>

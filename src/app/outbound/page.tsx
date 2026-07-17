@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import clsx from "clsx";
 import type { OutboundInvoice, OutboundStatus } from "@/types";
+import { useLanguage } from "@/translations";
+import type { TranslationKey } from "@/translations";
 
 const STATUS_COLORS: Record<OutboundStatus, string> = {
   draft:    "bg-stone-100 text-stone-600",
@@ -13,9 +15,18 @@ const STATUS_COLORS: Record<OutboundStatus, string> = {
   cancelled: "bg-stone-100 text-stone-500",
 };
 
+const STATUS_LABEL_KEYS: Record<OutboundStatus, TranslationKey> = {
+  draft:     "outbound_legacy_status_draft",
+  sent:      "outbound_legacy_status_sent",
+  paid:      "outbound_legacy_status_paid",
+  overdue:   "outbound_legacy_status_overdue",
+  cancelled: "outbound_legacy_status_cancelled",
+};
+
 type FilterStatus = "all" | OutboundStatus;
 
 export default function OutboundPage() {
+  const { t } = useLanguage();
   const [invoices, setInvoices]       = useState<OutboundInvoice[]>([]);
   const [loading, setLoading]         = useState(true);
   const [filter, setFilter]           = useState<FilterStatus>("all");
@@ -89,24 +100,24 @@ export default function OutboundPage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-stone-900">Outbound Invoices</h1>
-            <p className="mt-1 text-sm text-stone-500">Phase 9 — Invoices issued to clients, payment tracking</p>
+            <h1 className="text-2xl font-bold text-stone-900">{t("outbound_legacy_title")}</h1>
+            <p className="mt-1 text-sm text-stone-500">{t("outbound_legacy_subtitle")}</p>
           </div>
           <button
             onClick={() => setShowForm(true)}
             className="rounded-lg bg-[#1a3d2b] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a3d2b]/90"
           >
-            + New Invoice
+            {t("outbound_legacy_new_invoice")}
           </button>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Draft", value: counts.draft, color: "text-stone-600" },
-            { label: "Sent / Unpaid", value: counts.sent, color: "text-blue-600" },
-            { label: "Overdue", value: counts.overdue, color: "text-red-600" },
-            { label: "Outstanding", value: `¥${totalUnpaid.toLocaleString()}`, color: "text-amber-600" },
+            { label: t("outbound_legacy_stat_draft"), value: counts.draft, color: "text-stone-600" },
+            { label: t("outbound_legacy_stat_sent"), value: counts.sent, color: "text-blue-600" },
+            { label: t("outbound_legacy_stat_overdue"), value: counts.overdue, color: "text-red-600" },
+            { label: t("outbound_legacy_stat_outstanding"), value: `¥${totalUnpaid.toLocaleString()}`, color: "text-amber-600" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-stone-100 bg-white p-4 shadow-sm">
               <p className="text-xs text-stone-400">{s.label}</p>
@@ -126,7 +137,7 @@ export default function OutboundPage() {
                 filter === s ? "border-[#1a3d2b] text-[#1a3d2b]" : "border-transparent text-stone-500 hover:text-stone-800",
               )}
             >
-              {s} <span className="text-stone-400">({s === "all" ? counts.all : (counts[s as keyof typeof counts] ?? 0)})</span>
+              {s === "all" ? "All" : t(STATUS_LABEL_KEYS[s as OutboundStatus])} <span className="text-stone-400">({s === "all" ? counts.all : (counts[s as keyof typeof counts] ?? 0)})</span>
             </button>
           ))}
         </div>
@@ -135,14 +146,22 @@ export default function OutboundPage() {
         {loading ? (
           <p className="text-sm text-stone-400 py-8 text-center">Loading...</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-stone-400 py-8 text-center">No outbound invoices</p>
+          <p className="text-sm text-stone-400 py-8 text-center">{t("outbound_legacy_no_invoices")}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-stone-100 shadow-sm">
             <table className="min-w-full text-sm">
               <thead className="bg-stone-50 text-xs uppercase text-stone-400">
                 <tr>
-                  {["Client", "Project", "Amount", "Billing Date", "Due Date", "Status", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>
+                  {[
+                    t("outbound_legacy_col_client"),
+                    t("outbound_legacy_col_project"),
+                    t("outbound_legacy_col_amount"),
+                    t("outbound_legacy_col_billing_date"),
+                    t("outbound_legacy_col_due_date"),
+                    t("outbound_legacy_col_status"),
+                    "",
+                  ].map((h, i) => (
+                    <th key={i} className="px-4 py-3 text-left font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -159,7 +178,7 @@ export default function OutboundPage() {
                     <td className="px-4 py-3 text-stone-500">{inv.dueDate || "—"}</td>
                     <td className="px-4 py-3">
                       <span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium capitalize", STATUS_COLORS[inv.status as OutboundStatus] ?? STATUS_COLORS.draft)}>
-                        {inv.status}
+                        {t(STATUS_LABEL_KEYS[inv.status as OutboundStatus] ?? STATUS_LABEL_KEYS.draft)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -167,7 +186,7 @@ export default function OutboundPage() {
                         onClick={() => setSelected(inv)}
                         className="text-xs text-[#1a3d2b] underline hover:no-underline"
                       >
-                        Manage
+                        {t("outbound_legacy_manage")}
                       </button>
                     </td>
                   </tr>
@@ -182,46 +201,46 @@ export default function OutboundPage() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">New Outbound Invoice</h2>
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">{t("outbound_legacy_form_title")}</h2>
             <form onSubmit={(e) => { void submit(e); }} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-stone-500 mb-1">Client Name *</label>
+                  <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_client_name")}</label>
                   <input required className="input-base" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs text-stone-500 mb-1">Client Email</label>
+                  <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_client_email")}</label>
                   <input type="email" className="input-base" value={form.clientEmail} onChange={(e) => setForm({ ...form, clientEmail: e.target.value })} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-stone-500 mb-1">Project Name *</label>
+                <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_project_name")}</label>
                 <input required className="input-base" value={form.projectName} onChange={(e) => setForm({ ...form, projectName: e.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-stone-500 mb-1">Amount (¥) *</label>
+                  <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_amount")}</label>
                   <input type="number" required min={1} className="input-base" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs text-stone-500 mb-1">Billing Date *</label>
+                  <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_billing_date")}</label>
                   <input type="date" required className="input-base" value={form.billingDate} onChange={(e) => setForm({ ...form, billingDate: e.target.value })} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-stone-500 mb-1">Due Date</label>
+                <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_due_date")}</label>
                 <input type="date" className="input-base" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
               </div>
               <div>
-                <label className="block text-xs text-stone-500 mb-1">Notes</label>
+                <label className="block text-xs text-stone-500 mb-1">{t("outbound_legacy_field_notes")}</label>
                 <textarea rows={2} className="input-base resize-none" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
               <div className="flex gap-2 pt-2">
                 <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-[#1a3d2b] py-2 text-sm font-medium text-white disabled:opacity-50">
-                  {submitting ? "Creating…" : "Create Invoice"}
+                  {submitting ? t("outbound_legacy_creating") : t("outbound_legacy_create_invoice")}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 rounded-lg border border-stone-200 py-2 text-sm font-medium text-stone-600">
-                  Cancel
+                  {t("cancel")}
                 </button>
               </div>
             </form>
@@ -233,32 +252,32 @@ export default function OutboundPage() {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
-            <h2 className="text-lg font-semibold text-stone-900">Manage Invoice</h2>
+            <h2 className="text-lg font-semibold text-stone-900">{t("outbound_legacy_manage_title")}</h2>
             <dl className="space-y-1 text-sm">
-              <div className="flex justify-between"><dt className="text-stone-500">Client</dt><dd className="font-medium">{selected.clientName}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Project</dt><dd>{selected.projectName}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Amount</dt><dd className="font-mono">¥{(selected.amount ?? selected.total ?? 0).toLocaleString()}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Due Date</dt><dd>{selected.dueDate || "—"}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Status</dt>
-                <dd><span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium capitalize", STATUS_COLORS[selected.status as OutboundStatus] ?? STATUS_COLORS.draft)}>{selected.status}</span></dd>
+              <div className="flex justify-between"><dt className="text-stone-500">{t("outbound_legacy_detail_client")}</dt><dd className="font-medium">{selected.clientName}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">{t("outbound_legacy_detail_project")}</dt><dd>{selected.projectName}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">{t("outbound_legacy_detail_amount")}</dt><dd className="font-mono">¥{(selected.amount ?? selected.total ?? 0).toLocaleString()}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">{t("outbound_legacy_detail_due_date")}</dt><dd>{selected.dueDate || "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">{t("outbound_legacy_detail_status")}</dt>
+                <dd><span className={clsx("rounded-full px-2 py-0.5 text-xs font-medium capitalize", STATUS_COLORS[selected.status as OutboundStatus] ?? STATUS_COLORS.draft)}>{t(STATUS_LABEL_KEYS[selected.status as OutboundStatus] ?? STATUS_LABEL_KEYS.draft)}</span></dd>
               </div>
             </dl>
             <div className="flex flex-wrap gap-2">
               {selected.status === "draft" && (
                 <button disabled={updatingStatus} onClick={() => { void markStatus(selected.id, "sent"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
-                  Mark Sent
+                  {t("outbound_legacy_mark_sent")}
                 </button>
               )}
               {(selected.status === "sent" || selected.status === "overdue") && (
                 <button disabled={updatingStatus} onClick={() => { void markStatus(selected.id, "paid"); }} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
-                  Mark Paid
+                  {t("outbound_legacy_mark_paid")}
                 </button>
               )}
               <button disabled={updatingStatus} onClick={() => { void markStatus(selected.id, "cancelled"); }} className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-stone-600 disabled:opacity-50">
-                Cancel Invoice
+                {t("outbound_legacy_cancel_invoice")}
               </button>
               <button onClick={() => setSelected(null)} className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-stone-600">
-                Close
+                {t("close")}
               </button>
             </div>
           </div>

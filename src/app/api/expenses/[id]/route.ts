@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getExpenseService } from "@/lib/services";
+import { getExpenseService, getTrashService } from "@/lib/services";
+import { generateId } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await getExpenseService().deleteClaim(params.id);
+    const svc   = getExpenseService();
+    const claim = await svc.getClaim(params.id);
+    if (claim) {
+      await getTrashService().addToTrash({
+        trashId:    generateId("trash"),
+        entityType: "expense",
+        entityId:   claim.id,
+        entityName: `${claim.submittedBy} — ${claim.description.slice(0, 40)}`,
+        deletedAt:  new Date().toISOString(),
+        data:       claim,
+      });
+    }
+    await svc.deleteClaim(params.id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

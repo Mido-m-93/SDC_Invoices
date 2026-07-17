@@ -386,8 +386,13 @@ export interface ExpenseClaim {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  extractedRecipient?: string | null;
+  extractedPurpose?: string | null;
   policyViolations: string[];
   bankAccount?: string;
+  mfBillingId?: string | null;
+  mfBillingUrl?: string | null;
+  mfSentAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -405,6 +410,8 @@ export interface ExpenseValidationResult {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  extractedRecipient?: string | null;
+  extractedPurpose?: string | null;
 }
 
 // ── Phase 9: Outbound invoice support ─────────────────────────────────────────
@@ -660,4 +667,16 @@ export interface ReportingKPIs {
   activeVendors: number;
   activeContracts: number;
   vendorsWithMissingInvoice: number;
+}
+
+// ── Trash ─────────────────────────────────────────────────────────────────────
+export type TrashEntityType = "invoice" | "expense" | "proposal" | "client" | "lead";
+
+export interface TrashedItem {
+  trashId: string;
+  entityType: TrashEntityType;
+  entityId: string;
+  entityName: string;
+  deletedAt: string;
+  data: unknown;
 }

@@ -26,7 +26,7 @@ const translations: Record<Language, Translations> = {
 interface LanguageContextValue {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -41,8 +41,14 @@ export function LanguageProvider({
   const [language, setLanguage] = useState<Language>(defaultLanguage);
 
   const t = useCallback(
-    (key: TranslationKey): string => {
-      return translations[language][key] ?? translations["ja"][key] ?? key;
+    (key: TranslationKey, vars?: Record<string, string | number>): string => {
+      let str = translations[language][key] ?? translations["ja"][key] ?? key;
+      if (vars) {
+        for (const [name, value] of Object.entries(vars)) {
+          str = str.replace(new RegExp(`\\{${name}\\}`, "g"), String(value));
+        }
+      }
+      return str;
     },
     [language]
   );

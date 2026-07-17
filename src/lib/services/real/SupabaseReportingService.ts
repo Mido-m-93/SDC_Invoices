@@ -3,17 +3,31 @@ import { getSupabaseClient } from "@/lib/supabase";
 import type { IReportingService } from "../types";
 import type { ReportingKPIs } from "@/types";
 
+// First-of-month bounds for a "YYYY-MM" string, used to range-filter date
+// columns at the query level instead of pulling every row and filtering in
+// JS.
+function monthBounds(month: string): { start: string; end: string } {
+  const [y, m] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const end = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  return { start, end };
+}
+
 export class SupabaseReportingService implements IReportingService {
   private get db() { return getSupabaseClient(); }
 
   async getKPIs(month: string): Promise<ReportingKPIs> {
     const db = this.db;
+    const { start, end } = monthBounds(month);
+    // Leads/proposals/expenses are scoped to the selected month so the Month
+    // picker actually changes what's shown. Vendors/contracts stay an
+    // all-time snapshot — "active" is a current status, not a monthly event.
     const [leads, proposals, outbound, accounting, expenses, contracts, vendors] = await Promise.all([
-      db.from("leads").select("stage, estimated_value, currency, created_at"),
-      db.from("proposals").select("status"),
-      db.from("outbound_invoices").select("status, total, currency"),
+      db.from("leads").select("stage, estimated_value, currency, created_at").gte("created_at", start).lt("created_at", end),
+      db.from("proposals").select("status").gte("proposal_date", start).lt("proposal_date", end),
+      db.from("outbound_invoices").select("status, total, currency").eq("billing_month", month),
       db.from("accounting_entries").select("type, amount_jpy, status").eq("month", month),
-      db.from("expense_claims").select("status"),
+      db.from("expense_claims").select("status").gte("expense_date", start).lt("expense_date", end),
       db.from("contracts").select("status"),
       db.from("vendors").select("status"),
     ]);

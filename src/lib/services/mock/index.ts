@@ -81,7 +81,9 @@ import {
   loadMembers,
   saveMember,
   deleteMember,
+  loadExpenseClaims,
 } from "./fileStore";
+import { SupabaseOutboundInvoiceService } from "../real/SupabaseOutboundInvoiceService";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 
 const delay = (ms = 600) => new Promise((r) => setTimeout(r, ms));
@@ -252,6 +254,17 @@ export class MockStorageService implements IStorageService {
     writeStore(store);
   }
 
+  async deleteSubmissions(ids: string[]): Promise<void> {
+    const set = new Set(ids);
+    const store = readStore();
+    store.submissions = store.submissions.filter((s) => !set.has(s.id));
+    for (const id of ids) {
+      delete store.validationResults[id];
+      delete store.filedDocuments[id];
+    }
+    writeStore(store);
+  }
+
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {
     return loadUploadedSubmissions(month);
   }
@@ -417,33 +430,37 @@ export class MockMemberService implements IMemberService {
   async deleteMember(id: string): Promise<void> { deleteMember(id); }
 }
 
+// Module-level (not per-instance) so MockReportingService can read the same
+// entries that were saved through the app's cached MockAccountingService
+// singleton — both classes live in this module, so they share this store.
+const accountingEntries = new Map<string, AccountingEntry>();
+
 export class MockAccountingService implements IAccountingService {
-  private store = new Map<string, AccountingEntry>();
   async listEntries(filters?: { month?: string; type?: AccountingEntryType; status?: AccountingEntryStatus }): Promise<AccountingEntry[]> {
-    let all = Array.from(this.store.values());
+    let all = Array.from(accountingEntries.values());
     if (filters?.month) all = all.filter(e => e.month === filters.month);
     if (filters?.type) all = all.filter(e => e.type === filters.type);
     if (filters?.status) all = all.filter(e => e.status === filters.status);
     return all;
   }
-  async getEntry(id: string): Promise<AccountingEntry | null> { return this.store.get(id) ?? null; }
-  async saveEntry(entry: AccountingEntry): Promise<void> { this.store.set(entry.id, entry); }
-  async deleteEntry(id: string): Promise<void> { this.store.delete(id); }
+  async getEntry(id: string): Promise<AccountingEntry | null> { return accountingEntries.get(id) ?? null; }
+  async saveEntry(entry: AccountingEntry): Promise<void> { accountingEntries.set(entry.id, entry); }
+  async deleteEntry(id: string): Promise<void> { accountingEntries.delete(id); }
   async postEntry(id: string, actorName: string): Promise<void> {
-    const e = this.store.get(id);
+    const e = accountingEntries.get(id);
     if (!e) return;
     if (e.status !== "draft") {
       throw new Error(`Cannot post entry "${id}": status is "${e.status}", expected "draft".`);
     }
-    this.store.set(id, { ...e, status: "posted", postedBy: actorName, postedAt: new Date().toISOString() });
+    accountingEntries.set(id, { ...e, status: "posted", postedBy: actorName, postedAt: new Date().toISOString() });
   }
   async voidEntry(id: string, actorName: string): Promise<void> {
-    const e = this.store.get(id);
+    const e = accountingEntries.get(id);
     if (!e) return;
     if (e.status !== "posted") {
       throw new Error(`Cannot void entry "${id}": status is "${e.status}", expected "posted".`);
     }
-    this.store.set(id, { ...e, status: "voided", postedBy: actorName });
+    accountingEntries.set(id, { ...e, status: "voided", postedBy: actorName });
   }
   async getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
     return { month, totalRevenue: 0, totalExpenses: 0, grossProfit: 0, grossMarginPct: 0, byCategory: [], currency: "JPY" };
@@ -455,6 +472,69 @@ export class MockAccountingService implements IAccountingService {
 
 export class MockReportingService implements IReportingService {
   async getKPIs(month: string): Promise<ReportingKPIs> {
-    return { month, leadsTotal: 0, leadsWon: 0, leadsLost: 0, leadConversionRate: 0, proposalsTotal: 0, proposalsAccepted: 0, proposalWinRate: 0, outboundInvoicesTotal: 0, outboundInvoicesPaid: 0, outboundInvoicesOverdue: 0, invoiceCollectionRate: 0, totalOutstandingJpy: 0, totalRevenueJpy: 0, totalExpensesJpy: 0, netProfitJpy: 0, grossMarginPct: 0, expensesTotal: 0, expensesApproved: 0, expensesRejected: 0, activeVendors: 0, activeContracts: 0, vendorsWithMissingInvoice: 0 };
+    const inMonth = (isoDate: string) => !!isoDate && isoDate.slice(0, 7) === month;
+
+    // Leads/proposals/expenses are scoped to the selected month so the Month
+    // picker actually changes what's shown. Active vendors/contracts stay as
+    // an all-time snapshot — "active" is a current status, not a monthly event.
+    const leads = loadLeads().filter((l) => inMonth(l.createdAt));
+    const leadsWon = leads.filter((l) => l.stage === "won").length;
+    const leadsLost = leads.filter((l) => l.stage === "lost").length;
+
+    const proposals = loadProposals().filter((p) => inMonth(p.proposalDate));
+    const proposalsAccepted = proposals.filter((p) => p.status === "accepted").length;
+
+    const expenses = loadExpenseClaims().filter((e) => inMonth(e.expenseDate));
+
+    const vendors = loadVendors();
+    const contracts = loadContracts();
+
+    // Outbound invoices only exist in Supabase (no mock-mode backing store) —
+    // degrade to zero rather than failing the whole dashboard if it's not
+    // configured or reachable.
+    let outboundTotal = 0, outboundPaid = 0, outboundOverdue = 0, totalOutstandingJpy = 0;
+    try {
+      const outbound = await new SupabaseOutboundInvoiceService().listInvoices({ billingMonth: month });
+      outboundTotal = outbound.length;
+      outboundPaid = outbound.filter((o) => o.status === "paid").length;
+      outboundOverdue = outbound.filter((o) => o.status === "overdue").length;
+      totalOutstandingJpy = outbound
+        .filter((o) => !["paid", "cancelled"].includes(o.status))
+        .reduce((sum, o) => sum + (o.total ?? 0), 0);
+    } catch (err) {
+      console.warn("[MockReportingService] outbound invoices unavailable:", err);
+    }
+
+    const monthEntries = Array.from(accountingEntries.values()).filter(
+      (e) => e.month === month && e.status === "posted"
+    );
+    const totalRevenueJpy  = monthEntries.filter((e) => e.type === "revenue").reduce((s, e) => s + e.amountJpy, 0);
+    const totalExpensesJpy = monthEntries.filter((e) => e.type === "expense").reduce((s, e) => s + e.amountJpy, 0);
+
+    return {
+      month,
+      leadsTotal: leads.length,
+      leadsWon,
+      leadsLost,
+      leadConversionRate: leads.length > 0 ? leadsWon / leads.length : 0,
+      proposalsTotal: proposals.length,
+      proposalsAccepted,
+      proposalWinRate: proposals.length > 0 ? proposalsAccepted / proposals.length : 0,
+      outboundInvoicesTotal: outboundTotal,
+      outboundInvoicesPaid: outboundPaid,
+      outboundInvoicesOverdue: outboundOverdue,
+      invoiceCollectionRate: outboundTotal > 0 ? outboundPaid / outboundTotal : 0,
+      totalOutstandingJpy,
+      totalRevenueJpy,
+      totalExpensesJpy,
+      netProfitJpy: totalRevenueJpy - totalExpensesJpy,
+      grossMarginPct: totalRevenueJpy > 0 ? ((totalRevenueJpy - totalExpensesJpy) / totalRevenueJpy) * 100 : 0,
+      expensesTotal: expenses.length,
+      expensesApproved: expenses.filter((e) => e.status === "approved").length,
+      expensesRejected: expenses.filter((e) => e.status === "rejected").length,
+      activeVendors: vendors.filter((v) => v.status === "active").length,
+      activeContracts: contracts.filter((c) => c.status === "active").length,
+      vendorsWithMissingInvoice: 0,
+    };
   }
 }

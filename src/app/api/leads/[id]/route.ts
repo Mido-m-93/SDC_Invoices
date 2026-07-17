@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeadService } from "@/lib/services";
+import { getLeadService, getTrashService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
+import { generateId } from "@/lib/utils";
 import type { Lead } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { user, response } = await requireAuth();
   if (!user) return response!;
   try {
-    await getLeadService().deleteLead(params.id);
+    const svc  = getLeadService();
+    const all  = await svc.listLeads();
+    const lead = all.find((l) => l.id === params.id);
+    if (lead) {
+      await getTrashService().addToTrash({
+        trashId:    generateId("trash"),
+        entityType: "lead",
+        entityId:   lead.id,
+        entityName: `${lead.clientName} — ${lead.title}`,
+        deletedAt:  new Date().toISOString(),
+        data:       lead,
+      });
+    }
+    await svc.deleteLead(params.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[API ERROR]", err);

@@ -122,9 +122,18 @@ function normalizeRow(
     return "";
   };
 
+  // Microsoft Forms exports include a built-in "Id" column — the form
+  // response's own stable identifier. Prefer it over the row's position in
+  // this particular export: filtering out blank rows means the same
+  // response can land at a different array index between fetches (e.g. if
+  // an earlier response is later removed), which would otherwise make an
+  // already-stored row look "new" and get re-imported under a fresh id.
+  const rawId = Number(raw["Id"]);
+  const stableRowNumber = Number.isFinite(rawId) && rawId > 0 ? rawId : rowIndex + 2;
+
   return {
     id: generateId(),
-    submissionRowNumber: rowIndex + 2,
+    submissionRowNumber: stableRowNumber,
     submittedAt:                convertSerial(get("submittedAt"), "datetime") || undefined,
     email:                      get("email"),
     payerName:                  get("payerName"),

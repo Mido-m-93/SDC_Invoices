@@ -1,8 +1,7 @@
 // POST /api/invoices/send-to-mf
 import { NextRequest, NextResponse } from "next/server";
-import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
-import { getDriveService, getStorageService } from "@/lib/services";
-import { detectCurrency } from "@/lib/utils";
+import { getDriveService, getStorageService, getMoneyForwardService, getPaymentRecordService } from "@/lib/services";
+import { detectCurrency, generateId } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -29,16 +28,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Only send validated invoices
-  const canSend =
-    validation.statusCode === "READY" || validation.humanApproved === true;
-  if (!canSend) {
+  // Same guard as the expense flow: skip only if it's already been sent —
+  // no statusCode restriction, matching how expenses can be sent regardless
+  // of their validation state.
+  if (validation.mfBillingId) {
     return NextResponse.json(
-      {
-        error: "Cannot send to Money Forward",
-        reason: `Status is ${validation.statusCode}. Only READY or human-approved invoices can be sent.`,
-      },
-      { status: 422 }
+      { error: "Already sent to Money Forward", billingId: validation.mfBillingId, billingUrl: validation.mfBillingUrl },
+      { status: 409 }
     );
   }
 
@@ -68,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
-    const mfService = new MoneyForwardService();
+    const mfService = getMoneyForwardService();
     const result    = await mfService.sendInvoice({
       partnerName: submission.payerName,
       title:       buildTitle(submission),
@@ -99,6 +95,28 @@ export async function POST(req: NextRequest) {
       }
     } catch (storeErr) {
       console.warn("[send-to-mf] Could not store MF billing info:", storeErr);
+    }
+
+    // Record the pending payment — MF has the bill registered, but actual bank
+    // payment isn't confirmed yet, so this starts as "pending" and is flipped
+    // to confirmed/reconciled later once the transfer clears.
+    try {
+      await getPaymentRecordService().savePaymentRecord({
+        id: generateId("pay"),
+        invoiceId: submission.id,
+        contractId: validation.contractId ?? "",
+        vendorId: validation.vendorMatched ? submission.payerName : "",
+        amount,
+        currency,
+        paymentDate: billingDate,
+        paymentMethod: "Money Forward",
+        referenceNumber: result.billingId,
+        status: "pending",
+        notes: result.billingUrl,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (payErr) {
+      console.warn("[send-to-mf] Could not create payment record:", payErr);
     }
 
     return NextResponse.json({ success: true, ...result });

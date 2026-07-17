@@ -6,6 +6,7 @@ import {
   deleteExpenseClaim,
   updateExpenseClaimStatus,
 } from "./fileStore";
+import { extractReceiptFields, validateExpenseData } from "@/lib/services/ai/receiptExtractor";
 
 export class MockExpenseService implements IExpenseService {
   async listClaims(filters?: { status?: ExpenseStatus; submittedBy?: string }): Promise<ExpenseClaim[]> {
@@ -40,11 +41,66 @@ export class MockExpenseService implements IExpenseService {
     if (!claim.receiptUrl && !claim.receiptFilename && !isNoReceiptTransport) {
       violations.push("MISSING_RECEIPT");
     }
-    if (!claim.description) violations.push("MISSING_PURPOSE");
     if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
       violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
     }
     if (claim.amount > 1000000) violations.push("REQUIRES_MANAGEMENT_APPROVAL");
+
+    // A receipt attached to the claim is read by GPT-4o so a purpose written
+    // on the receipt (但し書き) can satisfy the purpose requirement even when
+    // the submitter left the form's description field blank.
+    let extractedAmount    = claim.extractedAmount;
+    let extractedDate      = claim.extractedDate;
+    let extractedVendor    = claim.extractedVendor;
+    let extractedRecipient = claim.extractedRecipient ?? null;
+    let extractedPurpose   = claim.extractedPurpose ?? null;
+    let purposeSatisfied   = !!claim.description;
+    let receiptFound       = false;
+
+    if (claim.receiptUrl) {
+      try {
+        const extracted = await extractReceiptFields(claim.receiptUrl);
+        receiptFound       = true;
+        extractedAmount    = extracted.amount;
+        extractedDate      = extracted.date;
+        extractedVendor    = extracted.vendor;
+        extractedRecipient = extracted.recipient;
+        extractedPurpose   = extracted.purpose;
+        if (extractedPurpose) purposeSatisfied = true;
+
+        if (extractedAmount !== null && Math.abs(extractedAmount - claim.amount) > 1) {
+          violations.push("AMOUNT_MISMATCH");
+        }
+        if (extractedDate && claim.expenseDate) {
+          const diffMs = Math.abs(new Date(extractedDate).getTime() - new Date(claim.expenseDate).getTime());
+          if (diffMs > 86400000) violations.push("DATE_MISMATCH");
+        }
+        // Receipt recipient (宛名) is often the company, not the submitter —
+        // shown for reference in the UI but not checked against submittedBy.
+      } catch (err) {
+        console.warn("[MockExpenseService.validateClaim] receipt extraction failed:", err);
+      }
+    }
+
+    if (!receiptFound && !purposeSatisfied) {
+      try {
+        const gpt = await validateExpenseData({
+          submittedBy:   claim.submittedBy,
+          amount:        claim.amount,
+          currency:      claim.currency,
+          expenseDate:   claim.expenseDate,
+          category:      claim.category,
+          description:   claim.description ?? "",
+          paymentMethod: claim.paymentMethod,
+          hasReceipt:    !!(claim.receiptUrl || claim.receiptFilename),
+        });
+        for (const v of gpt.violations) if (!violations.includes(v)) violations.push(v);
+      } catch (err) {
+        console.warn("[MockExpenseService.validateClaim] text validation failed:", err);
+      }
+    }
+
+    if (!purposeSatisfied) violations.push("MISSING_PURPOSE");
 
     const receiptMissing = !claim.receiptUrl && !claim.receiptFilename && !isNoReceiptTransport;
     const riskLevel =
@@ -54,22 +110,33 @@ export class MockExpenseService implements IExpenseService {
         ? "NEEDS_REVIEW"
         : "OK";
 
-    // Persist updated violations back to disk
-    saveExpenseClaim({ ...claim, policyViolations: violations, updatedAt: new Date().toISOString() });
+    // Persist updated violations and extracted fields back to disk
+    saveExpenseClaim({
+      ...claim,
+      extractedAmount,
+      extractedDate,
+      extractedVendor,
+      extractedRecipient,
+      extractedPurpose,
+      policyViolations: violations,
+      updatedAt: new Date().toISOString(),
+    });
 
     return {
       claimId:              claim.id,
-      receiptAccessible:    !!claim.receiptUrl,
-      amountMatchesReceipt: claim.extractedAmount === null || Math.abs((claim.extractedAmount ?? 0) - claim.amount) <= 1,
-      dateFound:            !!claim.expenseDate,
-      categoryValid:        true,
+      receiptAccessible:    receiptFound,
+      amountMatchesReceipt: extractedAmount === null || Math.abs(extractedAmount - claim.amount) <= 1,
+      dateFound:            !!extractedDate || !!claim.expenseDate,
+      categoryValid:        !violations.includes("CATEGORY_MISMATCH"),
       receiptMissing,
       policyViolations:     violations,
       riskLevel,
       statusCode:           claim.status,
-      extractedAmount:      claim.extractedAmount,
-      extractedDate:        claim.extractedDate,
-      extractedVendor:      claim.extractedVendor,
+      extractedAmount,
+      extractedDate,
+      extractedVendor,
+      extractedRecipient,
+      extractedPurpose,
     };
   }
 }

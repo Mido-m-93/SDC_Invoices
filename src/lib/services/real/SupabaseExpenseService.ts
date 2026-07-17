@@ -1,5 +1,4 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseClient } from "@/lib/supabase";
 import { generateId } from "@/lib/utils";
 import type { IExpenseService } from "../types";
@@ -8,15 +7,7 @@ import type {
   ExpenseStatus,
   ExpenseValidationResult,
 } from "@/types";
-
-const EXPENSE_EXTRACT_PROMPT = `Extract fields from this receipt/invoice image or PDF.
-Return ONLY valid JSON:
-{
-  "amount": number or null,
-  "date": "YYYY-MM-DD or null",
-  "vendor": "vendor name or null",
-  "currency": "JPY or USD or null"
-}`;
+import { extractReceiptFields, validateExpenseData } from "@/lib/services/ai/receiptExtractor";
 
 function toRow(c: ExpenseClaim): Record<string, unknown> {
   return {
@@ -44,6 +35,8 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     extracted_amount: c.extractedAmount,
     extracted_date: c.extractedDate,
     extracted_vendor: c.extractedVendor,
+    extracted_recipient: c.extractedRecipient ?? null,
+    extracted_purpose: c.extractedPurpose ?? null,
     policy_violations: c.policyViolations,
     bank_account: c.bankAccount,
     created_at: c.createdAt,
@@ -77,6 +70,8 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     extractedAmount: (row.extracted_amount as number | null) ?? null,
     extractedDate: (row.extracted_date as string | null) ?? null,
     extractedVendor: (row.extracted_vendor as string | null) ?? null,
+    extractedRecipient: (row.extracted_recipient as string | null) ?? null,
+    extractedPurpose: (row.extracted_purpose as string | null) ?? null,
     policyViolations: (row.policy_violations as string[]) ?? [],
     bankAccount: (row.bank_account as string) ?? "",
     createdAt: row.created_at as string,
@@ -95,7 +90,9 @@ function checkPolicyViolations(claim: ExpenseClaim): string[] {
     claim.category === "transport" && TRANSPORT_NO_RECEIPT.test(claim.description ?? "");
 
   if (!claim.receiptUrl && !isNoReceiptTransport) violations.push("MISSING_RECEIPT");
-  if (!claim.description) violations.push("MISSING_PURPOSE");
+  // MISSING_PURPOSE is decided in validateClaim() below, once the receipt has
+  // been read — a purpose written on the receipt (但し書き) can satisfy it
+  // even when the submitter left the form's description field blank.
   // Project/department not collected by the RC経費精算 form — skip this check.
   if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
     violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
@@ -159,47 +156,64 @@ export class SupabaseExpenseService implements IExpenseService {
 
   async validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult> {
     const violations = checkPolicyViolations(claim);
-    let extractedAmount: number | null = null;
-    let extractedDate: string | null = null;
-    let extractedVendor: string | null = null;
-    let receiptAccessible = false;
-    let amountMatchesReceipt = false;
+
+    let extractedAmount:    number | null = null;
+    let extractedDate:      string | null = null;
+    let extractedVendor:    string | null = null;
+    let extractedRecipient: string | null = null;
+    let extractedPurpose:   string | null = null;
+    let purposeSatisfied = !!claim.description;
+    let receiptFound = false;
 
     if (claim.receiptUrl) {
+      // GPT-4o reads the receipt directly from the URL.
+      // Images  → URL passed to GPT vision, no bytes in our code.
+      // PDFs    → bytes fetched in memory, sent as base64. Nothing saved to disk.
+      // SharePoint URLs → authenticated with Graph API Bearer token automatically.
       try {
-        const res = await fetch(claim.receiptUrl);
-        receiptAccessible = res.ok;
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          const b64 = Buffer.from(buf).toString("base64");
-          const isPdf = claim.receiptFilename.toLowerCase().endsWith(".pdf");
-          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const content: any[] = [
-            { type: "document", source: { type: "base64", media_type: isPdf ? "application/pdf" : "image/jpeg", data: b64 } },
-            { type: "text", text: EXPENSE_EXTRACT_PROMPT },
-          ];
-          const msg = await client.messages.create({
-            model: "claude-haiku-4-5",
-            max_tokens: 512,
-            messages: [{ role: "user", content }],
-          });
-          const text = (msg.content[0] as { type: string; text?: string }).text ?? "";
-          const m = text.match(/\{[\s\S]*\}/);
-          if (m) {
-            const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string };
-            extractedAmount = typeof parsed.amount === "number" ? parsed.amount : null;
-            extractedDate = parsed.date ?? null;
-            extractedVendor = parsed.vendor ?? null;
-            if (extractedAmount !== null) {
-              amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
-            }
-          }
+        const extracted = await extractReceiptFields(claim.receiptUrl);
+        receiptFound       = true;
+        extractedAmount    = extracted.amount;
+        extractedDate      = extracted.date;
+        extractedVendor    = extracted.vendor;
+        extractedRecipient = extracted.recipient;
+        extractedPurpose   = extracted.purpose;
+        if (extractedPurpose) purposeSatisfied = true;
+
+        if (extractedAmount !== null && Math.abs(extractedAmount - claim.amount) > 1) {
+          violations.push("AMOUNT_MISMATCH");
         }
-      } catch {
-        receiptAccessible = false;
+        if (extractedDate && claim.expenseDate) {
+          const diffMs = Math.abs(new Date(extractedDate).getTime() - new Date(claim.expenseDate).getTime());
+          if (diffMs > 86400000) violations.push("DATE_MISMATCH");
+        }
+        // Receipt recipient (宛名) is often the company, not the submitter —
+        // shown for reference in the UI but not checked against submittedBy.
+      } catch (err) {
+        console.warn("[validateClaim] receipt extraction failed:", err);
+        // Fall through to text validation below
       }
     }
+
+    if (!receiptFound) {
+      // No receipt URL or extraction failed — GPT-4o validates submitted text data
+      const gpt = await validateExpenseData({
+        submittedBy:   claim.submittedBy,
+        amount:        claim.amount,
+        currency:      claim.currency,
+        expenseDate:   claim.expenseDate,
+        category:      claim.category,
+        description:   claim.description ?? "",
+        paymentMethod: claim.paymentMethod,
+        hasReceipt:    !!(claim.receiptUrl || claim.receiptFilename),
+      });
+      for (const v of gpt.violations) {
+        if (!violations.includes(v)) violations.push(v);
+      }
+      extractedPurpose = gpt.summary;
+    }
+
+    if (!purposeSatisfied) violations.push("MISSING_PURPOSE");
 
     const riskLevel = violations.includes("MISSING_RECEIPT") || violations.includes("MISSING_PURPOSE")
       ? "BLOCKED"
@@ -208,18 +222,20 @@ export class SupabaseExpenseService implements IExpenseService {
       : "OK";
 
     return {
-      claimId: claim.id,
-      receiptAccessible,
-      amountMatchesReceipt,
-      dateFound: extractedDate !== null,
-      categoryValid: true,
-      receiptMissing: !claim.receiptUrl,
-      policyViolations: violations,
+      claimId:              claim.id,
+      receiptAccessible:    receiptFound,
+      amountMatchesReceipt: !violations.includes("AMOUNT_MISMATCH"),
+      dateFound:            !!extractedDate,
+      categoryValid:        !violations.includes("CATEGORY_MISMATCH"),
+      receiptMissing:       !receiptFound,
+      policyViolations:     violations,
       riskLevel,
-      statusCode: violations.length > 0 ? "under_review" : "submitted",
+      statusCode:           violations.length > 0 ? "under_review" : "submitted",
       extractedAmount,
       extractedDate,
       extractedVendor,
+      extractedRecipient,
+      extractedPurpose,
     };
   }
 }
