@@ -50,6 +50,7 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ExpenseClaim | null>(null);
@@ -168,6 +169,27 @@ export default function ExpensesPage() {
 
   const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
+  async function handleSyncForms() {
+    setSyncing(true);
+    setError(null);
+    setUploadMsg(null);
+    try {
+      const res  = await fetch("/api/expenses/sync-forms", { method: "POST" });
+      const data = await res.json() as { count?: number; synced?: number; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Sync failed");
+      } else {
+        const n = data.count ?? data.synced ?? 0;
+        setUploadMsg(`✓ ${n} expense claim${n === 1 ? "" : "s"} synced from Microsoft Forms`);
+        load();
+      }
+    } catch {
+      setError("Sync failed — check server logs");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -175,6 +197,20 @@ export default function ExpensesPage() {
         subtitle="Submit and review expense reimbursement requests"
         actions={
           <div className="flex items-center gap-3">
+            <button
+              disabled={syncing}
+              onClick={handleSyncForms}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all select-none ${
+                syncing
+                  ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
+                  : "border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {syncing ? "Syncing…" : "Sync from Forms"}
+            </button>
             <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
               uploading
                 ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
