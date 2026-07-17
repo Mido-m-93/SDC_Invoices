@@ -288,16 +288,9 @@ export async function GET() {
 }
 
 // ── POST: sync claims from OneDrive Excel ─────────────────────────────────────
-export async function POST(req: NextRequest) {
-  // Optional CRON_SECRET auth — validates requests from GitHub Actions / Vercel cron
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth     = req.headers.get("authorization");
-    const internal = req.headers.get("x-internal-cron");
-    if (!internal && auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+// Open to authenticated users and internal cron — no CRON_SECRET required here.
+// The cron route (/api/cron/sync-expenses) handles its own auth before calling this.
+export async function POST(_req: NextRequest) {
   // Validate required env vars before making any network calls
   const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN", "MICROSOFT_EXPENSE_EXCEL_ITEM_ID"] as const)
     .filter((k) => !process.env[k]);

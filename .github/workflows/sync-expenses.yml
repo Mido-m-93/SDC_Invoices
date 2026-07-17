@@ -12,9 +12,9 @@ jobs:
       - name: Trigger expense sync
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
+            -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.APP_URL }}/api/expenses/sync-forms")
+            "${{ secrets.APP_URL }}/api/cron/sync-expenses")
           echo "Response: $response"
           if [ "$response" -ne 200 ]; then
             echo "Sync failed with status $response"
