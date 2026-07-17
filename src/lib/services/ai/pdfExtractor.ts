@@ -193,7 +193,67 @@ Rules:
 }
 
 // ── Strategy 2: OpenAI GPT-4o ────────────────────────────────────────────────
-// Uses the Responses API with inline file_data — handles both text and scanned PDFs.
+// Path A: If pdfjs-dist finds text → Chat Completions (stable, cheap).
+// Path B: No text (scanned PDF) → Responses API with file_data (vision).
+
+const OPENAI_INVOICE_PROMPT = `You are an invoice data extraction assistant. Extract the fields below and return ONLY valid JSON — no markdown fences, no explanation.
+
+FIELD DEFINITIONS:
+"invoiceDate": Invoice issue date YYYY-MM-DD. Look for: 請求日, 発行日, Issue Date, Invoice Date, Date issued. Return null if no labeled date field exists.
+"subtotal": Pre-tax amount as a plain number. 小計, Subtotal, 税抜. If no tax, subtotal = total.
+"taxAmount": Tax amount as a plain number. 消費税, Tax, VAT. Use 0 if tax-exempt. null if tax not mentioned.
+"total": Final billed amount. 合計, 請求金額, Total Amount, Amount Due, Grand Total.
+"taxRate": Tax rate as decimal (0.10 = 10%). null if not shown.
+"memberName": The INDIVIDUAL OR COMPANY WHO SENT THIS INVOICE (freelancer / service provider / issuer).
+  Look for: Name, 氏名, 名前, 請求者, From, Issued by, or a personal name near the signature.
+"payerNameOnDoc": The COMPANY OR PERSON BEING BILLED (recipient / client).
+  Look for: Invoice Company Name, 請求先, 御中, To, Bill To. Often a 株式会社 or similar.
+"rawText": First 800 characters of all visible text, copied exactly.
+
+RULES:
+- Strip ALL currency symbols: ¥ ￥ $ , 円 USD JPY → plain number only
+- memberName and payerNameOnDoc must be different entities
+- invoiceDate: YYYY-MM-DD only from explicitly labeled date fields. Convert: 6/6/2026 → 2026-06-06, 令和8年6月6日 → 2026-06-06
+- Return null for any field genuinely absent`;
+
+function parseOpenAIResponse(text: string, rawTextFallback = ""): ExtractedInvoiceFields {
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
+  } catch {
+    console.warn("[pdfExtractor] OpenAI JSON parse failed:", text.slice(0, 200));
+    return emptyExtracted(rawTextFallback);
+  }
+
+  const rawText      = typeof parsed.rawText === "string" ? parsed.rawText : rawTextFallback;
+  const oaiDate      = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null);
+  const oaiTotal     = parseNumericField(parsed.total);
+  const oaiSubtotal  = parseNumericField(parsed.subtotal);
+  const oaiTax       = parseNumericField(parsed.taxAmount);
+  const regexAmounts = (oaiTotal === null || oaiSubtotal === null || oaiTax === null)
+    ? fallbackAmounts(rawText)
+    : { total: null, subtotal: null, taxAmount: null };
+
+  let memberName     = typeof parsed.memberName === "string" ? parsed.memberName : null;
+  let payerNameOnDoc = typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null;
+
+  const corporatePattern = /株式会社|合同会社|一般社団法人|公益社団法人|NPO|Co-op|Corp|Ltd|Inc|LLC|GmbH/i;
+  if (memberName && payerNameOnDoc && corporatePattern.test(memberName) && !corporatePattern.test(payerNameOnDoc)) {
+    [memberName, payerNameOnDoc] = [payerNameOnDoc, memberName];
+  }
+
+  return {
+    invoiceDate:    oaiDate,
+    subtotal:       oaiSubtotal  ?? regexAmounts.subtotal,
+    taxAmount:      oaiTax       ?? regexAmounts.taxAmount,
+    total:          oaiTotal     ?? regexAmounts.total,
+    taxRate:        parseNumericField(parsed.taxRate),
+    memberName,
+    payerNameOnDoc,
+    rawText,
+  };
+}
 
 async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
@@ -201,47 +261,28 @@ async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoice
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+  // Path A: text-based PDF — extract text first, send to Chat Completions
+  const rawText = await extractTextFromPdf(pdfBytes).catch(() => "");
+  if (rawText.trim().length > 50) {
+    console.log(`[pdfExtractor] OpenAI path A: text PDF (${rawText.length} chars) → Chat Completions`);
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: `${OPENAI_INVOICE_PROMPT}\n\nINVOICE TEXT:\n${rawText.slice(0, 8000)}`,
+        },
+      ],
+    });
+    const responseText = completion.choices[0]?.message?.content ?? "{}";
+    console.log("[pdfExtractor] OpenAI Chat raw:", responseText.slice(0, 400));
+    return parseOpenAIResponse(responseText, rawText.slice(0, 1000));
+  }
+
+  // Path B: scanned PDF (no extractable text) → Responses API with native PDF vision
+  console.log("[pdfExtractor] OpenAI path B: scanned PDF → Responses API (vision)");
   const base64Pdf = Buffer.from(pdfBytes).toString("base64");
-  const prompt = `You are an invoice data extraction assistant. Read EVERY page of this PDF carefully and extract the fields below.
-
-Return ONLY a valid JSON object — no markdown fences, no explanation, nothing else.
-
-FIELD DEFINITIONS:
-
-"invoiceDate": The invoice issue date in YYYY-MM-DD. Look for: 請求日, 発行日, Issue Date, Invoice Date, Date issued.
-
-"subtotal": Pre-tax amount as a plain number. Look for: 小計, Subtotal, 税抜. If no tax exists, subtotal = total.
-
-"taxAmount": Tax amount as a plain number. Look for: 消費税, 税額, Consumption Tax, Tax, VAT, GST.
-  - Use 0 if the invoice has a tax column but the value is blank/empty/zero, or says tax-exempt.
-  - Use null ONLY if tax is not mentioned anywhere on the document.
-
-"total": Final billed amount as a plain number. Look for: 合計, 請求金額, Total Amount, Amount Due, Grand Total.
-
-"taxRate": Tax rate as decimal (0.10 = 10%, 0 = tax-exempt). null if not shown.
-
-"memberName": The INDIVIDUAL OR COMPANY WHO SENT THIS INVOICE and will receive payment.
-  - This is the freelancer / contractor / service provider.
-  - Look for a field labeled: Name, 氏名, 名前, 請求者, From, Issued by — or a personal name near the signature/stamp at the bottom.
-  - On invoices from individuals to companies: the INDIVIDUAL'S name is memberName.
-  - IMPORTANT: "Invoice Company Name" or "請求先" or "御中" refers to the RECIPIENT (payerNameOnDoc), NOT the sender.
-
-"payerNameOnDoc": The COMPANY OR PERSON BEING BILLED — who will pay this invoice.
-  - Look for: Invoice Company Name, 請求先, 御中, To, Bill To, Attention, Company Name.
-  - On invoices from individuals to companies: the COMPANY NAME (often 株式会社, 一般社団法人, Co-op, etc.) is payerNameOnDoc.
-
-"rawText": First 800 characters of all visible text, copied exactly.
-
-EXAMPLE — individual invoice to a company:
-  Name: John Smith → memberName: "John Smith"
-  Invoice Company Name: ABC Corp → payerNameOnDoc: "ABC Corp"
-
-RULES:
-- Strip ALL currency symbols: ¥ ￥ $ , 円 USD JPY → plain number only
-- memberName and payerNameOnDoc MUST be different people/entities
-- invoiceDate: YYYY-MM-DD only if an explicitly labeled invoice date field exists (請求日, 発行日, Issue Date, Invoice Date, Date issued). Convert formats: 6/6/2026 → 2026-06-06, 令和8年6月6日 → 2026-06-06. Return null if no labeled date field is found — do NOT use due dates, payment dates, or any unlabeled date.
-- Return null for any field that is genuinely absent or ambiguous — do not guess`;
-
   const response = await client.responses.create({
     model: "gpt-4o",
     input: [
@@ -252,63 +293,19 @@ RULES:
             type: "input_file",
             filename: "invoice.pdf",
             file_data: `data:application/pdf;base64,${base64Pdf}`,
-            detail: "high",
           },
           {
             type: "input_text",
-            text: prompt,
+            text: OPENAI_INVOICE_PROMPT,
           },
         ],
       },
     ],
     max_output_tokens: 1024,
   });
-
-  const text = response.output_text ?? "{}";
-  console.log("[pdfExtractor] OpenAI raw response:", text.slice(0, 500));
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
-    console.log("[pdfExtractor] OpenAI parsed fields:", JSON.stringify(parsed).slice(0, 400));
-  } catch {
-    console.warn("[pdfExtractor] OpenAI response JSON parse failed:", text.slice(0, 200));
-    return emptyExtracted();
-  }
-
-  const rawText = typeof parsed.rawText === "string" ? parsed.rawText : "";
-  const oaiDate     = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null);
-  const oaiTotal    = parseNumericField(parsed.total);
-  const oaiSubtotal = parseNumericField(parsed.subtotal);
-  const oaiTax      = parseNumericField(parsed.taxAmount);
-  const regexAmounts = (oaiTotal === null || oaiSubtotal === null || oaiTax === null)
-    ? fallbackAmounts(rawText)
-    : { total: null, subtotal: null, taxAmount: null };
-
-  let memberName     = typeof parsed.memberName === "string" ? parsed.memberName : null;
-  let payerNameOnDoc = typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null;
-
-  // Detect swapped names: corporate keywords in memberName means AI got them backwards.
-  const corporatePattern = /株式会社|合同会社|一般社団法人|公益社団法人|NPO|Co-op|Corp|Ltd|Inc|LLC|GmbH/i;
-  if (
-    memberName && payerNameOnDoc &&
-    corporatePattern.test(memberName) &&
-    !corporatePattern.test(payerNameOnDoc)
-  ) {
-    console.warn("[pdfExtractor] Detected swapped names — correcting memberName/payerNameOnDoc");
-    [memberName, payerNameOnDoc] = [payerNameOnDoc, memberName];
-  }
-
-  return {
-    invoiceDate:    oaiDate,
-    subtotal:       oaiSubtotal ?? regexAmounts.subtotal,
-    taxAmount:      oaiTax     ?? regexAmounts.taxAmount,
-    total:          oaiTotal   ?? regexAmounts.total,
-    taxRate:        parseNumericField(parsed.taxRate),
-    memberName,
-    payerNameOnDoc,
-    rawText,
-  };
+  const responseText = response.output_text ?? "{}";
+  console.log("[pdfExtractor] OpenAI Responses raw:", responseText.slice(0, 400));
+  return parseOpenAIResponse(responseText);
 }
 
 // ── Strategy 3: Google Document AI ───────────────────────────────────────────
