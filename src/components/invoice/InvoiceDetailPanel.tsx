@@ -138,7 +138,11 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
             <h2 className="text-lg font-semibold text-stone-900">{s.payerName}</h2>
           </div>
           <div className="flex items-center gap-3">
-            {v && <StatusBadge code={effectiveRiskLevel ?? v.statusCode} />}
+            {v && <StatusBadge code={
+              effectiveRiskLevel === "OK" && v.statusCode === "REVIEW_REQUIRED"
+                ? "READY"
+                : v.statusCode
+            } />}
             <Button variant="ghost" size="sm" onClick={onClose}>
               <CloseIcon />
             </Button>
