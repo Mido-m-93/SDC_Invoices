@@ -280,32 +280,35 @@ async function extractWithOpenAI(pdfBytes: Uint8Array): Promise<ExtractedInvoice
     return parseOpenAIResponse(responseText, rawText.slice(0, 1000));
   }
 
-  // Path B: scanned PDF (no extractable text) → Responses API with native PDF vision
-  console.log("[pdfExtractor] OpenAI path B: scanned PDF → Responses API (vision)");
-  const base64Pdf = Buffer.from(pdfBytes).toString("base64");
-  const response = await client.responses.create({
-    model: "gpt-4o",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_file",
-            filename: "invoice.pdf",
-            file_data: `data:application/pdf;base64,${base64Pdf}`,
-          },
-          {
-            type: "input_text",
-            text: OPENAI_INVOICE_PROMPT,
-          },
-        ],
-      },
-    ],
-    max_output_tokens: 1024,
-  });
-  const responseText = response.output_text ?? "{}";
-  console.log("[pdfExtractor] OpenAI Responses raw:", responseText.slice(0, 400));
-  return parseOpenAIResponse(responseText);
+  // Path B: no extractable text (scanned PDF or pdfjs unavailable in this runtime)
+  // Upload to OpenAI Files API first, then reference by file_id — the officially
+  // supported way to process PDFs with the Responses API.
+  console.log("[pdfExtractor] OpenAI path B: uploading PDF to Files API for vision");
+  const fileBlob = new File([pdfBytes], "invoice.pdf", { type: "application/pdf" });
+  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
+  console.log(`[pdfExtractor] OpenAI Files API upload ok: ${uploadedFile.id}`);
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4o",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_file", file_id: uploadedFile.id },
+            { type: "input_text", text: OPENAI_INVOICE_PROMPT },
+          ],
+        },
+      ],
+      max_output_tokens: 1024,
+    });
+    const responseText = response.output_text ?? "{}";
+    console.log("[pdfExtractor] OpenAI Responses raw:", responseText.slice(0, 400));
+    return parseOpenAIResponse(responseText);
+  } finally {
+    await client.files.del(uploadedFile.id).catch((e: unknown) =>
+      console.warn("[pdfExtractor] File cleanup failed:", e)
+    );
+  }
 }
 
 // ── Strategy 3: Google Document AI ───────────────────────────────────────────
