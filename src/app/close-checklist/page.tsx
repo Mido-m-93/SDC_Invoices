@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import { useLanguage } from "@/translations";
 import type { MonthlyCloseChecklist, CloseChecklistItem, CloseChecklistItemStatus } from "@/types";
 
 const STATUS_CONFIG: Record<CloseChecklistItemStatus, { label: string; labelJa: string; color: string; bg: string }> = {
@@ -15,17 +16,18 @@ const STATUS_CONFIG: Record<CloseChecklistItemStatus, { label: string; labelJa: 
 };
 
 const CATEGORIES = ["bank", "invoices", "expenses", "vendors", "mf", "tax", "report"];
-const CATEGORY_LABELS: Record<string, string> = {
-  bank: "🏦 Bank",
-  invoices: "📄 Invoices",
-  expenses: "🧾 Expenses",
-  vendors: "👥 Vendors",
-  mf: "💼 Money Forward",
-  tax: "📊 Tax & Payroll",
-  report: "📈 Reporting",
+const CATEGORY_LABEL_KEYS: Record<string, "close_checklist_category_bank" | "close_checklist_category_invoices" | "close_checklist_category_expenses" | "close_checklist_category_vendors" | "close_checklist_category_mf" | "close_checklist_category_tax" | "close_checklist_category_report"> = {
+  bank: "close_checklist_category_bank",
+  invoices: "close_checklist_category_invoices",
+  expenses: "close_checklist_category_expenses",
+  vendors: "close_checklist_category_vendors",
+  mf: "close_checklist_category_mf",
+  tax: "close_checklist_category_tax",
+  report: "close_checklist_category_report",
 };
 
 export default function CloseChecklistPage() {
+  const { t } = useLanguage();
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [checklist, setChecklist] = useState<MonthlyCloseChecklist | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,9 +43,9 @@ export default function CloseChecklistPage() {
       const res = await fetch(`/api/close-checklist?month=${month}`);
       const data = await res.json() as { checklist: MonthlyCloseChecklist };
       setChecklist(data.checklist ?? null);
-    } catch { setError("Failed to load checklist"); }
+    } catch { setError(t("close_checklist_error_load")); }
     finally { setLoading(false); }
-  }, [month]);
+  }, [month, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -56,7 +58,7 @@ export default function CloseChecklistPage() {
         body: JSON.stringify({ status, completedBy: actorName || undefined }),
       });
       load();
-    } catch { setError("Failed to update item"); }
+    } catch { setError(t("close_checklist_error_update")); }
     finally { setUpdatingId(null); }
   }
 
@@ -69,11 +71,11 @@ export default function CloseChecklistPage() {
       });
       setNotesEditing(null);
       load();
-    } catch { setError("Failed to save notes"); }
+    } catch { setError(t("close_checklist_error_save_notes")); }
   }
 
   async function handleReset() {
-    if (!confirm(`Reset checklist for ${month}? All progress will be lost.`)) return;
+    if (!confirm(t("close_checklist_reset_confirm", { month }))) return;
     await fetch(`/api/close-checklist?month=${month}`, { method: "DELETE" });
     load();
   }
@@ -90,8 +92,8 @@ export default function CloseChecklistPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Monthly Close Checklist"
-        subtitle="Track monthly accounting close tasks"
+        title={t("close_checklist_title")}
+        subtitle={t("close_checklist_subtitle")}
         actions={
           <div className="flex gap-2 items-center">
             <input
@@ -100,7 +102,7 @@ export default function CloseChecklistPage() {
               onChange={(e) => setMonth(e.target.value)}
               className="rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
             />
-            <Button variant="secondary" size="sm" onClick={handleReset}>Reset</Button>
+            <Button variant="secondary" size="sm" onClick={handleReset}>{t("close_checklist_reset")}</Button>
           </div>
         }
       />
@@ -113,23 +115,23 @@ export default function CloseChecklistPage() {
 
       {/* Actor name field */}
       <div className="mb-5 flex items-center gap-3">
-        <label className="text-xs text-stone-500 shrink-0">Your name for completion log:</label>
+        <label className="text-xs text-stone-500 shrink-0">{t("close_checklist_actor_name_label")}</label>
         <input
           value={actorName}
           onChange={(e) => setActorName(e.target.value)}
-          placeholder="e.g. Itsuki"
+          placeholder={t("close_checklist_actor_name_placeholder")}
           className="rounded-lg border border-stone-200 px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
         />
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : checklist ? (
         <div className="space-y-5">
           {/* Progress bar */}
           <div className="bg-white rounded-xl border border-stone-200 p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-stone-700">{checklist.doneItems} / {checklist.totalItems} items complete</span>
+              <span className="text-sm font-medium text-stone-700">{t("close_checklist_items_complete", { done: checklist.doneItems, total: checklist.totalItems })}</span>
               <span className="text-sm font-bold text-[#1a3d2b]">{progress}%</span>
             </div>
             <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
@@ -139,10 +141,10 @@ export default function CloseChecklistPage() {
               />
             </div>
             {checklist.blockedItems > 0 && (
-              <p className="mt-2 text-xs text-red-600">{checklist.blockedItems} item(s) blocked — resolve before closing</p>
+              <p className="mt-2 text-xs text-red-600">{t("close_checklist_blocked_warning", { count: checklist.blockedItems })}</p>
             )}
             {checklist.completedAt && (
-              <p className="mt-2 text-xs text-green-600">✓ Checklist completed</p>
+              <p className="mt-2 text-xs text-green-600">{t("close_checklist_completed")}</p>
             )}
           </div>
 
@@ -153,7 +155,7 @@ export default function CloseChecklistPage() {
             return (
               <div key={cat} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
                 <div className="px-5 py-3 bg-stone-50 border-b border-stone-100">
-                  <h3 className="text-sm font-semibold text-stone-700">{CATEGORY_LABELS[cat] ?? cat}</h3>
+                  <h3 className="text-sm font-semibold text-stone-700">{CATEGORY_LABEL_KEYS[cat] ? t(CATEGORY_LABEL_KEYS[cat]) : cat}</h3>
                 </div>
                 <div className="divide-y divide-stone-50">
                   {items.map((item) => {
@@ -191,12 +193,12 @@ export default function CloseChecklistPage() {
                                 {item.titleJa || item.title}
                               </span>
                               <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sc.bg} ${sc.color}`}>
-                                {sc.labelJa}
+                                {sc.labelJa} / {sc.label}
                               </span>
                             </div>
                             <p className="text-xs text-stone-400 mt-0.5">{item.description}</p>
                             {item.completedBy && (
-                              <p className="text-xs text-stone-400 mt-0.5">完了: {item.completedBy}{item.completedAt ? ` (${item.completedAt.slice(0, 10)})` : ""}</p>
+                              <p className="text-xs text-stone-400 mt-0.5">{t("close_checklist_completed_by")} {item.completedBy}{item.completedAt ? ` (${item.completedAt.slice(0, 10)})` : ""}</p>
                             )}
                             {/* Notes */}
                             {notesEditing === item.id ? (
@@ -206,10 +208,10 @@ export default function CloseChecklistPage() {
                                   value={notesValue}
                                   onChange={(e) => setNotesValue(e.target.value)}
                                   className="flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2d6a4f]/30"
-                                  placeholder="Notes..."
+                                  placeholder={t("close_checklist_notes_placeholder")}
                                 />
-                                <button onClick={() => saveNotes(item.id)} className="text-xs text-[#2d6a4f] font-medium hover:underline">Save</button>
-                                <button onClick={() => setNotesEditing(null)} className="text-xs text-stone-400 hover:text-stone-600">Cancel</button>
+                                <button onClick={() => saveNotes(item.id)} className="text-xs text-[#2d6a4f] font-medium hover:underline">{t("action_save")}</button>
+                                <button onClick={() => setNotesEditing(null)} className="text-xs text-stone-400 hover:text-stone-600">{t("cancel")}</button>
                               </div>
                             ) : (
                               <div className="mt-1 flex items-center gap-2">
@@ -218,7 +220,7 @@ export default function CloseChecklistPage() {
                                   onClick={() => { setNotesEditing(item.id); setNotesValue(item.notes); }}
                                   className="text-xs text-stone-400 hover:text-stone-600 underline"
                                 >
-                                  {item.notes ? "Edit note" : "+ Add note"}
+                                  {item.notes ? t("close_checklist_edit_note") : t("close_checklist_add_note")}
                                 </button>
                               </div>
                             )}
@@ -230,18 +232,18 @@ export default function CloseChecklistPage() {
                               <button
                                 onClick={() => updateStatus(item, "blocked")}
                                 className="text-xs text-red-400 hover:text-red-600 px-1"
-                                title="Mark as blocked"
+                                title={t("close_checklist_mark_blocked_title")}
                               >
-                                Block
+                                {t("close_checklist_block_button")}
                               </button>
                             )}
                             {item.status !== "na" && (
                               <button
                                 onClick={() => updateStatus(item, "na")}
                                 className="text-xs text-stone-400 hover:text-stone-600 px-1"
-                                title="Mark as not applicable"
+                                title={t("close_checklist_mark_na_title")}
                               >
-                                N/A
+                                {t("not_applicable")}
                               </button>
                             )}
                           </div>
@@ -256,7 +258,7 @@ export default function CloseChecklistPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No checklist found.</p>
+          <p className="text-stone-400 text-sm">{t("close_checklist_no_checklist_found")}</p>
         </div>
       )}
     </AppShell>

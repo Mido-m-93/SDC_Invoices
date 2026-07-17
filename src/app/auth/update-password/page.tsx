@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { useLanguage } from "@/translations";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,19 +16,19 @@ export default function UpdatePasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t("update_password_error_mismatch"));
       return;
     }
     setLoading(true);
     setError(null);
 
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
+    if (!supabase) { setError(t("update_password_error_auth_not_configured")); setLoading(false); return; }
     const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {
       if (updateError.message.toLowerCase().includes("same password") || updateError.message.toLowerCase().includes("different from")) {
-        setError("This is your current password. Please choose a different one.");
+        setError(t("update_password_error_same_password"));
       } else {
         setError(updateError.message);
       }
@@ -46,8 +48,8 @@ export default function UpdatePasswordPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-stone-900">Set new password</h1>
-          <p className="mt-1 text-sm text-stone-500">Choose a strong password</p>
+          <h1 className="text-2xl font-bold text-stone-900">{t("update_password_title")}</h1>
+          <p className="mt-1 text-sm text-stone-500">{t("update_password_subtitle")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 space-y-5">
@@ -59,7 +61,7 @@ export default function UpdatePasswordPage() {
 
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-stone-700" htmlFor="password">
-              New password
+              {t("update_password_label_new")}
             </label>
             <input
               id="password"
@@ -76,7 +78,7 @@ export default function UpdatePasswordPage() {
 
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-stone-700" htmlFor="confirm">
-              Confirm password
+              {t("update_password_label_confirm")}
             </label>
             <input
               id="confirm"
@@ -96,7 +98,7 @@ export default function UpdatePasswordPage() {
             disabled={loading}
             className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? "Updating…" : "Update password"}
+            {loading ? t("update_password_button_updating") : t("update_password_button_submit")}
           </button>
         </form>
       </div>

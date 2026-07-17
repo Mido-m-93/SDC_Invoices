@@ -18,6 +18,7 @@ import type {
   Lead,
   Member,
   ExpenseClaim,
+  TrashedItem,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ interface MockStore {
   leads: Lead[];
   members: Member[];
   expenseClaims: ExpenseClaim[];
+  trash: TrashedItem[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -94,6 +96,7 @@ export function readStore(): MockStore {
     leads: [],
     members: [],
     expenseClaims: [],
+    trash: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
@@ -116,6 +119,7 @@ export function readStore(): MockStore {
       leads:             store.leads?.length        ? store.leads        : SEED_LEADS,
       members:           store.members ?? [],
       expenseClaims:     store.expenseClaims?.length ? store.expenseClaims : SEED_EXPENSES,
+      trash:             store.trash ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS };
@@ -137,15 +141,22 @@ function deriveMonth(s: InvoiceSubmission): string {
 }
 
 function contentKey(s: InvoiceSubmission): string {
-  return `${s.payerName}|${s.closingMonth}|${s.claimedAmountTaxIncluded ?? ""}`;
+  // submissionRowNumber is included so two genuinely different submissions
+  // (e.g. a resubmission with a corrected attachment) never collapse into
+  // one just because payer/month/amount happen to match — that's exactly
+  // the case the "Duplicate Submission" validation stage exists to flag for
+  // human review, and it can only do that if both rows actually get stored.
+  // This key only collapses re-fetches/re-uploads of the *same* row.
+  return `${s.payerName}|${s.closingMonth}|${s.claimedAmountTaxIncluded ?? ""}|${s.submissionRowNumber}`;
 }
 
 export function saveUploadedSubmissions(submissions: InvoiceSubmission[], month: string): void {
   const store = readStore();
   // Keep submissions from other months; replace only the target month.
   const others = store.submissions.filter((s) => deriveMonth(s) !== month);
-  // Deduplicate incoming submissions by content fingerprint — same name+month+amount
-  // is the same submission regardless of row number (prevents accumulation on re-upload).
+  // Deduplicate incoming submissions by content fingerprint — same name+month+amount+row
+  // is the same submission regardless of which upload/sync batch it came from
+  // (prevents accumulation on re-upload/re-sync of the exact same row).
   const seen = new Set<string>();
   const deduped = submissions.filter((s) => {
     const k = contentKey(s);
@@ -381,6 +392,32 @@ export function saveExpenseClaim(claim: ExpenseClaim): void {
 export function deleteExpenseClaim(id: string): void {
   const store = readStore();
   store.expenseClaims = store.expenseClaims.filter((c) => c.id !== id);
+  writeStore(store);
+}
+
+// ── Trash ─────────────────────────────────────────────────────────────────────
+
+export function loadTrash(): TrashedItem[] {
+  return readStore().trash ?? [];
+}
+
+export function addToTrash(item: TrashedItem): void {
+  const store = readStore();
+  store.trash = [item, ...(store.trash ?? [])];
+  writeStore(store);
+}
+
+export function removeFromTrash(trashId: string): TrashedItem | undefined {
+  const store = readStore();
+  const found = store.trash?.find((t) => t.trashId === trashId);
+  store.trash = (store.trash ?? []).filter((t) => t.trashId !== trashId);
+  writeStore(store);
+  return found;
+}
+
+export function clearTrash(): void {
+  const store = readStore();
+  store.trash = [];
   writeStore(store);
 }
 

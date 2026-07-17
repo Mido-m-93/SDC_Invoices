@@ -3,10 +3,12 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { useLanguage } from "@/translations";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const confirmed = searchParams.get("confirmed") === "true";
   const confirmError = searchParams.get("error") === "confirmation_failed";
   const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
@@ -34,7 +36,7 @@ function LoginForm() {
     setSuccess(null);
 
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
+    if (!supabase) { setError(t("login_error_auth_not_configured")); setLoading(false); return; }
 
     if (mode === "signin") {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
@@ -55,10 +57,10 @@ function LoginForm() {
         setError(authError.message);
         setLoading(false);
       } else if (signUpData.user && signUpData.user.identities?.length === 0) {
-        setError("This email is already registered. Please sign in instead.");
+        setError(t("login_error_email_already_registered"));
         setLoading(false);
       } else {
-        setSuccess("Check your email for a confirmation link to activate your account.");
+        setSuccess(t("login_success_signup_check_email"));
         setLoading(false);
       }
     } else {
@@ -68,7 +70,7 @@ function LoginForm() {
       if (authError) {
         setError(authError.message);
       } else {
-        setSuccess("Password reset email sent! Check your inbox.");
+        setSuccess(t("login_success_reset_email_sent"));
       }
       setLoading(false);
     }
@@ -84,21 +86,21 @@ function LoginForm() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-stone-900">SDC Invoice Tool</h1>
+          <h1 className="text-2xl font-bold text-stone-900">{t("login_app_name")}</h1>
           <p className="mt-1 text-sm text-stone-500">
-            {mode === "signin" ? "Sign in to your account" : mode === "signup" ? "Create a new account" : "Reset your password"}
+            {mode === "signin" ? t("login_subtitle_signin") : mode === "signup" ? t("login_subtitle_signup") : t("login_subtitle_reset")}
           </p>
         </div>
 
         {/* URL-driven banners (after email confirmation redirect) */}
         {confirmed && (
           <div className="mb-4 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-            ✓ Email confirmed! You can now sign in.
+            {t("login_email_confirmed_banner")}
           </div>
         )}
         {confirmError && (
           <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            Confirmation link is invalid or expired. Please try signing up again.
+            {t("login_confirmation_failed_banner")}
           </div>
         )}
 
@@ -112,7 +114,7 @@ function LoginForm() {
                 mode === "signin" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
               }`}
             >
-              Sign in
+              {t("login_tab_signin")}
             </button>
             <button
               type="button"
@@ -121,7 +123,7 @@ function LoginForm() {
                 mode === "signup" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
               }`}
             >
-              Sign up
+              {t("login_tab_signup")}
             </button>
           </div>
         )}
@@ -142,7 +144,7 @@ function LoginForm() {
           {mode === "signup" && (
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-stone-700" htmlFor="name">
-                Full name
+                {t("login_name_label")}
               </label>
               <input
                 id="name"
@@ -152,14 +154,14 @@ function LoginForm() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm text-stone-900 placeholder-stone-400 focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20"
-                placeholder="Full name"
+                placeholder={t("login_name_placeholder")}
               />
             </div>
           )}
 
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-stone-700" htmlFor="email">
-              Email
+              {t("login_email_label")}
             </label>
             <input
               id="email"
@@ -169,7 +171,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm text-stone-900 placeholder-stone-400 focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20"
-              placeholder="Email address"
+              placeholder={t("login_email_placeholder")}
             />
           </div>
 
@@ -177,7 +179,7 @@ function LoginForm() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-stone-700" htmlFor="password">
-                  Password
+                  {t("login_password_label")}
                 </label>
                 {mode === "signin" && (
                   <button
@@ -185,7 +187,7 @@ function LoginForm() {
                     onClick={() => switchMode("reset")}
                     className="text-xs text-[#2d6a4f] hover:underline"
                   >
-                    Forgot password?
+                    {t("login_forgot_password")}
                   </button>
                 )}
               </div>
@@ -209,8 +211,8 @@ function LoginForm() {
             className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading
-              ? mode === "signin" ? "Signing in…" : mode === "signup" ? "Creating account…" : "Sending…"
-              : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
+              ? mode === "signin" ? t("login_submit_signin_loading") : mode === "signup" ? t("login_submit_signup_loading") : t("login_submit_reset_loading")
+              : mode === "signin" ? t("login_submit_signin") : mode === "signup" ? t("login_submit_signup") : t("login_submit_reset")}
           </button>
 
           {mode === "reset" && (
@@ -219,7 +221,7 @@ function LoginForm() {
               onClick={() => switchMode("signin")}
               className="w-full text-center text-sm text-stone-500 hover:text-stone-700"
             >
-              ← Back to sign in
+              {t("login_back_to_signin")}
             </button>
           )}
         </form>

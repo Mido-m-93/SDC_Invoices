@@ -47,6 +47,8 @@ import type {
   ProfitAndLoss,
   AccountingSummary,
   ReportingKPIs,
+  TrashedItem,
+  TrashEntityType,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -113,6 +115,9 @@ export interface IStorageService {
 
   /** Delete ALL submissions (and their validation results) across all months */
   clearAllSubmissions(): Promise<void>;
+
+  /** Delete specific submissions by ID */
+  deleteSubmissions(ids: string[]): Promise<void>;
 
   /** Load saved submissions for a given month */
   loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]>;
@@ -216,6 +221,29 @@ export interface IExpenseService {
   validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
 }
 
+// ── Money Forward (billing / reimbursement payout) service ────────────────────
+export interface MoneyForwardSendResult {
+  billingId: string;
+  billingUrl: string;
+}
+
+export interface MFSendPayload {
+  partnerName: string;
+  title: string;
+  billingDate: string;   // YYYY-MM-DD
+  dueDate?: string;      // YYYY-MM-DD
+  amount: number;        // tax-included total
+  currency?: "JPY" | "USD";
+  memo?: string;
+  pdfData?: Uint8Array;
+  pdfFilename?: string;
+}
+
+export interface IMoneyForwardService {
+  sendExpenseReimbursement(claim: ExpenseClaim): Promise<MoneyForwardSendResult>;
+  sendInvoice(payload: MFSendPayload): Promise<MoneyForwardSendResult>;
+}
+
 // ── Outbound invoice service (Phase 9) ────────────────────────────────────────
 export interface IOutboundInvoiceService {
   listInvoices(filters?: { status?: OutboundInvoiceStatus; billingMonth?: string }): Promise<OutboundInvoice[]>;
@@ -315,3 +343,14 @@ export interface ICloseService {
   initChecklist(month: string): Promise<MonthlyChecklistItem[]>;
   getBankSyncStatus(): Promise<BankSyncStatus>;
 }
+
+// ── Trash service ─────────────────────────────────────────────────────────────
+export interface ITrashService {
+  listTrashed(): Promise<TrashedItem[]>;
+  addToTrash(item: TrashedItem): Promise<void>;
+  removeFromTrash(trashId: string): Promise<TrashedItem | undefined>;
+  clearTrash(): Promise<void>;
+}
+
+// Re-export for use in route handlers
+export type { TrashedItem, TrashEntityType };

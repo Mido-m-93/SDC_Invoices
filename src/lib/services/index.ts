@@ -12,9 +12,16 @@
 //   NEXT_PUBLIC_USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
 //   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_NOTIFICATION   = "false" → use TeamsNotificationService
+//   NEXT_PUBLIC_USE_MOCK_MONEYFORWARD   = "false" → use MoneyForwardService (real MF Cloud Invoice API)
 //
 // The legacy NEXT_PUBLIC_USE_MOCK flag is intentionally removed.
 // Each service must be opted into real mode individually.
+//
+// Money Forward sandbox override:
+//   NEXT_PUBLIC_USE_SANDBOX_MONEYFORWARD = "true" → use SandboxMoneyForwardService
+//     Sends the same partner/billing JSON structure as the real MF service, but
+//     to a local sandbox endpoint (src/app/api/dev/sandbox-mf) instead of the
+//     production API. Overrides NEXT_PUBLIC_USE_MOCK_MONEYFORWARD when set.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
@@ -32,6 +39,7 @@ import type {
   INotificationService,
   IReminderService,
   IExpenseService,
+  IMoneyForwardService,
   IOutboundInvoiceService,
   ICloseChecklistService,
   ICloseService,
@@ -40,6 +48,7 @@ import type {
   IMemberService,
   IAccountingService,
   IReportingService,
+  ITrashService,
 } from "./types";
 
 import {
@@ -61,6 +70,7 @@ import {
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
 import { MockExpenseService } from "./mock/expenseService";
+import { MockMoneyForwardService } from "./mock/moneyForwardService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
@@ -73,9 +83,12 @@ import { RealValidationService } from "./real/RealValidationService";
 import { RealDriveService } from "./real/DriveService";
 import { SupabaseDashboardService } from "./real/SupabaseDashboardService";
 import { SupabaseExpenseService } from "./real/SupabaseExpenseService";
+import { MoneyForwardService } from "./real/MoneyForwardService";
+import { SandboxMoneyForwardService } from "./sandbox/SandboxMoneyForwardService";
 import { SupabaseOutboundInvoiceService } from "./real/SupabaseOutboundInvoiceService";
 import { SupabaseCloseChecklistService } from "./real/SupabaseCloseChecklistService";
 import { MockCloseService } from "./mock/closeService";
+import { MockTrashService } from "./mock/trashService";
 import { SupabaseCloseService } from "./real/SupabaseCloseService";
 import { SupabaseClientService } from "./real/SupabaseClientService";
 import { SupabaseLeadService } from "./real/SupabaseLeadService";
@@ -105,6 +118,7 @@ let _paymentRecord: IPaymentRecordService | undefined;
 let _notification: INotificationService | undefined;
 let _reminder: IReminderService | undefined;
 let _expense: IExpenseService | undefined;
+let _moneyForward: IMoneyForwardService | undefined;
 let _outboundInvoice: IOutboundInvoiceService | undefined;
 let _closeChecklist: ICloseChecklistService | undefined;
 let _close: ICloseService | undefined;
@@ -113,6 +127,7 @@ let _lead: ILeadService | undefined;
 let _member: IMemberService | undefined;
 let _accounting: IAccountingService | undefined;
 let _reporting: IReportingService | undefined;
+let _trash: ITrashService | undefined;
 
 // ── Sheets ───────────────────────────────────────────────────────────────────
 export function getSheetsService(): ISheetsService {
@@ -233,6 +248,20 @@ export function getExpenseService(): IExpenseService {
   return _expense;
 }
 
+// ── Money Forward (reimbursement payout) ─────────────────────────────────────
+export function getMoneyForwardService(): IMoneyForwardService {
+  if (!_moneyForward) {
+    if (process.env.NEXT_PUBLIC_USE_SANDBOX_MONEYFORWARD === "true") {
+      _moneyForward = new SandboxMoneyForwardService();
+    } else {
+      _moneyForward = isMock("NEXT_PUBLIC_USE_MOCK_MONEYFORWARD")
+        ? new MockMoneyForwardService()
+        : new MoneyForwardService();
+    }
+  }
+  return _moneyForward;
+}
+
 // ── Outbound Invoice (Phase 9) ────────────────────────────────────────────────
 export function getOutboundInvoiceService(): IOutboundInvoiceService {
   if (!_outboundInvoice) {
@@ -240,8 +269,6 @@ export function getOutboundInvoiceService(): IOutboundInvoiceService {
   }
   return _outboundInvoice;
 }
-export const getCloseService = getCloseChecklistService;
-
 // ── Monthly Close Checklist (Phase 10) ────────────────────────────────────────
 export function getCloseChecklistService(): ICloseChecklistService {
   if (!_closeChecklist) {
@@ -308,6 +335,12 @@ export function getAccountingService(): IAccountingService {
 export function getReportingService(): IReportingService {
   if (!_reporting) _reporting = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockReportingService() : new SupabaseReportingService();
   return _reporting;
+}
+
+// ── Trash ─────────────────────────────────────────────────────────────────────
+export function getTrashService(): ITrashService {
+  if (!_trash) _trash = new MockTrashService();
+  return _trash;
 }
 
 // ── Startup diagnostic (server-side only) ────────────────────────────────────

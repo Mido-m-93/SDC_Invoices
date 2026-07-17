@@ -1,4 +1,6 @@
 import "server-only";
+import type { IMoneyForwardService, MoneyForwardSendResult, MFSendPayload } from "../types";
+import type { ExpenseClaim } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MoneyForwardService.ts — Money Forward Cloud Invoice (クラウド請求書) integration
@@ -21,25 +23,13 @@ import "server-only";
 const MF_API_BASE = "https://invoice.moneyforward.com/api/v3";
 const MF_TOKEN_URL = "https://sso.moneyforward.com/oauth/token";
 
-export interface MFSendPayload {
-  partnerName: string;
-  title: string;
-  billingDate: string;   // YYYY-MM-DD
-  dueDate?: string;      // YYYY-MM-DD
-  amount: number;        // tax-included total
-  currency?: "JPY" | "USD";
-  memo?: string;
-  pdfData?: Uint8Array;
-  pdfFilename?: string;
-}
-
 export interface MFSendResult {
   billingId: string;
   billingUrl: string;
   partnerId: string;
 }
 
-export class MoneyForwardService {
+export class MoneyForwardService implements IMoneyForwardService {
   private accessToken: string;
   private readonly refreshToken: string;
   private readonly clientId: string;
@@ -67,6 +57,18 @@ export class MoneyForwardService {
     const partnerId = await this.findOrCreatePartner(payload.partnerName);
     const result    = await this.createBilling(partnerId, payload);
     return result;
+  }
+
+  async sendExpenseReimbursement(claim: ExpenseClaim): Promise<MoneyForwardSendResult> {
+    const result = await this.sendInvoice({
+      partnerName: claim.submittedBy,
+      title:       `Expense Reimbursement — ${claim.description || claim.category}`,
+      billingDate: claim.expenseDate || new Date().toISOString().slice(0, 10),
+      amount:      claim.amount,
+      currency:    claim.currency === "USD" ? "USD" : "JPY",
+      memo:        claim.reviewerComment || claim.description || "",
+    });
+    return { billingId: result.billingId, billingUrl: result.billingUrl };
   }
 
   // ── Partner (取引先) management ─────────────────────────────────────────────

@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import { useLanguage } from "@/translations";
 import type { InvoiceListItem } from "@/types";
 
 type FilterLevel = "ALL" | "BLOCKED" | "NEEDS_REVIEW";
 
 export default function ExceptionsPage() {
+  const { t } = useLanguage();
   const [items, setItems]           = useState<InvoiceListItem[]>([]);
   const [loading, setLoading]       = useState(false);
   const [filter, setFilter]         = useState<FilterLevel>("ALL");
@@ -24,9 +26,9 @@ export default function ExceptionsPage() {
       setMonths(list);
       if (list.length > 0) setMonth(list[0]);
     } catch {
-      setError("Failed to load months");
+      setError(t("exceptions_load_error"));
     }
-  }, []);
+  }, [t]);
 
   const loadExceptions = useCallback(async (month: string) => {
     if (!month) return;
@@ -43,11 +45,11 @@ export default function ExceptionsPage() {
       });
       setItems(exceptions);
     } catch {
-      setError("Failed to load invoices");
+      setError(t("exceptions_load_invoices_error"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { loadMonths(); }, [loadMonths]);
   useEffect(() => { if (selectedMonth) loadExceptions(selectedMonth); }, [selectedMonth, loadExceptions]);
@@ -88,8 +90,8 @@ export default function ExceptionsPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Exception Report"
-        subtitle="Invoices requiring attention — BLOCKED or NEEDS REVIEW"
+        title={t("exceptions_title")}
+        subtitle={t("exceptions_subtitle")}
         actions={
           <div className="flex items-center gap-3">
             <select
@@ -102,7 +104,7 @@ export default function ExceptionsPage() {
               ))}
             </select>
             <Button variant="secondary" onClick={exportCsv} disabled={filtered.length === 0}>
-              Export CSV
+              {t("exceptions_export_csv")}
             </Button>
           </div>
         }
@@ -116,9 +118,9 @@ export default function ExceptionsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <SummaryCard label="Total Exceptions" value={items.length} color="stone" />
-        <SummaryCard label="Blocked" value={blocked} color="red" />
-        <SummaryCard label="Needs Review" value={needsReview} color="amber" />
+        <SummaryCard label={t("exceptions_summary_total")} value={items.length} color="stone" />
+        <SummaryCard label={t("exceptions_summary_blocked")} value={blocked} color="red" />
+        <SummaryCard label={t("exceptions_summary_needs_review")} value={needsReview} color="amber" />
       </div>
 
       {/* Filter tabs */}
@@ -133,17 +135,17 @@ export default function ExceptionsPage() {
                 : "bg-stone-100 text-stone-600 hover:bg-stone-200"
             }`}
           >
-            {f === "ALL" ? "All" : f === "BLOCKED" ? "Blocked" : "Needs Review"}
+            {f === "ALL" ? t("exceptions_filter_all") : f === "BLOCKED" ? t("exceptions_filter_blocked") : t("exceptions_filter_needs_review")}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-400 text-sm">
-            {items.length === 0 ? "No exceptions found for this month." : "No items match the current filter."}
+            {items.length === 0 ? t("exceptions_empty_no_month_data") : t("exceptions_empty_no_filter_match")}
           </p>
         </div>
       ) : (
@@ -152,14 +154,14 @@ export default function ExceptionsPage() {
             <table className="w-full text-sm">
               <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3 text-left">Payer</th>
-                  <th className="px-4 py-3 text-left">Risk Level</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Registered</th>
-                  <th className="px-4 py-3 text-left">Active</th>
-                  <th className="px-4 py-3 text-left">Issues</th>
-                  <th className="px-4 py-3 text-left">Comment</th>
-                  <th className="px-4 py-3 text-left">Escalated</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_payer")}</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_risk_level")}</th>
+                  <th className="px-4 py-3 text-left">{t("col_status")}</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_registered")}</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_active")}</th>
+                  <th className="px-4 py-3 text-left">{t("col_issues")}</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_comment")}</th>
+                  <th className="px-4 py-3 text-left">{t("exceptions_col_escalated")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -171,7 +173,7 @@ export default function ExceptionsPage() {
                       <td className="px-4 py-3">
                         <RiskBadge level={v?.riskLevel} />
                       </td>
-                      <td className="px-4 py-3 text-xs text-stone-500 font-mono">{v?.statusCode ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-stone-500 font-mono">{v?.statusCode ?? t("none")}</td>
                       <td className="px-4 py-3">
                         {v?.vendorMatched
                           ? <span className="text-green-600 text-xs font-semibold">✓</span>
@@ -183,13 +185,13 @@ export default function ExceptionsPage() {
                           : <span className="text-red-500 text-xs font-semibold">✗</span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-stone-500 max-w-xs">
-                        {v?.issues?.length ? v.issues.join(", ") : "—"}
+                        {v?.issues?.length ? v.issues.join(", ") : t("none")}
                       </td>
                       <td className="px-4 py-3 text-xs text-stone-600 max-w-xs italic">
-                        {v?.reviewerComment ?? "—"}
+                        {v?.reviewerComment ?? t("none")}
                       </td>
                       <td className="px-4 py-3 text-xs text-stone-400">
-                        {v?.escalatedAt ? new Date(v.escalatedAt).toLocaleDateString() : "—"}
+                        {v?.escalatedAt ? new Date(v.escalatedAt).toLocaleDateString() : t("none")}
                       </td>
                     </tr>
                   );

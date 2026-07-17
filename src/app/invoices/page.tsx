@@ -19,7 +19,9 @@ import {
   uploadInvoiceExcel,
   fetchAvailableMonths,
   clearAllInvoices,
+  deleteInvoices,
   patchSubmissionCurrency,
+  sendInvoiceToMoneyForward,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
 import { monthOptions, formatCurrency, formatDateParts } from "@/lib/utils";
@@ -39,6 +41,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [sendingToMF, setSendingToMF] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,8 @@ export default function InvoicesPage() {
   const [rawPreview, setRawPreview] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -114,6 +119,23 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeletingSelected(true);
+    setError(null);
+    try {
+      const ids = Array.from(selectedIds);
+      await deleteInvoices(ids);
+      setItems((prev) => prev.filter((i) => !selectedIds.has(i.submission.id)));
+      if (selectedItem && selectedIds.has(selectedItem.submission.id)) setSelectedItem(null);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
   const handleValidate = async (submission: InvoiceSubmission) => {
     setValidating(submission.id);
     setError(null);
@@ -159,6 +181,33 @@ export default function InvoicesPage() {
       setError(String(err));
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handleSendToMF = async (item: InvoiceListItem) => {
+    if (!item.validation) {
+      setError(`${t("mf_send_error")}: run Validate first`);
+      return;
+    }
+    setSendingToMF(item.submission.id);
+    setError(null);
+    try {
+      const { billingId, billingUrl } = await sendInvoiceToMoneyForward(item.submission, item.validation);
+      const updated = {
+        ...item,
+        validation: {
+          ...item.validation,
+          mfBillingId: billingId,
+          mfBillingUrl: billingUrl,
+          mfSentAt: new Date().toISOString(),
+        },
+      };
+      setItems((prev) => prev.map((i) => (i.submission.id === item.submission.id ? updated : i)));
+      setSelectedItem((prev) => (prev?.submission.id === item.submission.id ? updated : prev));
+    } catch (err) {
+      setError(`${t("mf_send_error")}: ${String(err)}`);
+    } finally {
+      setSendingToMF(null);
     }
   };
 
@@ -230,8 +279,8 @@ export default function InvoicesPage() {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Reset to page 1 whenever filter or month changes
-  useEffect(() => { setPage(1); }, [filterStatus, month]);
+  // Reset to page 1 and clear selection whenever filter or month changes
+  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [filterStatus, month]);
 
   const tabCount = (f: string): number => {
     if (f === "ALL") return items.length;
@@ -253,6 +302,16 @@ export default function InvoicesPage() {
           actions={
             <div className="flex items-center gap-3">
               <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={deletingSelected}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  <TrashIcon />
+                  {deletingSelected ? "Deleting…" : `Delete Selected (${selectedIds.size})`}
+                </button>
+              )}
               <button
                 onClick={() => setConfirmClear(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
@@ -371,6 +430,22 @@ export default function InvoicesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        className="rounded border-stone-300 text-red-600 cursor-pointer"
+                        checked={paginated.length > 0 && paginated.every((i) => selectedIds.has(i.submission.id))}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) paginated.forEach((i) => next.add(i.submission.id));
+                            else paginated.forEach((i) => next.delete(i.submission.id));
+                            return next;
+                          });
+                        }}
+                        title="Select all on this page"
+                      />
+                    </th>
                     <Th>{t("col_name")}</Th>
                     <Th>{t("col_submitted_at")}</Th>
                     <Th>{t("col_which_month")}</Th>
@@ -387,7 +462,23 @@ export default function InvoicesPage() {
                     const { submission: s, validation: v } = item;
                     const isValidating = validating === s.id;
                     return (
-                      <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
+                      <tr key={s.id} className={clsx("hover:bg-stone-50/70 transition-colors", selectedIds.has(s.id) && "bg-red-50/40")}>
+                        {/* Checkbox */}
+                        <td className="w-10 px-3 py-3">
+                          <input
+                            type="checkbox"
+                            className="rounded border-stone-300 text-red-600 cursor-pointer"
+                            checked={selectedIds.has(s.id)}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(s.id);
+                                else next.delete(s.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </td>
                         {/* Name */}
                         <td className="px-4 py-3 font-medium text-stone-900 whitespace-nowrap">
                           <span className="text-xs text-stone-400 font-mono mr-1.5">#{s.submissionRowNumber}</span>
@@ -546,6 +637,27 @@ export default function InvoicesPage() {
                             {item.filedDocument && (
                               <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
                             )}
+                            {!v?.mfBillingUrl && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                loading={sendingToMF === s.id}
+                                onClick={() => handleSendToMF(item)}
+                              >
+                                💴 {t("action_send_to_mf")}
+                              </Button>
+                            )}
+                            {v?.mfBillingUrl && (
+                              <a
+                                href={v.mfBillingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                                title={t("mf_sent")}
+                              >
+                                💴 {t("action_view_in_mf")}
+                              </a>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -598,6 +710,8 @@ export default function InvoicesPage() {
         <InvoiceDetailPanel
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
+          onSendToMF={handleSendToMF}
+          sendingToMF={sendingToMF === selectedItem.submission.id}
         />
       )}
 

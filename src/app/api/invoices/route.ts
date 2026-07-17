@@ -1,6 +1,7 @@
 // src/app/api/invoices/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSheetsService, getStorageService } from "@/lib/services";
+import { getSheetsService, getStorageService, getTrashService } from "@/lib/services";
+import { generateId } from "@/lib/utils";
 import { parseSnapshotMonth } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
@@ -71,9 +72,41 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
-    await getStorageService().clearAllSubmissions();
+    let ids: string[] | undefined;
+    try {
+      const body = await req.json() as { ids?: string[] };
+      ids = Array.isArray(body.ids) ? body.ids : undefined;
+    } catch {
+      // no body — fall through to clear-all
+    }
+
+    const storage = getStorageService();
+    const trash   = getTrashService();
+    const now     = new Date().toISOString();
+
+    if (ids && ids.length > 0) {
+      // Load all months and find matching submissions to snapshot before deleting
+      const months = await storage.listAvailableMonths();
+      const allSubs = (await Promise.all(months.map((m) => storage.loadSubmissionsFromStore(m)))).flat();
+      const toTrash = allSubs.filter((s) => ids!.includes(s.id));
+      await Promise.all(
+        toTrash.map((s) =>
+          trash.addToTrash({
+            trashId:    generateId("trash"),
+            entityType: "invoice",
+            entityId:   s.id,
+            entityName: `${s.payerName} (${s.closingMonth ?? "?"})`,
+            deletedAt:  now,
+            data:       s,
+          })
+        )
+      );
+      await storage.deleteSubmissions(ids);
+    } else {
+      await storage.clearAllSubmissions();
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/invoices]", err);

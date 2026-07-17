@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClientService } from "@/lib/services";
+import { getClientService, getTrashService } from "@/lib/services";
 import { requireAuth } from "@/lib/auth-guard";
+import { generateId } from "@/lib/utils";
 import type { Client } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { user, response } = await requireAuth();
   if (!user) return response!;
   try {
-    await getClientService().deleteClient(params.id);
+    const svc    = getClientService();
+    const client = await svc.getClient(params.id);
+    if (client) {
+      await getTrashService().addToTrash({
+        trashId:    generateId("trash"),
+        entityType: "client",
+        entityId:   client.id,
+        entityName: client.name,
+        deletedAt:  new Date().toISOString(),
+        data:       client,
+      });
+    }
+    await svc.deleteClient(params.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[API ERROR]", err);
