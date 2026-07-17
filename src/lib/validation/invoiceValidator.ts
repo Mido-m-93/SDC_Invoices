@@ -55,7 +55,9 @@ export function detectInvoiceDate(text: string): string | null {
  * Detect whether the invoice mentions tax (消費税 / 税).
  */
 export function detectTaxMentioned(text: string): boolean {
-  return /消費税|税込|税抜|tax|vat/i.test(text);
+  // 税抜 means "tax-excluded" — not a positive signal for tax being included.
+  // Only match keywords that indicate tax IS present/applied.
+  return /消費税|税込|tax|vat/i.test(text);
 }
 
 // ── Name matching ─────────────────────────────────────────────────────────────

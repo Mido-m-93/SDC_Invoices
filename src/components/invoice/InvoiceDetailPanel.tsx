@@ -286,7 +286,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
                 <ValidationCheck label={t("validation_total_found")} pass={v.totalFound} />
                 <ValidationCheck label={t("validation_amount_consistent")} pass={v.amountConsistent} />
                 <ValidationCheck label={t("validation_amount_matches_sheet")} pass={v.amountMatchesSheet} />
-                <ValidationCheck label={t("validation_no_duplicate")} pass={!v.duplicateDetected} />
+                <ValidationCheck label={t("validation_no_duplicate")} pass={!v.duplicateDetected && !v.issues.some(i => i.toLowerCase().startsWith("duplicate:"))} />
               </div>
             </Section>
           )}
