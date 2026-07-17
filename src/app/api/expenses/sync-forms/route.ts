@@ -262,14 +262,31 @@ export async function GET() {
     );
     const { id: driveId } = await driveRes.json() as { id: string };
 
-    // List Excel files — search personal OneDrive, include parent path
-    const listRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=50`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-    );
-    const { value: files } = await listRes.json() as {
-      value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string; path?: string } }>
-    };
+    type DriveItem = { id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string; path?: string } };
+
+    // Search broadly — include all Excel files AND search inside Microsoft Forms subfolder
+    const [searchRes, formsRes] = await Promise.all([
+      fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='経費')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=50`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+      ),
+      // Microsoft Forms stores response files under /Apps/Microsoft Forms/ or /Microsoft Forms/
+      fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='Microsoft Forms')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=50`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+      ),
+    ]);
+
+    const { value: searchFiles } = await searchRes.json() as { value: DriveItem[] };
+    const { value: formsFiles  } = await formsRes.json() as { value: DriveItem[] };
+
+    // Merge and deduplicate by item ID
+    const seen  = new Set<string>();
+    const files = [...(searchFiles ?? []), ...(formsFiles ?? [])].filter((f) => {
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
 
     // Also read row count from the currently configured file (if set)
     let currentFileRows: number | null = null;
@@ -281,19 +298,21 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      hint: "Use the 'envValue' (driveId|itemId) as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel. Check 'path' to verify it is the correct Forms response file.",
-      currentItemId: process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID ?? null,
+      hint: "Find the correct file: look for 'path' containing 'Microsoft Forms' and name matching your form. Copy its 'envValue' to MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel.",
+      currentItemId:   process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID ?? null,
       currentFileRows,
-      files: files.map((f) => {
-        const fDriveId = f.parentReference?.driveId ?? driveId;
-        return {
-          name:         f.name,
-          path:         f.parentReference?.path ?? "(root)",
-          envValue:     `${fDriveId}|${f.id}`,
-          lastModified: f.lastModifiedDateTime,
-          sizeKB:       Math.round(f.size / 1024),
-        };
-      }),
+      files: files
+        .sort((a, b) => b.lastModifiedDateTime.localeCompare(a.lastModifiedDateTime))
+        .map((f) => {
+          const fDriveId = f.parentReference?.driveId ?? driveId;
+          return {
+            name:         f.name,
+            path:         f.parentReference?.path ?? "(root)",
+            envValue:     `${fDriveId}|${f.id}`,
+            lastModified: f.lastModifiedDateTime,
+            sizeKB:       Math.round(f.size / 1024),
+          };
+        }),
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
