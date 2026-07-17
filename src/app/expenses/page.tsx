@@ -181,12 +181,15 @@ export default function ExpensesPage() {
     setUploadMsg(null);
     try {
       const res  = await fetch("/api/expenses/sync-forms", { method: "POST" });
-      const data = await res.json() as { count?: number; synced?: number; error?: string };
+      const data = await res.json() as { count?: number; synced?: number; totalRows?: number; skipped?: number; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Sync failed");
       } else {
         const n = data.count ?? data.synced ?? 0;
-        setUploadMsg(`✓ ${n} expense claim${n === 1 ? "" : "s"} synced from Microsoft Forms`);
+        const total = data.totalRows ?? n;
+        const skipped = data.skipped ?? 0;
+        const skipNote = skipped > 0 ? ` (${skipped} rows skipped — missing name field)` : "";
+        setUploadMsg(`✓ ${n} of ${total} expense claims synced from Microsoft Forms${skipNote}`);
         load();
       }
     } catch {

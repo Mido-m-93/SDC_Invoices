@@ -203,7 +203,7 @@ async function fetchExcelFromOneDrive(): Promise<Buffer> {
     const realItem = itemId.slice(pipeIdx + 1);
     const fileRes  = await fetch(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${realItem}/content`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
     if (!fileRes.ok) {
       const body = await fileRes.text().catch(() => "");
@@ -215,7 +215,7 @@ async function fetchExcelFromOneDrive(): Promise<Buffer> {
   // Plain item ID: try personal OneDrive first, then fall back to user-scoped item lookup
   const driveRes = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
   );
   if (!driveRes.ok) {
     const body = await driveRes.text().catch(() => "");
@@ -226,14 +226,14 @@ async function fetchExcelFromOneDrive(): Promise<Buffer> {
   // Try personal drive first
   let fileRes = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
   );
 
   // If not found in personal drive, try accessing the item directly across all drives
   if (fileRes.status === 404) {
     fileRes = await fetch(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/items/${itemId}/content`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
   }
 
@@ -257,14 +257,14 @@ export async function GET() {
 
     const driveRes = await fetch(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
     const { id: driveId } = await driveRes.json() as { id: string };
 
     // List Excel files — search personal OneDrive
     const listRes = await fetch(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=30`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
     const { value: files } = await listRes.json() as {
       value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string } }>
@@ -328,8 +328,9 @@ export async function POST(_req: NextRequest) {
     const svc = getExpenseService();
     await Promise.all(claims.map((c) => svc.saveClaim(c)));
 
-    console.log(`[expenses/sync-forms] Synced ${claims.length} claims from OneDrive`);
-    return NextResponse.json({ count: claims.length, synced: claims.length });
+    const skipped = rows.length - claims.length;
+    console.log(`[expenses/sync-forms] rows=${rows.length} parsed=${claims.length} skipped=${skipped}`);
+    return NextResponse.json({ count: claims.length, synced: claims.length, totalRows: rows.length, skipped });
   } catch (err) {
     console.error("[POST /api/expenses/sync-forms]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
