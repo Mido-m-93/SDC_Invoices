@@ -8,7 +8,7 @@
 //   MICROSOFT_OWNER_UPN          (e.g. admin@example.com)
 //   MICROSOFT_EXPENSE_EXCEL_ITEM_ID  (OneDrive drive item ID of the Forms Excel)
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { read, utils } from "xlsx";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
@@ -288,7 +288,16 @@ export async function GET() {
 }
 
 // ── POST: sync claims from OneDrive Excel ─────────────────────────────────────
-export async function POST() {
+export async function POST(req: NextRequest) {
+  // Optional CRON_SECRET auth — validates requests from GitHub Actions / Vercel cron
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth     = req.headers.get("authorization");
+    const internal = req.headers.get("x-internal-cron");
+    if (!internal && auth !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
   // Validate required env vars before making any network calls
   const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN", "MICROSOFT_EXPENSE_EXCEL_ITEM_ID"] as const)
     .filter((k) => !process.env[k]);
