@@ -215,27 +215,34 @@ async function fetchRowsViaWorkbookApi(): Promise<Record<string, unknown>[]> {
   const base               = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook`;
   const hdr                = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
-  // Get the first worksheet
+  // Get all worksheets — Forms sometimes adds new sheets for overflow
   const wsRes = await fetch(`${base}/worksheets`, { headers: hdr, cache: "no-store" });
   if (!wsRes.ok) throw new Error(`Workbook worksheets failed ${wsRes.status}: ${await wsRes.text()}`);
   const { value: sheets } = await wsRes.json() as { value: Array<{ id: string; name: string }> };
   if (!sheets.length) throw new Error("No worksheets found");
-  const sheetId = encodeURIComponent(sheets[0].id);
 
-  // Read the used range (all rows that have data)
-  const rangeRes = await fetch(`${base}/worksheets/${sheetId}/usedRange`, { headers: hdr, cache: "no-store" });
-  if (!rangeRes.ok) throw new Error(`usedRange failed ${rangeRes.status}: ${await rangeRes.text()}`);
-  const { values } = await rangeRes.json() as { values: unknown[][] };
+  const allRows: Record<string, unknown>[] = [];
+  let globalHeaders: string[] = [];
 
-  if (!values || values.length < 2) return [];
+  for (const sheet of sheets) {
+    const sheetId  = encodeURIComponent(sheet.id);
+    const rangeRes = await fetch(`${base}/worksheets/${sheetId}/usedRange`, { headers: hdr, cache: "no-store" });
+    if (!rangeRes.ok) continue;
+    const { values } = await rangeRes.json() as { values: unknown[][] };
+    if (!values || values.length < 2) continue;
 
-  // First row is headers, rest are data
-  const headers = (values[0] as string[]).map((h) => String(h ?? "").trim());
-  return values.slice(1).map((row) => {
-    const record: Record<string, unknown> = {};
-    headers.forEach((h, i) => { record[h] = row[i] ?? ""; });
-    return record;
-  });
+    const sheetHeaders = (values[0] as string[]).map((h) => String(h ?? "").trim());
+    // Use the first sheet's headers as the canonical column names
+    if (!globalHeaders.length) globalHeaders = sheetHeaders;
+
+    values.slice(1).forEach((row) => {
+      const record: Record<string, unknown> = {};
+      sheetHeaders.forEach((h, i) => { record[h] = row[i] ?? ""; });
+      allRows.push(record);
+    });
+  }
+
+  return allRows;
 }
 
 // ── GET: list OneDrive files to find the correct item ID ─────────────────────
@@ -255,21 +262,33 @@ export async function GET() {
     );
     const { id: driveId } = await driveRes.json() as { id: string };
 
-    // List Excel files — search personal OneDrive
+    // List Excel files — search personal OneDrive, include parent path
     const listRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=30`,
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='.xlsx')?$select=id,name,lastModifiedDateTime,size,parentReference&$top=50`,
       { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
     );
     const { value: files } = await listRes.json() as {
-      value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string } }>
+      value: Array<{ id: string; name: string; lastModifiedDateTime: string; size: number; parentReference?: { driveId?: string; path?: string } }>
     };
 
+    // Also read row count from the currently configured file (if set)
+    let currentFileRows: number | null = null;
+    if (process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID) {
+      try {
+        const rows = await fetchRowsViaWorkbookApi();
+        currentFileRows = rows.length;
+      } catch { /* ignore */ }
+    }
+
     return NextResponse.json({
-      hint: "Use the 'envValue' (driveId|itemId) as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel",
+      hint: "Use the 'envValue' (driveId|itemId) as MICROSOFT_EXPENSE_EXCEL_ITEM_ID in Vercel. Check 'path' to verify it is the correct Forms response file.",
+      currentItemId: process.env.MICROSOFT_EXPENSE_EXCEL_ITEM_ID ?? null,
+      currentFileRows,
       files: files.map((f) => {
         const fDriveId = f.parentReference?.driveId ?? driveId;
         return {
           name:         f.name,
+          path:         f.parentReference?.path ?? "(root)",
           envValue:     `${fDriveId}|${f.id}`,
           lastModified: f.lastModifiedDateTime,
           sizeKB:       Math.round(f.size / 1024),
