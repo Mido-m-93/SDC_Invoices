@@ -1,5 +1,7 @@
 import "server-only";
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -197,81 +199,69 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: AI extraction via GPT-4o — never overrides receiptAccessible
+      // Phase 2: extract text from PDF then send to GPT-4o as plain text
       if (fileBuffer) {
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const isPdf  = mimeType === "application/pdf";
-        let uploadedFileId: string | null = null;
         try {
-          let text: string;
+          const isPdf = mimeType === "application/pdf";
+          let receiptText = "";
 
           if (isPdf) {
-            // Upload the PDF first, then reference by file_id in the Responses API
-            const uploaded = await client.files.create({
-              file:    await toFile(fileBuffer, "receipt.pdf", { type: "application/pdf" }),
-              purpose: "user_data",
-            });
-            uploadedFileId = uploaded.id;
-            console.log(`[validateClaim] uploaded file_id=${uploadedFileId}`);
+            const pdfData = await pdfParse(fileBuffer);
+            receiptText = pdfData.text ?? "";
+          }
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const resp = await (client.responses.create as any)({
-              model: "gpt-4o",
-              input: [{
-                role: "user",
-                content: [
-                  { type: "input_file", file_id: uploadedFileId },
-                  { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
-                ],
+          const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+          let gptText: string;
+
+          if (receiptText.trim().length > 20) {
+            // Text-based PDF: send extracted text
+            const msg = await client.chat.completions.create({
+              model:      "gpt-4o",
+              max_tokens: 512,
+              messages: [{
+                role:    "user",
+                content: `${EXPENSE_EXTRACT_PROMPT}\n\nReceipt text:\n${receiptText.slice(0, 4000)}`,
               }],
             });
-            text = (resp.output_text as string) ?? "";
+            gptText = msg.choices[0]?.message?.content ?? "";
           } else {
+            // Scanned image: use vision
             const b64 = fileBuffer.toString("base64");
             const msg = await client.chat.completions.create({
               model:      "gpt-4o",
               max_tokens: 512,
               messages: [{
-                role: "user",
+                role:    "user",
                 content: [
                   { type: "image_url", image_url: { url: `data:${mimeType};base64,${b64}`, detail: "high" } },
-                  { type: "text", text: EXPENSE_EXTRACT_PROMPT },
+                  { type: "text",      text: EXPENSE_EXTRACT_PROMPT },
                 ],
               }],
             });
-            text = msg.choices[0]?.message?.content ?? "";
+            gptText = msg.choices[0]?.message?.content ?? "";
           }
 
-          console.log(`[validateClaim] GPT raw response: ${text.slice(0, 300)}`);
-          const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          const cleaned = gptText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
-            const parsed = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
-            const rawAmt = parsed.amount;
+            const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+            const rawAmt = result.amount;
             if (typeof rawAmt === "number") {
               extractedAmount = rawAmt;
             } else if (typeof rawAmt === "string") {
               const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
               extractedAmount = isNaN(n) ? null : n;
             }
-            extractedDate    = parsed.date    ?? null;
-            extractedVendor  = parsed.vendor  ?? null;
-            extractedPurpose = parsed.purpose ?? null;
+            extractedDate    = result.date    ?? null;
+            extractedVendor  = result.vendor  ?? null;
+            extractedPurpose = result.purpose ?? null;
             if (extractedAmount !== null) {
               amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
-          } else {
-            receiptFetchError = `GPT returned no JSON: ${text.slice(0, 200)}`;
-            console.warn("[validateClaim] no JSON in GPT response:", text.slice(0, 300));
           }
         } catch (err) {
-          console.error("[validateClaim] GPT extraction failed:", err);
-          receiptFetchError = `AI extraction failed: ${String(err).slice(0, 300)}`;
-        } finally {
-          if (uploadedFileId) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (client.files as any).del(uploadedFileId).catch(() => {/* best-effort cleanup */});
-          }
+          console.error("[validateClaim] AI extraction failed:", err);
+          receiptFetchError = `AI extraction failed: ${String(err).slice(0, 200)}`;
         }
       }
     }
