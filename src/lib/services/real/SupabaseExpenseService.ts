@@ -1,5 +1,5 @@
 import "server-only";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -208,7 +208,7 @@ export class SupabaseExpenseService implements IExpenseService {
           if (isPdf) {
             // Upload the PDF first, then reference by file_id in the Responses API
             const uploaded = await client.files.create({
-              file:    new File([fileBuffer.buffer as ArrayBuffer], "receipt.pdf", { type: "application/pdf" }),
+              file:    await toFile(fileBuffer, "receipt.pdf", { type: "application/pdf" }),
               purpose: "user_data",
             });
             uploadedFileId = uploaded.id;

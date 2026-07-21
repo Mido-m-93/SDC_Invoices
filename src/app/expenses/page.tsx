@@ -543,10 +543,7 @@ export default function ExpensesPage() {
                     ? `Purpose: ${validationPanel.result.extractedPurpose}`
                     : "",
                   !validationPanel.result.receiptAccessible && (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
-                    ? `[debug] fetch error: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
-                    : "",
-                  !validationPanel.result.extractedAmount && validationPanel.receiptUrl
-                    ? `[debug] receipt URL: ${validationPanel.receiptUrl}`
+                    ? `Error: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
                     : "",
                 ].filter(Boolean)}
                 isLast
