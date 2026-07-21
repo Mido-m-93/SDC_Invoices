@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseClient } from "@/lib/supabase";
-import { generateId } from "@/lib/utils";
+import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
 import type {
   ExpenseClaim,
@@ -24,153 +24,12 @@ Rules:
 
 This receipt may be in Japanese. Read all text carefully including headers, footers, and stamps.`;
 
-async function getGraphToken(): Promise<string> {
-  const res = await fetch(
-    `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type:    "client_credentials",
-        client_id:     process.env.AZURE_CLIENT_ID!,
-        client_secret: process.env.AZURE_CLIENT_SECRET!,
-        scope:         "https://graph.microsoft.com/.default",
-      }),
-      cache: "no-store",
-    }
-  );
-  if (!res.ok) throw new Error(`Graph token failed ${res.status}`);
-  const { access_token } = await res.json() as { access_token: string };
-  return access_token;
-}
-
-function sniffMime(url: string, ct: string): string {
-  if (ct.startsWith("image/") || ct === "application/pdf") return ct;
+function sniffMimeFromUrl(url: string): string {
   if (/\.pdf$/i.test(url))  return "application/pdf";
   if (/\.png$/i.test(url))  return "image/png";
   if (/\.gif$/i.test(url))  return "image/gif";
   if (/\.webp$/i.test(url)) return "image/webp";
   return "image/jpeg";
-}
-
-function isHtmlBuffer(buf: Buffer): boolean {
-  const head = buf.slice(0, 512).toString("utf8").trimStart().toLowerCase();
-  return head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<head");
-}
-
-// Fetch a receipt file. For SharePoint URLs:
-// 1. Try direct fetch with Graph bearer token.
-// 2. If response is HTML (viewer page), resolve via Graph /shares API instead.
-// 3. If /shares fails, walk the owner's OneDrive Microsoft Forms folder by filename.
-async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  const isSharePoint = /sharepoint\.com|onedrive\.live\.com/i.test(url);
-  const isUrl = url.startsWith("http");
-
-  console.log(`[fetchReceiptFile] url=${url.slice(0, 120)} isSharePoint=${isSharePoint} isUrl=${isUrl}`);
-
-  if (!isUrl) {
-    // receiptUrl is a bare filename — search for it in the owner's OneDrive Forms folder
-    return fetchByFilename(url);
-  }
-
-  if (isSharePoint) {
-    let token: string;
-    try { token = await getGraphToken(); }
-    catch (e) {
-      console.error("[fetchReceiptFile] getGraphToken failed:", e);
-      return null;
-    }
-
-    // Attempt 1: direct fetch with auth
-    const direct = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    console.log(`[fetchReceiptFile] direct status=${direct.status} ct=${direct.headers.get("content-type")}`);
-    if (direct.ok) {
-      const ct     = direct.headers.get("content-type")?.split(";")[0].trim() ?? "";
-      const buffer = Buffer.from(await direct.arrayBuffer());
-      console.log(`[fetchReceiptFile] direct ok bytes=${buffer.length} ct=${ct} isHtml=${isHtmlBuffer(buffer)}`);
-      if (!ct.startsWith("text/html") && !ct.startsWith("text/xml") && !isHtmlBuffer(buffer)) {
-        return { buffer, mimeType: sniffMime(url, ct) };
-      }
-    }
-
-    // Attempt 2: Graph API via drive path — most reliable for personal OneDrive URLs.
-    // SharePoint personal URLs follow: /personal/{upn_encoded}/Documents/{drive-relative-path}
-    // We convert that to: GET /users/{ownerUpn}/drive/root:/{drive-relative-path}:/content
-    const spFullMatch = url.match(/\/personal\/([^/?#]+)\/(.+?)(?:\?|#|$)/);
-    const spPathMatch = url.match(/\/personal\/[^/?#]+\/(.+?)(?:\?|#|$)/);
-    if (spPathMatch && spFullMatch) {
-      const drivePath   = decodeURIComponent(spPathMatch[1]); // e.g. "Documents/アプリ/Microsoft Forms/.../file.pdf"
-      // Extract owner UPN from the URL itself: mohamada_roboco-op_org → mohamada@roboco-op.org
-      const encodedUpn  = spFullMatch[1]; // e.g. "mohamada_roboco-op_org"
-      const ownerUpn    = encodedUpn.replace(/_([^_]+)$/, ".$1").replace("_", "@");
-      console.log(`[fetchReceiptFile] resolved ownerUpn=${ownerUpn} from URL`);
-      const encodedPath = drivePath.split("/").map(encodeURIComponent).join("/");
-      const graphPath   = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/root:/${encodedPath}:/content`;
-      console.log(`[fetchReceiptFile] graph-path ${graphPath.slice(0, 140)}`);
-      const pathRes = await fetch(graphPath, {
-        headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store",
-      });
-      console.log(`[fetchReceiptFile] graph-path status=${pathRes.status} ct=${pathRes.headers.get("content-type")}`);
-      if (pathRes.ok) {
-        const ct  = pathRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-        const buf = Buffer.from(await pathRes.arrayBuffer());
-        console.log(`[fetchReceiptFile] graph-path ok bytes=${buf.length} isHtml=${isHtmlBuffer(buf)}`);
-        if (!isHtmlBuffer(buf)) return { buffer: buf, mimeType: sniffMime(url, ct) };
-      }
-    }
-
-    // Attempt 3: filename search in owner's OneDrive (last resort)
-    const filename = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
-    if (filename) {
-      console.log(`[fetchReceiptFile] falling back to filename search: ${filename}`);
-      return fetchByFilename(filename, token);
-    }
-    return null;
-  }
-
-  // Non-SharePoint: plain fetch
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return null;
-  const ct = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
-  const buf = Buffer.from(await res.arrayBuffer());
-  return { buffer: buf, mimeType: sniffMime(url, ct) };
-}
-
-// Search the owner's OneDrive for a receipt file by name (fallback when URL is bare filename)
-async function fetchByFilename(filename: string, token?: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  try {
-    const tok      = token ?? await getGraphToken();
-    const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
-    const driveRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
-      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
-    );
-    const { id: driveId } = await driveRes.json() as { id: string };
-
-    const searchRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='${encodeURIComponent(filename)}')?$select=id,name,file&$top=5`,
-      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
-    );
-    const { value: items } = await searchRes.json() as { value: Array<{ id: string; name: string }> };
-    const match = items?.find((i) => i.name === filename || i.name.startsWith(filename.replace(/\.[^.]+$/, "")));
-    if (!match) { console.log(`[fetchByFilename] no match for "${filename}"`); return null; }
-
-    const dlRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${match.id}/content`,
-      { headers: { Authorization: `Bearer ${tok}` }, redirect: "follow", cache: "no-store" }
-    );
-    if (!dlRes.ok) return null;
-    const ct  = dlRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-    const buf = Buffer.from(await dlRes.arrayBuffer());
-    console.log(`[fetchByFilename] found "${match.name}" bytes=${buf.length} ct=${ct}`);
-    return { buffer: buf, mimeType: sniffMime(filename, ct) };
-  } catch (e) {
-    console.error("[fetchByFilename] error:", e);
-    return null;
-  }
 }
 
 function toRow(c: ExpenseClaim): Record<string, unknown> {
@@ -325,18 +184,20 @@ export class SupabaseExpenseService implements IExpenseService {
 
     if (claim.receiptUrl) {
       try {
-        const fetched = await fetchReceiptFile(claim.receiptUrl);
-        receiptAccessible = fetched !== null;
-        if (!fetched) receiptFetchError = "File downloaded as HTML or all fetch strategies returned null";
-        if (fetched) {
-          const b64    = fetched.buffer.toString("base64");
-          const isPdf  = fetched.mimeType === "application/pdf";
+        const bytes    = await downloadSharePointFile(claim.receiptUrl);
+        const buffer   = Buffer.from(bytes);
+        receiptAccessible = true;
+        const fileRef  = claim.receiptFilename ?? claim.receiptUrl;
+        const mimeType = sniffMimeFromUrl(fileRef);
+        {
+          const b64    = buffer.toString("base64");
+          const isPdf  = mimeType === "application/pdf";
           const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const content: any[] = [
             isPdf
-              ? { type: "document", source: { type: "base64", media_type: "application/pdf",      data: b64 } }
-              : { type: "image",    source: { type: "base64", media_type: fetched.mimeType,        data: b64 } },
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
+              : { type: "image",    source: { type: "base64", media_type: mimeType,           data: b64 } },
             { type: "text", text: EXPENSE_EXTRACT_PROMPT },
           ];
           const msg = await client.messages.create({
