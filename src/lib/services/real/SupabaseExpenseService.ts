@@ -18,6 +18,49 @@ Return ONLY valid JSON:
   "currency": "JPY or USD or null"
 }`;
 
+async function getGraphToken(): Promise<string> {
+  const res = await fetch(
+    `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type:    "client_credentials",
+        client_id:     process.env.AZURE_CLIENT_ID!,
+        client_secret: process.env.AZURE_CLIENT_SECRET!,
+        scope:         "https://graph.microsoft.com/.default",
+      }),
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) throw new Error(`Graph token failed ${res.status}`);
+  const { access_token } = await res.json() as { access_token: string };
+  return access_token;
+}
+
+// Fetch a receipt file, adding auth when the URL is a SharePoint/OneDrive URL.
+async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const headers: Record<string, string> = {};
+  if (/sharepoint\.com|onedrive\.live\.com/i.test(url)) {
+    try {
+      headers["Authorization"] = `Bearer ${await getGraphToken()}`;
+    } catch { /* fall through to unauthenticated */ }
+  }
+  const res = await fetch(url, { headers, cache: "no-store" });
+  if (!res.ok) return null;
+  // Prefer Content-Type from response; fall back to extension sniffing
+  const ct = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
+  const mimeType = ct.startsWith("image/") || ct === "application/pdf"
+    ? ct
+    : /\.pdf$/i.test(url)  ? "application/pdf"
+    : /\.png$/i.test(url)  ? "image/png"
+    : /\.gif$/i.test(url)  ? "image/gif"
+    : /\.webp$/i.test(url) ? "image/webp"
+    : "image/jpeg";
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return { buffer, mimeType };
+}
+
 function toRow(c: ExpenseClaim): Record<string, unknown> {
   return {
     id: c.id,
@@ -167,20 +210,21 @@ export class SupabaseExpenseService implements IExpenseService {
 
     if (claim.receiptUrl) {
       try {
-        const res = await fetch(claim.receiptUrl);
-        receiptAccessible = res.ok;
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          const b64 = Buffer.from(buf).toString("base64");
-          const isPdf = claim.receiptFilename.toLowerCase().endsWith(".pdf");
+        const fetched = await fetchReceiptFile(claim.receiptUrl);
+        receiptAccessible = fetched !== null;
+        if (fetched) {
+          const b64    = fetched.buffer.toString("base64");
+          const isPdf  = fetched.mimeType === "application/pdf";
           const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const content: any[] = [
-            { type: "document", source: { type: "base64", media_type: isPdf ? "application/pdf" : "image/jpeg", data: b64 } },
+            isPdf
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf",      data: b64 } }
+              : { type: "image",    source: { type: "base64", media_type: fetched.mimeType,        data: b64 } },
             { type: "text", text: EXPENSE_EXTRACT_PROMPT },
           ];
           const msg = await client.messages.create({
-            model: "claude-haiku-4-5",
+            model:     "claude-haiku-4-5",
             max_tokens: 512,
             messages: [{ role: "user", content }],
           });
@@ -189,14 +233,15 @@ export class SupabaseExpenseService implements IExpenseService {
           if (m) {
             const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string };
             extractedAmount = typeof parsed.amount === "number" ? parsed.amount : null;
-            extractedDate = parsed.date ?? null;
+            extractedDate   = parsed.date   ?? null;
             extractedVendor = parsed.vendor ?? null;
             if (extractedAmount !== null) {
               amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
           }
         }
-      } catch {
+      } catch (err) {
+        console.error("[validateClaim] receipt fetch/extract failed:", err);
         receiptAccessible = false;
       }
     }
