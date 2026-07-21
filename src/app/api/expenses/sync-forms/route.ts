@@ -33,14 +33,20 @@ type ExpenseField =
   | "description" | "bankAccount";
 
 const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
-  { keywords: ["Start time", "開始時刻"],           field: "submittedAt" },
-  { keywords: ["Email"],                            field: "submittedByEmail" },
-  { keywords: ["金額", "Amount"],                   field: "amount" },
-  { keywords: ["日付", "Date"],                     field: "expenseDate" },
-  { keywords: ["領収書", "Receipt"],                 field: "receiptUrl" },
-  { keywords: ["備考", "Notes", "Route"],            field: "description" },
-  { keywords: ["銀行口座", "Bank Account", "振込先"], field: "bankAccount" },
-  { keywords: ["お名前", "名前", "氏名", "Name"],   field: "submittedBy" },
+  { keywords: ["Start time", "開始時刻"],                                                           field: "submittedAt" },
+  { keywords: ["Email"],                                                                            field: "submittedByEmail" },
+  { keywords: ["金額", "Amount", "費用", "請求金額", "経費金額", "経費額", "合計"],                 field: "amount" },
+  { keywords: ["日付", "Date", "支出日", "購入日", "経費発生日"],                                    field: "expenseDate" },
+  { keywords: ["領収書", "Receipt", "添付", "ファイル", "upload", "attachment", "file", "請求書"], field: "receiptUrl" },
+  {
+    keywords: [
+      "備考", "Notes", "Route", "目的", "用途", "内容", "支出内容", "経費内容", "経費の目的",
+      "使途", "詳細", "Detail", "reason", "purpose", "description", "memo", "メモ", "コメント",
+    ],
+    field: "description",
+  },
+  { keywords: ["銀行口座", "Bank Account", "振込先", "口座", "bank"],                              field: "bankAccount" },
+  { keywords: ["お名前", "名前", "氏名", "Name", "氏名・名前"],                                    field: "submittedBy" },
 ];
 
 function buildFieldMap(headers: string[]): Map<string, ExpenseField> {
@@ -103,6 +109,17 @@ function inferCategory(description: string): ExpenseCategory {
   return "other";
 }
 
+function extractFilename(url: string): string {
+  if (!url) return "";
+  try {
+    const pathname = new URL(url).pathname;
+    const last = decodeURIComponent(pathname.split("/").filter(Boolean).pop() ?? "");
+    return last || (url.split("/").pop()?.split("?")[0] ?? "receipt");
+  } catch {
+    return url.split("/").pop()?.split("?")[0] ?? "receipt";
+  }
+}
+
 // ── Row mapper ────────────────────────────────────────────────────────────────
 function mapRow(
   row: Record<string, unknown>,
@@ -142,7 +159,7 @@ function mapRow(
     currency:           "JPY",
     paymentMethod:      "personal_reimbursement",
     receiptUrl:         receiptRaw,
-    receiptFilename:    receiptRaw ? `receipt_row${rowIndex + 2}` : "",
+    receiptFilename:    extractFilename(receiptRaw),
     projectName:        "",
     internalDepartment: "",
     expenseDate:        serialToDate(get("expenseDate")),
