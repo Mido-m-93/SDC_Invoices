@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -367,12 +368,23 @@ export async function POST(_req: NextRequest) {
       );
     }
 
+    // Filter out permanently blocked IDs before saving
+    const db = getSupabaseClient();
+    const allIds = claims.map((c) => c.id);
+    const { data: blocked } = await db
+      .from("expense_sync_blocklist")
+      .select("id")
+      .in("id", allIds);
+    const blockedSet = new Set((blocked ?? []).map((r: { id: string }) => r.id));
+    const toSave = claims.filter((c) => !blockedSet.has(c.id));
+
     const svc = getExpenseService();
-    await Promise.all(claims.map((c) => svc.saveClaim(c)));
+    await Promise.all(toSave.map((c) => svc.saveClaim(c)));
 
     const skipped = rows.length - claims.length;
-    console.log(`[expenses/sync-forms] rows=${rows.length} parsed=${claims.length} skipped=${skipped}`);
-    return NextResponse.json({ count: claims.length, synced: claims.length, totalRows: rows.length, skipped });
+    const blockedCount = claims.length - toSave.length;
+    console.log(`[expenses/sync-forms] rows=${rows.length} parsed=${claims.length} blocked=${blockedCount} saved=${toSave.length} skipped=${skipped}`);
+    return NextResponse.json({ count: toSave.length, synced: toSave.length, totalRows: rows.length, skipped: skipped + blockedCount });
   } catch (err) {
     console.error("[POST /api/expenses/sync-forms]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
