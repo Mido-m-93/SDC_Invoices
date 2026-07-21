@@ -207,39 +207,53 @@ async function resolveItemRef(token: string): Promise<{ driveId: string; itemId:
   return { driveId, itemId: raw };
 }
 
-// Fetch live rows via the Excel Workbook API — always returns current data,
-// bypasses the file-content snapshot that can lag behind Forms submissions.
+// Download the XLSX and parse with SheetJS so hyperlinks (receipt URLs) are preserved.
+// The Workbook API usedRange endpoint only returns display text for hyperlinked cells,
+// losing the actual SharePoint URL that Microsoft Forms stores for file uploads.
 async function fetchRowsViaWorkbookApi(): Promise<Record<string, unknown>[]> {
-  const token              = await getGraphToken();
+  const { read, utils } = await import("xlsx");
+  const token            = await getGraphToken();
   const { driveId, itemId } = await resolveItemRef(token);
-  const base               = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook`;
-  const hdr                = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
-  // Get all worksheets — Forms sometimes adds new sheets for overflow
-  const wsRes = await fetch(`${base}/worksheets`, { headers: hdr, cache: "no-store" });
-  if (!wsRes.ok) throw new Error(`Workbook worksheets failed ${wsRes.status}: ${await wsRes.text()}`);
-  const { value: sheets } = await wsRes.json() as { value: Array<{ id: string; name: string }> };
-  if (!sheets.length) throw new Error("No worksheets found");
+  const dlRes = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (!dlRes.ok) throw new Error(`Excel download failed ${dlRes.status}: ${await dlRes.text()}`);
+
+  const buf = Buffer.from(await dlRes.arrayBuffer());
+  // cellHyperlinks: true → cell.l.Target contains the actual URL for hyperlinked cells
+  const wb  = read(buf, { cellHyperlinks: true, cellDates: true });
 
   const allRows: Record<string, unknown>[] = [];
-  let globalHeaders: string[] = [];
 
-  for (const sheet of sheets) {
-    const sheetId  = encodeURIComponent(sheet.id);
-    const rangeRes = await fetch(`${base}/worksheets/${sheetId}/usedRange`, { headers: hdr, cache: "no-store" });
-    if (!rangeRes.ok) continue;
-    const { values } = await rangeRes.json() as { values: unknown[][] };
-    if (!values || values.length < 2) continue;
+  for (const sheetName of wb.SheetNames) {
+    const ws  = wb.Sheets[sheetName];
+    const ref = ws["!ref"];
+    if (!ref) continue;
+    const range = utils.decode_range(ref);
 
-    const sheetHeaders = (values[0] as string[]).map((h) => String(h ?? "").trim());
-    // Use the first sheet's headers as the canonical column names
-    if (!globalHeaders.length) globalHeaders = sheetHeaders;
+    // Read header row
+    const headers: string[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[utils.encode_cell({ r: range.s.r, c })];
+      headers.push(cell?.v ? String(cell.v).trim() : "");
+    }
+    if (!headers.some(Boolean)) continue;
 
-    values.slice(1).forEach((row) => {
+    // Read data rows — prefer hyperlink URL over display text for each cell
+    for (let r = range.s.r + 1; r <= range.e.r; r++) {
       const record: Record<string, unknown> = {};
-      sheetHeaders.forEach((h, i) => { record[h] = row[i] ?? ""; });
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const h    = headers[c - range.s.c];
+        if (!h) continue;
+        const cell = ws[utils.encode_cell({ r, c })];
+        // If cell has a hyperlink (Forms file upload), use the URL, not the display text
+        const link = (cell as Record<string, unknown> | undefined)?.l as { Target?: string } | undefined;
+        record[h]  = link?.Target ?? (cell?.v !== undefined ? String(cell.v) : "");
+      }
       allRows.push(record);
-    });
+    }
   }
 
   return allRows;
