@@ -42,7 +42,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       });
     }
 
-    return NextResponse.json({ result: fullResult });
+    return NextResponse.json({
+      result: fullResult,
+      _debug: { receiptUrl: claim.receiptUrl ?? null },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

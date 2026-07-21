@@ -58,7 +58,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [validationPanel, setValidationPanel] = useState<{ claim: ExpenseClaim; result: ExpenseValidationResult } | null>(null);
+  const [validationPanel, setValidationPanel] = useState<{ claim: ExpenseClaim; result: ExpenseValidationResult; receiptUrl?: string | null } | null>(null);
   const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
@@ -143,10 +143,10 @@ export default function ExpensesPage() {
     const claim = claims.find((c) => c.id === id) ?? null;
     try {
       const res  = await fetch(`/api/expenses/${id}/validate`, { method: "POST" });
-      const data = await res.json() as { result?: ExpenseValidationResult };
+      const data = await res.json() as { result?: ExpenseValidationResult; _debug?: { receiptUrl?: string | null } };
       load();
       if (data.result && claim) {
-        setValidationPanel({ claim, result: data.result });
+        setValidationPanel({ claim, result: data.result, receiptUrl: data._debug?.receiptUrl ?? null });
       }
     } catch { setError("Validation failed"); }
     finally { setValidating(null); }
@@ -541,6 +541,10 @@ export default function ExpensesPage() {
                     : "",
                   validationPanel.result.extractedPurpose
                     ? `Purpose: ${validationPanel.result.extractedPurpose}`
+                    : "",
+                  // Debug: show raw receipt URL so we can diagnose fetch failures
+                  !validationPanel.result.extractedAmount && validationPanel.receiptUrl
+                    ? `[debug] receipt URL: ${validationPanel.receiptUrl}`
                     : "",
                 ].filter(Boolean)}
                 isLast
