@@ -1,5 +1,5 @@
 import "server-only";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -197,53 +197,27 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: extract text from PDF then send to GPT-4o as plain text
+      // Phase 2: send PDF/image directly to Claude — Anthropic natively reads PDFs
       if (fileBuffer) {
         try {
-          const isPdf = mimeType === "application/pdf";
-          let receiptText = "";
+          const b64    = fileBuffer.toString("base64");
+          const isPdf  = mimeType === "application/pdf";
+          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-          if (isPdf) {
-            // Dynamic import avoids pdf-parse breaking Next.js module init
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (buf: Buffer) => Promise<{ text: string }>;
-            const pdfData = await pdfParse(fileBuffer);
-            receiptText = pdfData.text ?? "";
-          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const docPart: any = isPdf
+            ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
+            : { type: "image",    source: { type: "base64", media_type: mimeType,           data: b64 } };
 
-          const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-          let gptText: string;
+          const msg = await client.messages.create({
+            model:      "claude-haiku-4-5-20251001",
+            max_tokens: 512,
+            messages:   [{ role: "user", content: [docPart, { type: "text", text: EXPENSE_EXTRACT_PROMPT }] }],
+          });
 
-          if (receiptText.trim().length > 20) {
-            // Text-based PDF: send extracted text
-            const msg = await client.chat.completions.create({
-              model:      "gpt-4o",
-              max_tokens: 512,
-              messages: [{
-                role:    "user",
-                content: `${EXPENSE_EXTRACT_PROMPT}\n\nReceipt text:\n${receiptText.slice(0, 4000)}`,
-              }],
-            });
-            gptText = msg.choices[0]?.message?.content ?? "";
-          } else {
-            // Scanned image: use vision
-            const b64 = fileBuffer.toString("base64");
-            const msg = await client.chat.completions.create({
-              model:      "gpt-4o",
-              max_tokens: 512,
-              messages: [{
-                role:    "user",
-                content: [
-                  { type: "image_url", image_url: { url: `data:${mimeType};base64,${b64}`, detail: "high" } },
-                  { type: "text",      text: EXPENSE_EXTRACT_PROMPT },
-                ],
-              }],
-            });
-            gptText = msg.choices[0]?.message?.content ?? "";
-          }
-
-          const cleaned = gptText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-          const m = cleaned.match(/\{[\s\S]*\}/);
+          const raw     = (msg.content[0] as { type: string; text?: string }).text ?? "";
+          const cleaned = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          const m       = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
             const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
             const rawAmt = result.amount;
@@ -261,8 +235,8 @@ export class SupabaseExpenseService implements IExpenseService {
             }
           }
         } catch (err) {
-          console.error("[validateClaim] AI extraction failed:", err);
-          receiptFetchError = `AI extraction failed: ${String(err).slice(0, 200)}`;
+          console.error("[validateClaim] Claude extraction failed:", err);
+          receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
         }
       }
     }
