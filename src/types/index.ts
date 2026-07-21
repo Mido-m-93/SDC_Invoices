@@ -389,6 +389,7 @@ export interface ExpenseClaim {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  extractedPurpose?: string | null;
   policyViolations: string[];
   bankAccount?: string;
   createdAt: string;
@@ -411,6 +412,7 @@ export interface ExpenseValidationResult {
   extractedPurpose: string | null;
   memberMatched: boolean;
   contractFileName: string | null;
+  receiptFetchError?: string;
 }
 
 // ── Phase 9: Outbound invoice support ─────────────────────────────────────────
