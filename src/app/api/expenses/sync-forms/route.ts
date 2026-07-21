@@ -156,6 +156,7 @@ function mapRow(
     extractedAmount:    null,
     extractedDate:      null,
     extractedVendor:    null,
+    extractedPurpose:   null,
     policyViolations:   violations,
     bankAccount:        get("bankAccount"),
     createdAt:          now,
@@ -371,11 +372,14 @@ export async function POST(_req: NextRequest) {
     // Filter out permanently blocked IDs before saving
     const db = getSupabaseClient();
     const allIds = claims.map((c) => c.id);
-    const { data: blocked } = await db
-      .from("expense_sync_blocklist")
-      .select("id")
-      .in("id", allIds);
-    const blockedSet = new Set((blocked ?? []).map((r: { id: string }) => r.id));
+    let blockedSet = new Set<string>();
+    if (allIds.length > 0) {
+      const { data: blocked } = await db
+        .from("expense_sync_blocklist")
+        .select("id")
+        .in("id", allIds);
+      blockedSet = new Set((blocked ?? []).map((r: { id: string }) => r.id));
+    }
     const toSave = claims.filter((c) => !blockedSet.has(c.id));
 
     const svc = getExpenseService();

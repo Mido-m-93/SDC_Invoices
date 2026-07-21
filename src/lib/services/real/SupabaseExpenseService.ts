@@ -195,6 +195,7 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     extracted_amount: c.extractedAmount,
     extracted_date: c.extractedDate,
     extracted_vendor: c.extractedVendor,
+    extracted_purpose: c.extractedPurpose ?? null,
     policy_violations: c.policyViolations,
     bank_account: c.bankAccount,
     created_at: c.createdAt,
