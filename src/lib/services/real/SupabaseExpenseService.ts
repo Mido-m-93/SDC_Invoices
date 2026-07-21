@@ -183,15 +183,25 @@ export class SupabaseExpenseService implements IExpenseService {
     let receiptFetchError: string | null = null;
 
     if (claim.receiptUrl) {
+      // Phase 1: download — controls receiptAccessible
+      let fileBuffer: Buffer | null = null;
+      let mimeType = "application/pdf";
       try {
-        const bytes    = await downloadSharePointFile(claim.receiptUrl);
-        const buffer   = Buffer.from(bytes);
+        const bytes = await downloadSharePointFile(claim.receiptUrl);
+        fileBuffer = Buffer.from(bytes);
         receiptAccessible = true;
-        const fileRef  = claim.receiptFilename ?? claim.receiptUrl;
-        const mimeType = sniffMimeFromUrl(fileRef);
-        {
-          const b64    = buffer.toString("base64");
-          const isPdf  = mimeType === "application/pdf";
+        const fileRef = claim.receiptFilename ?? claim.receiptUrl;
+        mimeType = sniffMimeFromUrl(fileRef);
+      } catch (err) {
+        console.error("[validateClaim] download failed:", err);
+        receiptFetchError = String(err);
+      }
+
+      // Phase 2: AI extraction — never overrides receiptAccessible
+      if (fileBuffer) {
+        try {
+          const b64   = fileBuffer.toString("base64");
+          const isPdf = mimeType === "application/pdf";
           const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const content: any[] = [
@@ -201,18 +211,16 @@ export class SupabaseExpenseService implements IExpenseService {
             { type: "text", text: EXPENSE_EXTRACT_PROMPT },
           ];
           const msg = await client.messages.create({
-            model:     "claude-sonnet-5",
+            model:      "claude-haiku-4-5",
             max_tokens: 512,
-            messages: [{ role: "user", content }],
+            messages:   [{ role: "user", content }],
           });
-          const text = (msg.content[0] as { type: string; text?: string }).text ?? "";
-          // Strip markdown code fences if the model wraps the JSON
+          const text    = (msg.content[0] as { type: string; text?: string }).text ?? "";
           const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
             try {
               const parsed = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
-              // Accept amount as string "1,234" or number
               const rawAmt = parsed.amount;
               if (typeof rawAmt === "number") {
                 extractedAmount = rawAmt;
@@ -227,16 +235,15 @@ export class SupabaseExpenseService implements IExpenseService {
                 amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
               }
             } catch {
-              console.warn("[validateClaim] JSON parse failed, raw:", text.slice(0, 200));
+              console.warn("[validateClaim] JSON parse failed:", text.slice(0, 200));
             }
           } else {
-            console.warn("[validateClaim] no JSON found in response:", text.slice(0, 200));
+            console.warn("[validateClaim] no JSON in AI response:", text.slice(0, 200));
           }
+        } catch (err) {
+          console.error("[validateClaim] AI extraction failed:", err);
+          receiptFetchError = `AI extraction failed: ${String(err)}`;
         }
-      } catch (err) {
-        console.error("[validateClaim] receipt fetch/extract failed:", err);
-        receiptAccessible = false;
-        receiptFetchError = String(err);
       }
     }
 
