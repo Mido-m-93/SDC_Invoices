@@ -4,35 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import { useLanguage, type TranslationKey } from "@/translations";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
-const STATUSES: { value: ExpenseStatus | "all"; label: string }[] = [
-  { value: "all",          label: "All / 全て" },
-  { value: "submitted",    label: "Submitted / 提出済み" },
-  { value: "under_review", label: "Under Review / 審査中" },
-  { value: "approved",     label: "Approved / 承認済み" },
-  { value: "rejected",     label: "Rejected / 却下" },
-  { value: "paid",         label: "Paid / 支払済み" },
-];
-
-const STATUS_JA: Record<string, string> = {
-  draft:        "下書き",
-  submitted:    "提出済み",
-  under_review: "審査中",
-  approved:     "承認済み",
-  rejected:     "却下",
-  paid:         "支払済み",
-  archived:     "アーカイブ",
-};
-
-const VIOLATION_JA: Record<string, string> = {
-  MISSING_RECEIPT:                    "領収書なし",
-  MISSING_PURPOSE:                    "目的未記入",
-  HIGH_AMOUNT_PERSONAL_REIMBURSEMENT: "高額個人立替",
-  REQUIRES_MANAGEMENT_APPROVAL:       "管理者承認必要",
-};
+const STATUS_FILTER_VALUES: (ExpenseStatus | "all")[] = ["all", "submitted", "under_review", "approved", "rejected", "paid"];
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -48,8 +25,6 @@ const STATUS_COLORS: Record<ExpenseStatus, string> = {
   paid: "bg-emerald-100 text-emerald-700",
   archived: "bg-stone-100 text-stone-400",
 };
-
-const RISK_COLORS = { OK: "text-green-600", NEEDS_REVIEW: "text-amber-600", BLOCKED: "text-red-600" };
 
 const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status" | "reviewerComment" | "reviewedBy" | "reviewedAt" | "approvedBy" | "approvedAt" | "paidAt" | "extractedAmount" | "extractedDate" | "extractedVendor" | "policyViolations" | "submittedAt"> = {
   submittedBy: "",
@@ -67,6 +42,7 @@ const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status"
 };
 
 export default function ExpensesPage() {
+  const { t } = useLanguage();
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,6 +61,11 @@ export default function ExpensesPage() {
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
 
+  const statusLabel = (s: ExpenseStatus | "all") => t(`expenses_status_${s}` as TranslationKey);
+  const categoryLabel = (c: ExpenseCategory) => t(`expenses_category_${c}` as TranslationKey);
+  const paymentMethodLabel = (m: ExpensePaymentMethod) => t(`expenses_payment_${m}` as TranslationKey);
+  const violationLabel = (v: string) => t(`expenses_violation_${v}` as TranslationKey) || v;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -92,9 +73,9 @@ export default function ExpensesPage() {
       const res = await fetch(url);
       const data = await res.json() as { claims: ExpenseClaim[] };
       setClaims(data.claims ?? []);
-    } catch { setError("Failed to load expense claims"); }
+    } catch { setError(t("expenses_load_failed")); }
     finally { setLoading(false); }
-  }, [statusFilter]);
+  }, [statusFilter, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -111,13 +92,13 @@ export default function ExpensesPage() {
       const res  = await fetch("/api/expenses/upload", { method: "POST", body });
       const data = await res.json() as { count?: number; error?: string; detectedHeaders?: string[] };
       if (!res.ok) {
-        setError(data.error ?? "Upload failed");
+        setError(data.error ?? t("expenses_upload_failed"));
       } else {
-        setUploadMsg(`✓ ${data.count} expense claim${data.count === 1 ? "" : "s"} imported from "${file.name}"`);
+        setUploadMsg(t("expenses_imported_msg").replace("{count}", String(data.count ?? 0)).replace("{file}", file.name));
         load();
       }
     } catch {
-      setError("Upload failed — check the file format");
+      setError(t("expenses_upload_failed_format"));
     } finally {
       setUploading(false);
     }
@@ -156,7 +137,7 @@ export default function ExpensesPage() {
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       setShowForm(false);
       load();
-    } catch { setError("Failed to save expense claim"); }
+    } catch { setError(t("expenses_save_failed")); }
     finally { setSaving(false); }
   }
 
@@ -170,7 +151,7 @@ export default function ExpensesPage() {
       if (data.result && claim) {
         setValidationPanel({ claim, result: data.result, receiptUrl: data._debug?.receiptUrl ?? null });
       }
-    } catch { setError("Validation failed"); }
+    } catch { setError(t("expenses_validation_failed")); }
     finally { setValidating(null); }
   }
 
@@ -186,11 +167,11 @@ export default function ExpensesPage() {
       setApproveAction(null);
       setApproveComment("");
       load();
-    } catch { setError("Failed to update status"); }
+    } catch { setError(t("expenses_status_update_failed")); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this expense claim?")) return;
+    if (!confirm(t("expenses_delete_confirm"))) return;
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     load();
   }
@@ -205,17 +186,17 @@ export default function ExpensesPage() {
       const res  = await fetch("/api/expenses/sync-forms", { method: "POST" });
       const data = await res.json() as { count?: number; synced?: number; totalRows?: number; skipped?: number; error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Sync failed");
+        setError(data.error ?? t("expenses_sync_failed"));
       } else {
         const n = data.count ?? data.synced ?? 0;
         const total = data.totalRows ?? n;
         const skipped = data.skipped ?? 0;
-        const skipNote = skipped > 0 ? ` (${skipped} rows skipped — missing name field)` : "";
-        setUploadMsg(`✓ ${n} of ${total} expense claims synced from Microsoft Forms${skipNote}`);
+        const skipNote = skipped > 0 ? t("expenses_skipped_rows").replace("{skipped}", String(skipped)) : "";
+        setUploadMsg(t("expenses_synced_msg").replace("{n}", String(n)).replace("{total}", String(total)) + skipNote);
         load();
       }
     } catch {
-      setError("Sync failed — check server logs");
+      setError(t("expenses_sync_failed_logs"));
     } finally {
       setSyncing(false);
     }
@@ -224,8 +205,8 @@ export default function ExpensesPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Expense Claims / 経費精算"
-        subtitle="Submit and review expense reimbursement requests / 経費の提出・審査"
+        title={t("expenses_title")}
+        subtitle={t("expenses_subtitle")}
         actions={
           <div className="flex items-center gap-3">
             <button
@@ -240,7 +221,7 @@ export default function ExpensesPage() {
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              {syncing ? "Syncing…" : "Sync from Forms"}
+              {syncing ? t("expenses_syncing") : t("expenses_sync_from_forms")}
             </button>
             <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
               uploading
@@ -250,17 +231,16 @@ export default function ExpensesPage() {
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              {uploading ? "Reading…" : "Upload Excel"}
+              {uploading ? t("expenses_reading") : t("expenses_upload_excel")}
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
             </label>
-            <Button variant="primary" onClick={openNew}>+ New Claim</Button>
+            <Button variant="primary" onClick={openNew}>{t("expenses_new_claim")}</Button>
           </div>
         }
       />
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
-        ⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.
-        <span className="block text-xs mt-0.5 text-amber-600">経費申請には領収書が必要です。支払処理は別途行われます。このツールは検証と承認記録のみを行います。</span>
+        {t("expenses_receipt_notice")}
       </div>
 
       {uploadMsg && (
@@ -278,32 +258,32 @@ export default function ExpensesPage() {
 
       {/* Status filter */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {STATUSES.map((s) => (
+        {STATUS_FILTER_VALUES.map((s) => (
           <button
-            key={s.value}
-            onClick={() => setStatusFilter(s.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s.value ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
           >
-            {s.label}
+            {statusLabel(s)}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : claims.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-500 text-sm font-medium">No expense claims found.</p>
-          <p className="text-stone-400 text-xs mt-1">Upload a Microsoft Forms Excel export, or add a claim manually.</p>
+          <p className="text-stone-500 text-sm font-medium">{t("expenses_empty_title")}</p>
+          <p className="text-stone-400 text-xs mt-1">{t("expenses_empty_subtitle")}</p>
           <div className="flex gap-3 justify-center mt-4">
             <label className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 cursor-pointer hover:bg-emerald-100 transition">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Upload Excel
+              {t("expenses_upload_excel")}
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
             </label>
-            <Button variant="secondary" onClick={openNew}>+ New Claim</Button>
+            <Button variant="secondary" onClick={openNew}>{t("expenses_new_claim")}</Button>
           </div>
         </div>
       ) : (
@@ -311,40 +291,39 @@ export default function ExpensesPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">Submitted By<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">提出者</span></th>
-                <th className="px-4 py-3 text-left">Category<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">カテゴリ</span></th>
-                <th className="px-4 py-3 text-left">Description<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">説明</span></th>
-                <th className="px-4 py-3 text-right">Amount<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">金額</span></th>
-                <th className="px-4 py-3 text-left">Submitted<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">提出日</span></th>
-                <th className="px-4 py-3 text-left">Expense Date<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">経費日</span></th>
-                <th className="px-4 py-3 text-left">Status<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">ステータス</span></th>
-                <th className="px-4 py-3 text-left">Violations<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">違反</span></th>
-                <th className="px-4 py-3 text-left">Actions<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">操作</span></th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_submitted_by")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_category")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_description")}</th>
+                <th className="px-4 py-3 text-right">{t("expenses_col_amount")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_submitted")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_expense_date")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_violations")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {claims.map((c) => (
                 <tr key={c.id} className="hover:bg-stone-50">
                   <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
-                  <td className="px-4 py-3 text-stone-500 capitalize">{c.category.replace(/_/g, " ")}</td>
+                  <td className="px-4 py-3 text-stone-500">{categoryLabel(c.category)}</td>
                   <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.description || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-800">
                     {c.currency} {c.amount.toLocaleString()}
                     {c.extractedAmount !== null && Math.abs(c.extractedAmount - c.amount) > 1 && (
-                      <span className="ml-1 text-xs text-amber-600">(receipt: {c.extractedAmount.toLocaleString()})</span>
+                      <span className="ml-1 text-xs text-amber-600">({t("expenses_receipt_amount")}: {c.extractedAmount.toLocaleString()})</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-stone-500">{fmtDate(c.submittedAt)}</td>
                   <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex flex-col items-start rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
-                      <span>{c.status.replace(/_/g, " ")}</span>
-                      <span className="text-[10px] font-normal opacity-75">{STATUS_JA[c.status] ?? ""}</span>
+                    <span className={`inline-flex items-start rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                      {statusLabel(c.status)}
                     </span>
                     <div className="flex gap-1 mt-1">
                       {c.receiptUrl && (
                         <a href={c.receiptUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline" title="View receipt">📎</a>
+                          className="text-xs text-blue-500 hover:underline" title={t("expenses_view_receipt")}>📎</a>
                       )}
                       {c.bankAccount && (
                         <span className="text-xs text-stone-400" title={c.bankAccount}>🏦</span>
@@ -355,25 +334,23 @@ export default function ExpensesPage() {
                     {c.policyViolations.length > 0 ? (
                       <div className="space-y-0.5">
                         {c.policyViolations.map((v) => (
-                          <div key={v} className="text-xs text-red-600">
-                            {v}<span className="text-red-400 ml-1">({VIOLATION_JA[v] ?? v})</span>
-                          </div>
+                          <div key={v} className="text-xs text-red-600">{violationLabel(v)}</div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-green-600">None / なし</span>
+                      <span className="text-xs text-green-600">{t("expenses_no_violations")}</span>
                     )}
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit / 編集</Button>
-                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>Validate / 検証</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("expenses_action_edit")}</Button>
+                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>{t("expenses_action_validate")}</Button>
                     {(c.status === "submitted" || c.status === "under_review") && (
-                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>Approve / 承認</Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>{t("expenses_action_approve")}</Button>
                     )}
                     {c.status !== "rejected" && c.status !== "paid" && (
-                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>Reject / 却下</Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>{t("expenses_action_reject")}</Button>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete / 削除</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("expenses_action_delete")}</Button>
                   </td>
                 </tr>
               ))}
@@ -387,62 +364,62 @@ export default function ExpensesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{editing ? "Edit Expense Claim / 経費申請を編集" : "New Expense Claim / 新規経費申請"}</h2>
+              <h2 className="text-base font-semibold">{editing ? t("expenses_modal_edit_title") : t("expenses_modal_new_title")}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Submitted By * / 提出者">
-                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder="Name / 名前" />
+                <Field label={t("expenses_field_submitted_by")}>
+                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder={t("expenses_field_submitted_by_placeholder")} />
                 </Field>
-                <Field label="Email / メール">
+                <Field label={t("expenses_field_email")}>
                   <input className={inp} value={form.submittedByEmail} onChange={(e) => set("submittedByEmail", e.target.value)} placeholder="email@example.com" />
                 </Field>
               </div>
-              <Field label="Expense Date * / 経費日">
+              <Field label={t("expenses_field_expense_date")}>
                 <input className={inp} type="date" value={form.expenseDate} onChange={(e) => set("expenseDate", e.target.value)} />
               </Field>
-              <Field label="Category * / カテゴリ">
+              <Field label={t("expenses_field_category")}>
                 <select className={inp} value={form.category} onChange={(e) => set("category", e.target.value)}>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
                 </select>
               </Field>
-              <Field label="Description * / 説明">
-                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Purpose of expense / 経費の目的..." />
+              <Field label={t("expenses_field_description")}>
+                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder={t("expenses_field_description_placeholder")} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Amount * / 金額">
+                <Field label={t("expenses_field_amount")}>
                   <input className={inp} type="number" value={form.amount} onChange={(e) => set("amount", parseFloat(e.target.value) || 0)} />
                 </Field>
-                <Field label="Currency / 通貨">
+                <Field label={t("expenses_field_currency")}>
                   <select className={inp} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
                     <option>JPY</option><option>USD</option><option>EUR</option>
                   </select>
                 </Field>
               </div>
-              <Field label="Payment Method * / 支払方法">
+              <Field label={t("expenses_field_payment_method")}>
                 <select className={inp} value={form.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>
-                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{paymentMethodLabel(m)}</option>)}
                 </select>
               </Field>
-              <Field label="Receipt URL / 領収書URL">
+              <Field label={t("expenses_field_receipt_url")}>
                 <input className={inp} value={form.receiptUrl} onChange={(e) => set("receiptUrl", e.target.value)} placeholder="https://..." />
               </Field>
-              <Field label="Receipt Filename / 領収書ファイル名">
+              <Field label={t("expenses_field_receipt_filename")}>
                 <input className={inp} value={form.receiptFilename} onChange={(e) => set("receiptFilename", e.target.value)} placeholder="receipt.pdf" />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Project Name / プロジェクト">
+                <Field label={t("expenses_field_project_name")}>
                   <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
                 </Field>
-                <Field label="Department / 部署">
+                <Field label={t("expenses_field_department")}>
                   <input className={inp} value={form.internalDepartment} onChange={(e) => set("internalDepartment", e.target.value)} />
                 </Field>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel / キャンセル</Button>
-              <Button variant="primary" loading={saving} onClick={handleSave}>Save / 保存</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>{t("expenses_save")}</Button>
             </div>
           </div>
         </div>
@@ -454,39 +431,38 @@ export default function ExpensesPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-              <h2 className="text-base font-semibold mb-0.5 capitalize">
-                {approveAction === "approve" ? "Approve Expense Claim" : "Reject Expense Claim"}
+              <h2 className="text-base font-semibold mb-3">
+                {approveAction === "approve" ? t("expenses_approve_title") : t("expenses_reject_title")}
               </h2>
-              <p className="text-xs text-stone-400 mb-3">{approveAction === "approve" ? "経費申請を承認" : "経費申請を却下"}</p>
               {approvingClaim && (
                 <p className="text-xs text-stone-500 mb-4">
                   {approvingClaim.submittedBy} — ¥{approvingClaim.amount.toLocaleString()} ({approvingClaim.expenseDate})
-                  <span className="block text-stone-400">提出日 {fmtDate(approvingClaim.submittedAt)}</span>
+                  <span className="block text-stone-400">{t("expenses_submitted_on")} {fmtDate(approvingClaim.submittedAt)}</span>
                 </p>
               )}
               {approveAction === "approve" && approvingClaim?.bankAccount && (
                 <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
-                  <p className="text-xs font-semibold text-blue-700 mb-1">振込先 / Bank Transfer</p>
+                  <p className="text-xs font-semibold text-blue-700 mb-1">{t("expenses_bank_transfer")}</p>
                   <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono leading-relaxed">{approvingClaim.bankAccount}</pre>
                 </div>
               )}
               {approveAction === "approve" && approvingClaim && !approvingClaim.bankAccount && (
                 <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                  ⚠ 銀行口座情報がありません — 振込先を別途確認してください
+                  {t("expenses_no_bank_account")}
                 </div>
               )}
-              <Field label="Your Name * / 承認者名">
+              <Field label={t("expenses_approver_name")}>
                 <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
               </Field>
               <div className="mt-3">
-                <Field label="Comment / コメント">
-                  <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment / 任意のコメント..." />
+                <Field label={t("expenses_comment")}>
+                  <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder={t("expenses_comment_placeholder")} />
                 </Field>
               </div>
               <div className="flex justify-end gap-3 mt-5">
-                <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel / キャンセル</Button>
+                <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>{t("cancel")}</Button>
                 <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>
-                  {approveAction === "approve" ? "Approve / 承認" : "Reject / 却下"}
+                  {approveAction === "approve" ? t("expenses_action_approve") : t("expenses_action_reject")}
                 </Button>
               </div>
             </div>
@@ -502,7 +478,7 @@ export default function ExpensesPage() {
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-6 py-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-stone-400 mb-0.5">Validation Result</p>
+                <p className="text-xs text-stone-400 mb-0.5">{t("expenses_validation_result")}</p>
                 <h2 className="text-base font-semibold text-stone-900">{validationPanel.claim.submittedBy}</h2>
               </div>
               <button onClick={() => setValidationPanel(null)} className="text-stone-400 hover:text-stone-600">
@@ -523,10 +499,10 @@ export default function ExpensesPage() {
                     : hardFail    ? "bg-red-50 text-red-700 border border-red-200"
                                   : "bg-amber-50 text-amber-700 border border-amber-200"
                   }`}>
-                    {fullyVerified    ? "✓ Claim verified — member registered and receipt matches"
-                    : !memberMatched  ? "✕ Submitter not found in SharePoint — cannot approve"
-                    : extractionFailed ? "⚠ Member registered — receipt unreadable, manual review needed"
-                                      : "⚠ Member registered — receipt needs review"}
+                    {fullyVerified    ? t("expenses_verified")
+                    : !memberMatched  ? t("expenses_submitter_not_found")
+                    : extractionFailed ? t("expenses_extraction_failed")
+                                      : t("expenses_needs_review")}
                   </div>
                 );
               })()}
@@ -534,16 +510,16 @@ export default function ExpensesPage() {
               {/* Stage 1: SharePoint member check */}
               <ValidationStageBlock
                 number={1}
-                title="SharePoint Member Check"
-                subtitle="Submitter is a registered member in SharePoint"
+                title={t("expenses_stage1_title")}
+                subtitle={t("expenses_stage1_subtitle")}
                 pass={validationPanel.result.memberMatched}
                 warn={false}
                 lines={[
                   validationPanel.result.memberMatched
-                    ? `✓ "${validationPanel.claim.submittedBy}" found in SharePoint contracts`
-                    : `✕ "${validationPanel.claim.submittedBy}" not found in SharePoint contracts`,
+                    ? `✓ "${validationPanel.claim.submittedBy}" ${t("expenses_stage1_found")}`
+                    : `✕ "${validationPanel.claim.submittedBy}" ${t("expenses_stage1_not_found")}`,
                   validationPanel.result.contractFileName
-                    ? `Contract: ${validationPanel.result.contractFileName}`
+                    ? `${t("expenses_stage1_contract")}: ${validationPanel.result.contractFileName}`
                     : "",
                 ].filter(Boolean)}
               />
@@ -554,8 +530,8 @@ export default function ExpensesPage() {
                   fail = extracted amount clearly mismatches submitted amount */}
               <ValidationStageBlock
                 number={2}
-                title="Receipt vs Submission"
-                subtitle="AI-extracted receipt data matches what the submitter provided"
+                title={t("expenses_stage2_title")}
+                subtitle={t("expenses_stage2_subtitle")}
                 pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt && validationPanel.result.extractedAmount !== null}
                 warn={
                   validationPanel.result.receiptMissing ||
@@ -564,24 +540,24 @@ export default function ExpensesPage() {
                 }
                 lines={[
                   validationPanel.result.receiptMissing
-                    ? "✕ No receipt attached"
+                    ? t("expenses_no_receipt")
                     : validationPanel.result.receiptAccessible
-                    ? "✓ Receipt accessible"
-                    : "✕ Receipt URL not reachable",
+                    ? t("expenses_receipt_accessible")
+                    : t("expenses_receipt_unreachable"),
                   validationPanel.result.extractedAmount !== null
-                    ? `Receipt amount: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? "✓ matches submitted" : `✗ submitted was JPY ${validationPanel.claim.amount.toLocaleString()}`}`
-                    : "Amount: could not extract from receipt",
+                    ? `${t("expenses_receipt_amount")}: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} JPY ${validationPanel.claim.amount.toLocaleString()}`}`
+                    : t("expenses_amount_extract_failed"),
                   validationPanel.result.extractedDate
-                    ? `Receipt date: ${validationPanel.result.extractedDate} ✓`
-                    : "Date: not found in receipt",
+                    ? `${t("expenses_receipt_date")}: ${validationPanel.result.extractedDate} ✓`
+                    : t("expenses_date_not_found"),
                   validationPanel.result.extractedVendor
-                    ? `Vendor: ${validationPanel.result.extractedVendor}`
+                    ? `${t("expenses_vendor")}: ${validationPanel.result.extractedVendor}`
                     : "",
                   validationPanel.result.extractedPurpose
-                    ? `Purpose: ${validationPanel.result.extractedPurpose}`
+                    ? `${t("expenses_purpose")}: ${validationPanel.result.extractedPurpose}`
                     : "",
-                  !validationPanel.result.receiptAccessible && (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
-                    ? `Error: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
+                  (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
+                    ? `${t("expenses_error_label")}: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
                     : "",
                 ].filter(Boolean)}
                 isLast
@@ -589,7 +565,7 @@ export default function ExpensesPage() {
             </div>
 
             <div className="sticky bottom-0 bg-white border-t border-stone-100 px-6 py-4">
-              <Button variant="secondary" size="sm" onClick={() => setValidationPanel(null)}>Close</Button>
+              <Button variant="secondary" size="sm" onClick={() => setValidationPanel(null)}>{t("close")}</Button>
             </div>
           </div>
         </div>
@@ -604,11 +580,12 @@ function ValidationStageBlock({ number, title, subtitle, pass, warn, lines, isLa
   number: number; title: string; subtitle: string;
   pass: boolean; warn: boolean; lines: string[]; isLast?: boolean;
 }) {
+  const { t } = useLanguage();
   const status = warn ? "warn" : pass ? "pass" : "fail";
   const colors = {
-    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: "Passed" },
-    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: "Warning" },
-    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: "Failed" },
+    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: t("stage_status_passed") },
+    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: t("stage_status_review") },
+    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: t("stage_status_failed") },
   }[status];
   return (
     <div className="flex gap-3">
