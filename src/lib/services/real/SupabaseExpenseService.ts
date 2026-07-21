@@ -1,5 +1,5 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI, { toFile } from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -197,27 +197,45 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: send PDF/image directly to Claude — Anthropic natively reads PDFs
+      // Phase 2: upload PDF to OpenAI then extract with GPT-4o via Responses API
       if (fileBuffer) {
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        let uploadedId: string | null = null;
         try {
-          const b64    = fileBuffer.toString("base64");
-          const isPdf  = mimeType === "application/pdf";
-          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          // Upload the file
+          const uploaded = await client.files.create({
+            file:    await toFile(fileBuffer, "receipt.pdf", { type: mimeType }),
+            purpose: "user_data",
+          });
+          uploadedId = uploaded.id;
 
+          // Call Responses API with the uploaded file
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const docPart: any = isPdf
-            ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
-            : { type: "image",    source: { type: "base64", media_type: mimeType,           data: b64 } };
-
-          const msg = await client.messages.create({
-            model:      "claude-haiku-4-5-20251001",
-            max_tokens: 512,
-            messages:   [{ role: "user", content: [docPart, { type: "text", text: EXPENSE_EXTRACT_PROMPT }] }],
+          const resp: any = await (client.responses.create as any)({
+            model: "gpt-4o",
+            input: [{
+              role: "user",
+              content: [
+                { type: "input_file", file_id: uploadedId },
+                { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
+              ],
+            }],
           });
 
-          const raw     = (msg.content[0] as { type: string; text?: string }).text ?? "";
-          const cleaned = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-          const m       = cleaned.match(/\{[\s\S]*\}/);
+          // Extract text — check output_text first, then walk output array
+          let rawText = "";
+          if (typeof resp.output_text === "string" && resp.output_text) {
+            rawText = resp.output_text;
+          } else if (Array.isArray(resp.output)) {
+            for (const item of resp.output) {
+              for (const part of (item.content ?? [])) {
+                if (typeof part.text === "string") rawText += part.text;
+              }
+            }
+          }
+
+          const cleaned = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
             const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
             const rawAmt = result.amount;
@@ -235,8 +253,12 @@ export class SupabaseExpenseService implements IExpenseService {
             }
           }
         } catch (err) {
-          console.error("[validateClaim] Claude extraction failed:", err);
+          console.error("[validateClaim] GPT extraction failed:", err);
           receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
+        } finally {
+          if (uploadedId) {
+            client.files.delete(uploadedId).catch(() => { /* cleanup */ });
+          }
         }
       }
     }
