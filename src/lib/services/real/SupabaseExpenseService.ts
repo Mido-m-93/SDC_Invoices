@@ -1,5 +1,5 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -197,25 +197,26 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: AI extraction — never overrides receiptAccessible
+      // Phase 2: AI extraction via GPT-4o — never overrides receiptAccessible
       if (fileBuffer) {
         try {
-          const b64   = fileBuffer.toString("base64");
-          const isPdf = mimeType === "application/pdf";
-          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const content: any[] = [
-            isPdf
-              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
-              : { type: "image",    source: { type: "base64", media_type: mimeType,           data: b64 } },
-            { type: "text", text: EXPENSE_EXTRACT_PROMPT },
-          ];
-          const msg = await client.messages.create({
-            model:      "claude-haiku-4-5",
+          const b64    = fileBuffer.toString("base64");
+          const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+          const msg = await client.chat.completions.create({
+            model:      "gpt-4o",
             max_tokens: 512,
-            messages:   [{ role: "user", content }],
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type:       "image_url",
+                  image_url:  { url: `data:${mimeType};base64,${b64}`, detail: "high" },
+                },
+                { type: "text", text: EXPENSE_EXTRACT_PROMPT },
+              ],
+            }],
           });
-          const text    = (msg.content[0] as { type: string; text?: string }).text ?? "";
+          const text    = msg.choices[0]?.message?.content ?? "";
           const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
@@ -238,10 +239,10 @@ export class SupabaseExpenseService implements IExpenseService {
               console.warn("[validateClaim] JSON parse failed:", text.slice(0, 200));
             }
           } else {
-            console.warn("[validateClaim] no JSON in AI response:", text.slice(0, 200));
+            console.warn("[validateClaim] no JSON in GPT response:", text.slice(0, 200));
           }
         } catch (err) {
-          console.error("[validateClaim] AI extraction failed:", err);
+          console.error("[validateClaim] GPT extraction failed:", err);
           receiptFetchError = `AI extraction failed: ${String(err)}`;
         }
       }
