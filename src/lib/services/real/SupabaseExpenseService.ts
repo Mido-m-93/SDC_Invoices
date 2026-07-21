@@ -1,7 +1,5 @@
 import "server-only";
 import OpenAI from "openai";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -206,6 +204,9 @@ export class SupabaseExpenseService implements IExpenseService {
           let receiptText = "";
 
           if (isPdf) {
+            // Dynamic import avoids pdf-parse breaking Next.js module init
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (buf: Buffer) => Promise<{ text: string }>;
             const pdfData = await pdfParse(fileBuffer);
             receiptText = pdfData.text ?? "";
           }
