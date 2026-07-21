@@ -49,11 +49,25 @@ function sniffMime(url: string, ct: string): string {
   return "image/jpeg";
 }
 
+function isHtmlBuffer(buf: Buffer): boolean {
+  const head = buf.slice(0, 512).toString("utf8").trimStart().toLowerCase();
+  return head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<head");
+}
+
 // Fetch a receipt file. For SharePoint URLs:
 // 1. Try direct fetch with Graph bearer token.
 // 2. If response is HTML (viewer page), resolve via Graph /shares API instead.
+// 3. If /shares fails, walk the owner's OneDrive Microsoft Forms folder by filename.
 async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
   const isSharePoint = /sharepoint\.com|onedrive\.live\.com/i.test(url);
+  const isUrl = url.startsWith("http");
+
+  console.log(`[fetchReceiptFile] url=${url.slice(0, 120)} isSharePoint=${isSharePoint} isUrl=${isUrl}`);
+
+  if (!isUrl) {
+    // receiptUrl is a bare filename — search for it in the owner's OneDrive Forms folder
+    return fetchByFilename(url);
+  }
 
   if (isSharePoint) {
     let token: string;
@@ -68,37 +82,81 @@ async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
+    console.log(`[fetchReceiptFile] direct status=${direct.status} ct=${direct.headers.get("content-type")}`);
     if (direct.ok) {
-      const ct = direct.headers.get("content-type")?.split(";")[0].trim() ?? "";
-      // If SharePoint returned an HTML viewer page instead of the file, fall through
-      if (!ct.startsWith("text/html") && !ct.startsWith("text/xml")) {
-        const buffer = Buffer.from(await direct.arrayBuffer());
+      const ct     = direct.headers.get("content-type")?.split(";")[0].trim() ?? "";
+      const buffer = Buffer.from(await direct.arrayBuffer());
+      console.log(`[fetchReceiptFile] direct ok bytes=${buffer.length} ct=${ct} isHtml=${isHtmlBuffer(buffer)}`);
+      if (!ct.startsWith("text/html") && !ct.startsWith("text/xml") && !isHtmlBuffer(buffer)) {
         return { buffer, mimeType: sniffMime(url, ct) };
       }
     }
 
-    // Attempt 2: resolve via Graph sharing-link API (handles /:i:/, /:x:/ viewer URLs)
-    // shareId = "u!" + base64url(url) per Graph docs
+    // Attempt 2: resolve via Graph /shares — works for /:i:/ /:x:/ sharing-link URLs
     const shareId = "u!" + Buffer.from(url).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
     const graphRes = await fetch(
       `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`,
       { headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store" }
     );
-    if (!graphRes.ok) {
-      console.error("[fetchReceiptFile] Graph shares failed:", graphRes.status, await graphRes.text().catch(() => ""));
-      return null;
+    console.log(`[fetchReceiptFile] shares status=${graphRes.status} ct=${graphRes.headers.get("content-type")}`);
+    if (graphRes.ok) {
+      const ct  = graphRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
+      const buf = Buffer.from(await graphRes.arrayBuffer());
+      console.log(`[fetchReceiptFile] shares ok bytes=${buf.length} isHtml=${isHtmlBuffer(buf)}`);
+      if (!isHtmlBuffer(buf)) {
+        return { buffer: buf, mimeType: sniffMime(url, ct) };
+      }
     }
-    const ct = graphRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-    const buffer = Buffer.from(await graphRes.arrayBuffer());
-    return { buffer, mimeType: sniffMime(url, ct) };
+
+    // Attempt 3: extract filename from URL and search owner's OneDrive
+    const filename = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
+    if (filename) {
+      console.log(`[fetchReceiptFile] falling back to filename search: ${filename}`);
+      return fetchByFilename(filename, token);
+    }
+    return null;
   }
 
   // Non-SharePoint: plain fetch
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
   const ct = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return { buffer, mimeType: sniffMime(url, ct) };
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { buffer: buf, mimeType: sniffMime(url, ct) };
+}
+
+// Search the owner's OneDrive for a receipt file by name (fallback when URL is bare filename)
+async function fetchByFilename(filename: string, token?: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  try {
+    const tok      = token ?? await getGraphToken();
+    const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
+    const driveRes = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
+      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
+    );
+    const { id: driveId } = await driveRes.json() as { id: string };
+
+    const searchRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='${encodeURIComponent(filename)}')?$select=id,name,file&$top=5`,
+      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
+    );
+    const { value: items } = await searchRes.json() as { value: Array<{ id: string; name: string }> };
+    const match = items?.find((i) => i.name === filename || i.name.startsWith(filename.replace(/\.[^.]+$/, "")));
+    if (!match) { console.log(`[fetchByFilename] no match for "${filename}"`); return null; }
+
+    const dlRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${match.id}/content`,
+      { headers: { Authorization: `Bearer ${tok}` }, redirect: "follow", cache: "no-store" }
+    );
+    if (!dlRes.ok) return null;
+    const ct  = dlRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
+    const buf = Buffer.from(await dlRes.arrayBuffer());
+    console.log(`[fetchByFilename] found "${match.name}" bytes=${buf.length} ct=${ct}`);
+    return { buffer: buf, mimeType: sniffMime(filename, ct) };
+  } catch (e) {
+    console.error("[fetchByFilename] error:", e);
+    return null;
+  }
 }
 
 function toRow(c: ExpenseClaim): Record<string, unknown> {
