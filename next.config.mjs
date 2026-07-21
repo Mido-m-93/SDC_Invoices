@@ -8,7 +8,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   experimental: {
-    serverComponentsExternalPackages: ["iconv-lite", "pdfjs-dist", "groq-sdk", "openai"],
+    serverComponentsExternalPackages: ["iconv-lite", "pdfjs-dist", "groq-sdk", "openai", "pdf-parse"],
   },
 };
 
