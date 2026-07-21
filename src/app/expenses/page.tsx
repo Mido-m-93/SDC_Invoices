@@ -537,7 +537,10 @@ export default function ExpensesPage() {
                     ? `Receipt date: ${validationPanel.result.extractedDate} ✓`
                     : "Date: not found in receipt",
                   validationPanel.result.extractedVendor
-                    ? `Vendor on receipt: ${validationPanel.result.extractedVendor}`
+                    ? `Vendor: ${validationPanel.result.extractedVendor}`
+                    : "",
+                  validationPanel.result.extractedPurpose
+                    ? `Purpose: ${validationPanel.result.extractedPurpose}`
                     : "",
                 ].filter(Boolean)}
                 isLast

@@ -69,6 +69,7 @@ export class MockExpenseService implements IExpenseService {
       extractedAmount:      claim.extractedAmount,
       extractedDate:        claim.extractedDate,
       extractedVendor:      claim.extractedVendor,
+      extractedPurpose:     null,
       memberMatched:        false,
       contractFileName:     null,
     };

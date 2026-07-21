@@ -408,6 +408,7 @@ export interface ExpenseValidationResult {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  extractedPurpose: string | null;
   memberMatched: boolean;
   contractFileName: string | null;
 }

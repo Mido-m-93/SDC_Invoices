@@ -10,13 +10,15 @@ import type {
 } from "@/types";
 
 const EXPENSE_EXTRACT_PROMPT = `Extract fields from this receipt/invoice image or PDF.
-Return ONLY valid JSON:
+Return ONLY valid JSON with no extra text:
 {
   "amount": number or null,
-  "date": "YYYY-MM-DD or null",
-  "vendor": "vendor name or null",
-  "currency": "JPY or USD or null"
-}`;
+  "date": "YYYY-MM-DD" or null,
+  "vendor": "store or service name" or null,
+  "currency": "JPY" or "USD" or null,
+  "purpose": "one-line description of what the expense was for" or null
+}
+For Japanese receipts: 合計 or 税込 is the total amount. 日付 or 年月日 is the date.`;
 
 async function getGraphToken(): Promise<string> {
   const res = await fetch(
@@ -38,27 +40,65 @@ async function getGraphToken(): Promise<string> {
   return access_token;
 }
 
-// Fetch a receipt file, adding auth when the URL is a SharePoint/OneDrive URL.
+function sniffMime(url: string, ct: string): string {
+  if (ct.startsWith("image/") || ct === "application/pdf") return ct;
+  if (/\.pdf$/i.test(url))  return "application/pdf";
+  if (/\.png$/i.test(url))  return "image/png";
+  if (/\.gif$/i.test(url))  return "image/gif";
+  if (/\.webp$/i.test(url)) return "image/webp";
+  return "image/jpeg";
+}
+
+// Fetch a receipt file. For SharePoint URLs:
+// 1. Try direct fetch with Graph bearer token.
+// 2. If response is HTML (viewer page), resolve via Graph /shares API instead.
 async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  const headers: Record<string, string> = {};
-  if (/sharepoint\.com|onedrive\.live\.com/i.test(url)) {
-    try {
-      headers["Authorization"] = `Bearer ${await getGraphToken()}`;
-    } catch { /* fall through to unauthenticated */ }
+  const isSharePoint = /sharepoint\.com|onedrive\.live\.com/i.test(url);
+
+  if (isSharePoint) {
+    let token: string;
+    try { token = await getGraphToken(); }
+    catch (e) {
+      console.error("[fetchReceiptFile] getGraphToken failed:", e);
+      return null;
+    }
+
+    // Attempt 1: direct fetch with auth
+    const direct = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (direct.ok) {
+      const ct = direct.headers.get("content-type")?.split(";")[0].trim() ?? "";
+      // If SharePoint returned an HTML viewer page instead of the file, fall through
+      if (!ct.startsWith("text/html") && !ct.startsWith("text/xml")) {
+        const buffer = Buffer.from(await direct.arrayBuffer());
+        return { buffer, mimeType: sniffMime(url, ct) };
+      }
+    }
+
+    // Attempt 2: resolve via Graph sharing-link API (handles /:i:/, /:x:/ viewer URLs)
+    // shareId = "u!" + base64url(url) per Graph docs
+    const shareId = "u!" + Buffer.from(url).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const graphRes = await fetch(
+      `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`,
+      { headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store" }
+    );
+    if (!graphRes.ok) {
+      console.error("[fetchReceiptFile] Graph shares failed:", graphRes.status, await graphRes.text().catch(() => ""));
+      return null;
+    }
+    const ct = graphRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
+    const buffer = Buffer.from(await graphRes.arrayBuffer());
+    return { buffer, mimeType: sniffMime(url, ct) };
   }
-  const res = await fetch(url, { headers, cache: "no-store" });
+
+  // Non-SharePoint: plain fetch
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
-  // Prefer Content-Type from response; fall back to extension sniffing
   const ct = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
-  const mimeType = ct.startsWith("image/") || ct === "application/pdf"
-    ? ct
-    : /\.pdf$/i.test(url)  ? "application/pdf"
-    : /\.png$/i.test(url)  ? "image/png"
-    : /\.gif$/i.test(url)  ? "image/gif"
-    : /\.webp$/i.test(url) ? "image/webp"
-    : "image/jpeg";
   const buffer = Buffer.from(await res.arrayBuffer());
-  return { buffer, mimeType };
+  return { buffer, mimeType: sniffMime(url, ct) };
 }
 
 function toRow(c: ExpenseClaim): Record<string, unknown> {
@@ -205,6 +245,7 @@ export class SupabaseExpenseService implements IExpenseService {
     let extractedAmount: number | null = null;
     let extractedDate: string | null = null;
     let extractedVendor: string | null = null;
+    let extractedPurpose: string | null = null;
     let receiptAccessible = false;
     let amountMatchesReceipt = false;
 
@@ -231,10 +272,11 @@ export class SupabaseExpenseService implements IExpenseService {
           const text = (msg.content[0] as { type: string; text?: string }).text ?? "";
           const m = text.match(/\{[\s\S]*\}/);
           if (m) {
-            const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string };
-            extractedAmount = typeof parsed.amount === "number" ? parsed.amount : null;
-            extractedDate   = parsed.date   ?? null;
-            extractedVendor = parsed.vendor ?? null;
+            const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string; purpose?: string };
+            extractedAmount  = typeof parsed.amount === "number" ? parsed.amount : null;
+            extractedDate    = parsed.date    ?? null;
+            extractedVendor  = parsed.vendor  ?? null;
+            extractedPurpose = parsed.purpose ?? null;
             if (extractedAmount !== null) {
               amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
@@ -265,6 +307,7 @@ export class SupabaseExpenseService implements IExpenseService {
       extractedAmount,
       extractedDate,
       extractedVendor,
+      extractedPurpose,
       memberMatched:    false,
       contractFileName: null,
     };
