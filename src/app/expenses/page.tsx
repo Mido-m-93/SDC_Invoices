@@ -9,13 +9,35 @@ import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
 const STATUSES: { value: ExpenseStatus | "all"; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "submitted", label: "Submitted" },
-  { value: "under_review", label: "Under Review" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "paid", label: "Paid" },
+  { value: "all",          label: "All / 全て" },
+  { value: "submitted",    label: "Submitted / 提出済み" },
+  { value: "under_review", label: "Under Review / 審査中" },
+  { value: "approved",     label: "Approved / 承認済み" },
+  { value: "rejected",     label: "Rejected / 却下" },
+  { value: "paid",         label: "Paid / 支払済み" },
 ];
+
+const STATUS_JA: Record<string, string> = {
+  draft:        "下書き",
+  submitted:    "提出済み",
+  under_review: "審査中",
+  approved:     "承認済み",
+  rejected:     "却下",
+  paid:         "支払済み",
+  archived:     "アーカイブ",
+};
+
+const VIOLATION_JA: Record<string, string> = {
+  MISSING_RECEIPT:                    "領収書なし",
+  MISSING_PURPOSE:                    "目的未記入",
+  HIGH_AMOUNT_PERSONAL_REIMBURSEMENT: "高額個人立替",
+  REQUIRES_MANAGEMENT_APPROVAL:       "管理者承認必要",
+};
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return iso.slice(0, 10);
+}
 
 const STATUS_COLORS: Record<ExpenseStatus, string> = {
   draft: "bg-stone-100 text-stone-500",
@@ -202,8 +224,8 @@ export default function ExpensesPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Expense Claims"
-        subtitle="Submit and review expense reimbursement requests"
+        title="Expense Claims / 経費精算"
+        subtitle="Submit and review expense reimbursement requests / 経費の提出・審査"
         actions={
           <div className="flex items-center gap-3">
             <button
@@ -238,6 +260,7 @@ export default function ExpensesPage() {
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
         ⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.
+        <span className="block text-xs mt-0.5 text-amber-600">経費申請には領収書が必要です。支払処理は別途行われます。このツールは検証と承認記録のみを行います。</span>
       </div>
 
       {uploadMsg && (
@@ -288,14 +311,15 @@ export default function ExpensesPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">Submitted By</th>
-                <th className="px-4 py-3 text-left">Category</th>
-                <th className="px-4 py-3 text-left">Description</th>
-                <th className="px-4 py-3 text-right">Amount</th>
-                <th className="px-4 py-3 text-left">Date</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Violations</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">Submitted By<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">提出者</span></th>
+                <th className="px-4 py-3 text-left">Category<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">カテゴリ</span></th>
+                <th className="px-4 py-3 text-left">Description<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">説明</span></th>
+                <th className="px-4 py-3 text-right">Amount<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">金額</span></th>
+                <th className="px-4 py-3 text-left">Submitted<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">提出日</span></th>
+                <th className="px-4 py-3 text-left">Expense Date<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">経費日</span></th>
+                <th className="px-4 py-3 text-left">Status<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">ステータス</span></th>
+                <th className="px-4 py-3 text-left">Violations<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">違反</span></th>
+                <th className="px-4 py-3 text-left">Actions<span className="block normal-case tracking-normal font-normal text-[10px] text-stone-400">操作</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -310,10 +334,12 @@ export default function ExpensesPage() {
                       <span className="ml-1 text-xs text-amber-600">(receipt: {c.extractedAmount.toLocaleString()})</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-stone-500">{fmtDate(c.submittedAt)}</td>
                   <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
-                      {c.status.replace(/_/g, " ")}
+                    <span className={`inline-flex flex-col items-start rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                      <span>{c.status.replace(/_/g, " ")}</span>
+                      <span className="text-[10px] font-normal opacity-75">{STATUS_JA[c.status] ?? ""}</span>
                     </span>
                     <div className="flex gap-1 mt-1">
                       {c.receiptUrl && (
@@ -327,21 +353,27 @@ export default function ExpensesPage() {
                   </td>
                   <td className="px-4 py-3">
                     {c.policyViolations.length > 0 ? (
-                      <span className="text-xs text-red-600">{c.policyViolations.join(", ")}</span>
+                      <div className="space-y-0.5">
+                        {c.policyViolations.map((v) => (
+                          <div key={v} className="text-xs text-red-600">
+                            {v}<span className="text-red-400 ml-1">({VIOLATION_JA[v] ?? v})</span>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
-                      <span className="text-xs text-green-600">None</span>
+                      <span className="text-xs text-green-600">None / なし</span>
                     )}
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
-                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>Validate</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit / 編集</Button>
+                    <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>Validate / 検証</Button>
                     {(c.status === "submitted" || c.status === "under_review") && (
-                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>Approve</Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>Approve / 承認</Button>
                     )}
                     {c.status !== "rejected" && c.status !== "paid" && (
-                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>Reject</Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>Reject / 却下</Button>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete / 削除</Button>
                   </td>
                 </tr>
               ))}
@@ -355,62 +387,62 @@ export default function ExpensesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{editing ? "Edit Expense Claim" : "New Expense Claim"}</h2>
+              <h2 className="text-base font-semibold">{editing ? "Edit Expense Claim / 経費申請を編集" : "New Expense Claim / 新規経費申請"}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Submitted By *">
-                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder="Name" />
+                <Field label="Submitted By * / 提出者">
+                  <input className={inp} value={form.submittedBy} onChange={(e) => set("submittedBy", e.target.value)} placeholder="Name / 名前" />
                 </Field>
-                <Field label="Email">
+                <Field label="Email / メール">
                   <input className={inp} value={form.submittedByEmail} onChange={(e) => set("submittedByEmail", e.target.value)} placeholder="email@example.com" />
                 </Field>
               </div>
-              <Field label="Expense Date *">
+              <Field label="Expense Date * / 経費日">
                 <input className={inp} type="date" value={form.expenseDate} onChange={(e) => set("expenseDate", e.target.value)} />
               </Field>
-              <Field label="Category *">
+              <Field label="Category * / カテゴリ">
                 <select className={inp} value={form.category} onChange={(e) => set("category", e.target.value)}>
                   {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
                 </select>
               </Field>
-              <Field label="Description *">
-                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Purpose of expense..." />
+              <Field label="Description * / 説明">
+                <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Purpose of expense / 経費の目的..." />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Amount *">
+                <Field label="Amount * / 金額">
                   <input className={inp} type="number" value={form.amount} onChange={(e) => set("amount", parseFloat(e.target.value) || 0)} />
                 </Field>
-                <Field label="Currency">
+                <Field label="Currency / 通貨">
                   <select className={inp} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
                     <option>JPY</option><option>USD</option><option>EUR</option>
                   </select>
                 </Field>
               </div>
-              <Field label="Payment Method *">
+              <Field label="Payment Method * / 支払方法">
                 <select className={inp} value={form.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>
                   {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
                 </select>
               </Field>
-              <Field label="Receipt URL">
+              <Field label="Receipt URL / 領収書URL">
                 <input className={inp} value={form.receiptUrl} onChange={(e) => set("receiptUrl", e.target.value)} placeholder="https://..." />
               </Field>
-              <Field label="Receipt Filename">
+              <Field label="Receipt Filename / 領収書ファイル名">
                 <input className={inp} value={form.receiptFilename} onChange={(e) => set("receiptFilename", e.target.value)} placeholder="receipt.pdf" />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Project Name">
+                <Field label="Project Name / プロジェクト">
                   <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
                 </Field>
-                <Field label="Department">
+                <Field label="Department / 部署">
                   <input className={inp} value={form.internalDepartment} onChange={(e) => set("internalDepartment", e.target.value)} />
                 </Field>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button variant="primary" loading={saving} onClick={handleSave}>Save Claim</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel / キャンセル</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>Save / 保存</Button>
             </div>
           </div>
         </div>
@@ -422,10 +454,14 @@ export default function ExpensesPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-              <h2 className="text-base font-semibold mb-1 capitalize">{approveAction} Expense Claim</h2>
+              <h2 className="text-base font-semibold mb-0.5 capitalize">
+                {approveAction === "approve" ? "Approve Expense Claim" : "Reject Expense Claim"}
+              </h2>
+              <p className="text-xs text-stone-400 mb-3">{approveAction === "approve" ? "経費申請を承認" : "経費申請を却下"}</p>
               {approvingClaim && (
                 <p className="text-xs text-stone-500 mb-4">
                   {approvingClaim.submittedBy} — ¥{approvingClaim.amount.toLocaleString()} ({approvingClaim.expenseDate})
+                  <span className="block text-stone-400">提出日 {fmtDate(approvingClaim.submittedAt)}</span>
                 </p>
               )}
               {approveAction === "approve" && approvingClaim?.bankAccount && (
@@ -439,17 +475,19 @@ export default function ExpensesPage() {
                   ⚠ 銀行口座情報がありません — 振込先を別途確認してください
                 </div>
               )}
-              <Field label="Your Name *">
+              <Field label="Your Name * / 承認者名">
                 <input className={inp} value={actorName} onChange={(e) => setActorName(e.target.value)} />
               </Field>
               <div className="mt-3">
-                <Field label="Comment">
-                  <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment..." />
+                <Field label="Comment / コメント">
+                  <textarea className={`${inp} h-16 mt-1`} value={approveComment} onChange={(e) => setApproveComment(e.target.value)} placeholder="Optional reviewer comment / 任意のコメント..." />
                 </Field>
               </div>
               <div className="flex justify-end gap-3 mt-5">
-                <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel</Button>
-                <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>{approveAction === "approve" ? "Approve" : "Reject"}</Button>
+                <Button variant="secondary" onClick={() => { setApprovingId(null); setApproveAction(null); }}>Cancel / キャンセル</Button>
+                <Button variant={approveAction === "approve" ? "primary" : "danger"} onClick={handleApprove}>
+                  {approveAction === "approve" ? "Approve / 承認" : "Reject / 却下"}
+                </Button>
               </div>
             </div>
           </div>
