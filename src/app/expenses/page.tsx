@@ -474,19 +474,24 @@ export default function ExpensesPage() {
 
             <div className="flex-1 px-6 py-5 space-y-5">
               {/* Risk badge */}
-              <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${
-                validationPanel.result.memberMatched && validationPanel.result.amountMatchesReceipt
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : !validationPanel.result.memberMatched
-                  ? "bg-red-50 text-red-700 border border-red-200"
-                  : "bg-amber-50 text-amber-700 border border-amber-200"
-              }`}>
-                {validationPanel.result.memberMatched && validationPanel.result.amountMatchesReceipt
-                  ? "✓ Claim verified — member registered and receipt matches"
-                  : !validationPanel.result.memberMatched
-                  ? "✕ Submitter not found in SharePoint — cannot approve"
-                  : "⚠ Member registered — receipt needs review"}
-              </div>
+              {(() => {
+                const { memberMatched, amountMatchesReceipt, receiptMissing, receiptAccessible, extractedAmount } = validationPanel.result;
+                const extractionFailed = !receiptMissing && receiptAccessible && extractedAmount === null;
+                const fullyVerified    = memberMatched && amountMatchesReceipt;
+                const hardFail         = !memberMatched || (!receiptMissing && receiptAccessible && extractedAmount !== null && !amountMatchesReceipt);
+                return (
+                  <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${
+                    fullyVerified ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : hardFail    ? "bg-red-50 text-red-700 border border-red-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    {fullyVerified    ? "✓ Claim verified — member registered and receipt matches"
+                    : !memberMatched  ? "✕ Submitter not found in SharePoint — cannot approve"
+                    : extractionFailed ? "⚠ Member registered — receipt unreadable, manual review needed"
+                                      : "⚠ Member registered — receipt needs review"}
+                  </div>
+                );
+              })()}
 
               {/* Stage 1: SharePoint member check */}
               <ValidationStageBlock
@@ -505,13 +510,20 @@ export default function ExpensesPage() {
                 ].filter(Boolean)}
               />
 
-              {/* Stage 2: Receipt match */}
+              {/* Stage 2: Receipt match
+                  pass = receipt accessible + amount extracted + matches
+                  warn = no receipt, inaccessible, OR accessible but extraction failed (needs human review)
+                  fail = extracted amount clearly mismatches submitted amount */}
               <ValidationStageBlock
                 number={2}
                 title="Receipt vs Submission"
                 subtitle="AI-extracted receipt data matches what the submitter provided"
-                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt}
-                warn={validationPanel.result.receiptMissing || !validationPanel.result.receiptAccessible}
+                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt && validationPanel.result.extractedAmount !== null}
+                warn={
+                  validationPanel.result.receiptMissing ||
+                  !validationPanel.result.receiptAccessible ||
+                  (validationPanel.result.receiptAccessible && validationPanel.result.extractedAmount === null)
+                }
                 lines={[
                   validationPanel.result.receiptMissing
                     ? "✕ No receipt attached"
