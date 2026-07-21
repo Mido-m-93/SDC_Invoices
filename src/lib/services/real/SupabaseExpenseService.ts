@@ -92,23 +92,29 @@ async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType
       }
     }
 
-    // Attempt 2: resolve via Graph /shares — works for /:i:/ /:x:/ sharing-link URLs
-    const shareId = "u!" + Buffer.from(url).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    const graphRes = await fetch(
-      `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`,
-      { headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store" }
-    );
-    console.log(`[fetchReceiptFile] shares status=${graphRes.status} ct=${graphRes.headers.get("content-type")}`);
-    if (graphRes.ok) {
-      const ct  = graphRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-      const buf = Buffer.from(await graphRes.arrayBuffer());
-      console.log(`[fetchReceiptFile] shares ok bytes=${buf.length} isHtml=${isHtmlBuffer(buf)}`);
-      if (!isHtmlBuffer(buf)) {
-        return { buffer: buf, mimeType: sniffMime(url, ct) };
+    // Attempt 2: Graph API via drive path — most reliable for personal OneDrive URLs.
+    // SharePoint personal URLs follow: /personal/{upn_encoded}/Documents/{drive-relative-path}
+    // We convert that to: GET /users/{ownerUpn}/drive/root:/{drive-relative-path}:/content
+    const spPathMatch = url.match(/\/personal\/[^/?#]+\/(.+?)(?:\?|#|$)/);
+    if (spPathMatch) {
+      const drivePath   = decodeURIComponent(spPathMatch[1]); // e.g. "Documents/アプリ/Microsoft Forms/.../file.pdf"
+      const ownerUpn    = process.env.MICROSOFT_OWNER_UPN!;
+      const encodedPath = drivePath.split("/").map(encodeURIComponent).join("/");
+      const graphPath   = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/root:/${encodedPath}:/content`;
+      console.log(`[fetchReceiptFile] graph-path ${graphPath.slice(0, 140)}`);
+      const pathRes = await fetch(graphPath, {
+        headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store",
+      });
+      console.log(`[fetchReceiptFile] graph-path status=${pathRes.status} ct=${pathRes.headers.get("content-type")}`);
+      if (pathRes.ok) {
+        const ct  = pathRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
+        const buf = Buffer.from(await pathRes.arrayBuffer());
+        console.log(`[fetchReceiptFile] graph-path ok bytes=${buf.length} isHtml=${isHtmlBuffer(buf)}`);
+        if (!isHtmlBuffer(buf)) return { buffer: buf, mimeType: sniffMime(url, ct) };
       }
     }
 
-    // Attempt 3: extract filename from URL and search owner's OneDrive
+    // Attempt 3: filename search in owner's OneDrive (last resort)
     const filename = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
     if (filename) {
       console.log(`[fetchReceiptFile] falling back to filename search: ${filename}`);
@@ -323,7 +329,7 @@ export class SupabaseExpenseService implements IExpenseService {
             { type: "text", text: EXPENSE_EXTRACT_PROMPT },
           ];
           const msg = await client.messages.create({
-            model:     "claude-haiku-4-5",
+            model:     "claude-haiku-4-5-20251001",
             max_tokens: 512,
             messages: [{ role: "user", content }],
           });
