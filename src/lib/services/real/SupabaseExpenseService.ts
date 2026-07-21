@@ -317,11 +317,13 @@ export class SupabaseExpenseService implements IExpenseService {
     let extractedPurpose: string | null = null;
     let receiptAccessible = false;
     let amountMatchesReceipt = false;
+    let receiptFetchError: string | null = null;
 
     if (claim.receiptUrl) {
       try {
         const fetched = await fetchReceiptFile(claim.receiptUrl);
         receiptAccessible = fetched !== null;
+        if (!fetched) receiptFetchError = "File downloaded as HTML or all fetch strategies returned null";
         if (fetched) {
           const b64    = fetched.buffer.toString("base64");
           const isPdf  = fetched.mimeType === "application/pdf";
@@ -369,6 +371,7 @@ export class SupabaseExpenseService implements IExpenseService {
       } catch (err) {
         console.error("[validateClaim] receipt fetch/extract failed:", err);
         receiptAccessible = false;
+        receiptFetchError = String(err);
       }
     }
 
@@ -392,8 +395,9 @@ export class SupabaseExpenseService implements IExpenseService {
       extractedDate,
       extractedVendor,
       extractedPurpose,
-      memberMatched:    false,
-      contractFileName: null,
+      memberMatched:      false,
+      contractFileName:   null,
+      receiptFetchError:  receiptFetchError ?? undefined,
     };
   }
 }

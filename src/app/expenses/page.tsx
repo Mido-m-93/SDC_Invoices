@@ -542,7 +542,9 @@ export default function ExpensesPage() {
                   validationPanel.result.extractedPurpose
                     ? `Purpose: ${validationPanel.result.extractedPurpose}`
                     : "",
-                  // Debug: show raw receipt URL so we can diagnose fetch failures
+                  !validationPanel.result.receiptAccessible && (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
+                    ? `[debug] fetch error: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
+                    : "",
                   !validationPanel.result.extractedAmount && validationPanel.receiptUrl
                     ? `[debug] receipt URL: ${validationPanel.receiptUrl}`
                     : "",
