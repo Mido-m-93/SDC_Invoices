@@ -99,10 +99,14 @@ async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType
     // Attempt 2: Graph API via drive path — most reliable for personal OneDrive URLs.
     // SharePoint personal URLs follow: /personal/{upn_encoded}/Documents/{drive-relative-path}
     // We convert that to: GET /users/{ownerUpn}/drive/root:/{drive-relative-path}:/content
+    const spFullMatch = url.match(/\/personal\/([^/?#]+)\/(.+?)(?:\?|#|$)/);
     const spPathMatch = url.match(/\/personal\/[^/?#]+\/(.+?)(?:\?|#|$)/);
-    if (spPathMatch) {
+    if (spPathMatch && spFullMatch) {
       const drivePath   = decodeURIComponent(spPathMatch[1]); // e.g. "Documents/アプリ/Microsoft Forms/.../file.pdf"
-      const ownerUpn    = process.env.MICROSOFT_OWNER_UPN!;
+      // Extract owner UPN from the URL itself: mohamada_roboco-op_org → mohamada@roboco-op.org
+      const encodedUpn  = spFullMatch[1]; // e.g. "mohamada_roboco-op_org"
+      const ownerUpn    = encodedUpn.replace(/_([^_]+)$/, ".$1").replace("_", "@");
+      console.log(`[fetchReceiptFile] resolved ownerUpn=${ownerUpn} from URL`);
       const encodedPath = drivePath.split("/").map(encodeURIComponent).join("/");
       const graphPath   = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/root:/${encodedPath}:/content`;
       console.log(`[fetchReceiptFile] graph-path ${graphPath.slice(0, 140)}`);
