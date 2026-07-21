@@ -197,26 +197,31 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: upload PDF to OpenAI then extract with GPT-4o via Responses API
+      // Phase 2: upload receipt to OpenAI then extract with GPT-4o via Responses API
       if (fileBuffer) {
         const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const isImage = mimeType.startsWith("image/");
+        const extension = mimeType.split("/")[1] ?? "pdf";
         let uploadedId: string | null = null;
         try {
-          // Upload the file
+          // Upload the file — filename extension must match the actual mime type
           const uploaded = await client.files.create({
-            file:    await toFile(fileBuffer, "receipt.pdf", { type: mimeType }),
+            file:    await toFile(fileBuffer, `receipt.${extension}`, { type: mimeType }),
             purpose: "user_data",
           });
           uploadedId = uploaded.id;
 
           // Call Responses API with the uploaded file
+          // Images require "input_image"; documents (PDFs) require "input_file"
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const resp: any = await (client.responses.create as any)({
             model: "gpt-4o",
             input: [{
               role: "user",
               content: [
-                { type: "input_file", file_id: uploadedId },
+                isImage
+                  ? { type: "input_image", file_id: uploadedId }
+                  : { type: "input_file", file_id: uploadedId },
                 { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
               ],
             }],
