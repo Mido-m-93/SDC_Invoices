@@ -9,16 +9,20 @@ import type {
   ExpenseValidationResult,
 } from "@/types";
 
-const EXPENSE_EXTRACT_PROMPT = `Extract fields from this receipt/invoice image or PDF.
-Return ONLY valid JSON with no extra text:
-{
-  "amount": number or null,
-  "date": "YYYY-MM-DD" or null,
-  "vendor": "store or service name" or null,
-  "currency": "JPY" or "USD" or null,
-  "purpose": "one-line description of what the expense was for" or null
-}
-For Japanese receipts: 合計 or 税込 is the total amount. 日付 or 年月日 is the date.`;
+const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the attached receipt or invoice carefully and extract the following fields.
+
+Return ONLY a JSON object — no markdown, no explanation, no code fences:
+{"amount":5000,"date":"2026-07-03","vendor":"ヤマダ電機","currency":"JPY","purpose":"USB cable for office laptop"}
+
+Rules:
+- amount: the final total as a plain number (no ¥ or commas). Use 合計 or 税込合計 for Japanese receipts.
+- date: in YYYY-MM-DD format. Use 日付, 年月日, or any date visible on the receipt.
+- vendor: store or service name (店名, 会社名).
+- currency: "JPY" if ¥ symbol or Japanese text, otherwise "USD" or the correct code.
+- purpose: one short English sentence describing what was purchased.
+- If a field is truly not present, use null.
+
+This receipt may be in Japanese. Read all text carefully including headers, footers, and stamps.`;
 
 async function getGraphToken(): Promise<string> {
   const res = await fetch(
@@ -329,21 +333,36 @@ export class SupabaseExpenseService implements IExpenseService {
             { type: "text", text: EXPENSE_EXTRACT_PROMPT },
           ];
           const msg = await client.messages.create({
-            model:     "claude-haiku-4-5-20251001",
+            model:     "claude-sonnet-5",
             max_tokens: 512,
             messages: [{ role: "user", content }],
           });
           const text = (msg.content[0] as { type: string; text?: string }).text ?? "";
-          const m = text.match(/\{[\s\S]*\}/);
+          // Strip markdown code fences if the model wraps the JSON
+          const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
-            const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string; purpose?: string };
-            extractedAmount  = typeof parsed.amount === "number" ? parsed.amount : null;
-            extractedDate    = parsed.date    ?? null;
-            extractedVendor  = parsed.vendor  ?? null;
-            extractedPurpose = parsed.purpose ?? null;
-            if (extractedAmount !== null) {
-              amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
+            try {
+              const parsed = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+              // Accept amount as string "1,234" or number
+              const rawAmt = parsed.amount;
+              if (typeof rawAmt === "number") {
+                extractedAmount = rawAmt;
+              } else if (typeof rawAmt === "string") {
+                const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
+                extractedAmount = isNaN(n) ? null : n;
+              }
+              extractedDate    = parsed.date    ?? null;
+              extractedVendor  = parsed.vendor  ?? null;
+              extractedPurpose = parsed.purpose ?? null;
+              if (extractedAmount !== null) {
+                amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
+              }
+            } catch {
+              console.warn("[validateClaim] JSON parse failed, raw:", text.slice(0, 200));
             }
+          } else {
+            console.warn("[validateClaim] no JSON found in response:", text.slice(0, 200));
           }
         }
       } catch (err) {
