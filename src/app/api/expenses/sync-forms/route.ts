@@ -223,7 +223,8 @@ async function fetchRowsViaWorkbookApi(): Promise<Record<string, unknown>[]> {
 
   const buf = Buffer.from(await dlRes.arrayBuffer());
   // cellHyperlinks: true → cell.l.Target contains the actual URL for hyperlinked cells
-  const wb  = read(buf, { cellHyperlinks: true, cellDates: true });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wb  = read(buf, { cellHyperlinks: true, cellDates: true } as any);
 
   const allRows: Record<string, unknown>[] = [];
 
