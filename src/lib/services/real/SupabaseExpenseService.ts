@@ -202,21 +202,37 @@ export class SupabaseExpenseService implements IExpenseService {
         try {
           const b64    = fileBuffer.toString("base64");
           const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-          const msg = await client.chat.completions.create({
-            model:      "gpt-4o",
-            max_tokens: 512,
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type:       "image_url",
-                  image_url:  { url: `data:${mimeType};base64,${b64}`, detail: "high" },
-                },
-                { type: "text", text: EXPENSE_EXTRACT_PROMPT },
-              ],
-            }],
-          });
-          const text    = msg.choices[0]?.message?.content ?? "";
+          const isPdf  = mimeType === "application/pdf";
+
+          let text: string;
+          if (isPdf) {
+            // Responses API supports PDF input_file natively
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const resp = await (client.responses.create as any)({
+              model: "gpt-4o",
+              input: [{
+                role: "user",
+                content: [
+                  { type: "input_file", filename: "receipt.pdf", file_data: `data:application/pdf;base64,${b64}` },
+                  { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
+                ],
+              }],
+            });
+            text = resp.output_text ?? "";
+          } else {
+            const msg = await client.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 512,
+              messages: [{
+                role: "user",
+                content: [
+                  { type: "image_url", image_url: { url: `data:${mimeType};base64,${b64}`, detail: "high" } },
+                  { type: "text", text: EXPENSE_EXTRACT_PROMPT },
+                ],
+              }],
+            });
+            text = msg.choices[0]?.message?.content ?? "";
+          }
           const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
