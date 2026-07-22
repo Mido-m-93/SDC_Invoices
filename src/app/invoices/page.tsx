@@ -368,6 +368,7 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-stone-200">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
@@ -553,6 +554,7 @@ export default function InvoicesPage() {
                   })}
                 </tbody>
               </table>
+            </div>
 
             <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-4">
               <p className="text-xs text-stone-400">
