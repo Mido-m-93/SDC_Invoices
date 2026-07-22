@@ -65,7 +65,7 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     internalDepartment: row.internal_department as string,
     externalProjectName: row.external_project_name as string,
     projectType: row.project_type as string,
-    claimedAmountTaxIncluded: row.claimed_amount_tax_included as string,
+    claimedAmountTaxIncluded: (row.claimed_amount_tax_included as string) || "",
     currency: (row.currency as string) || undefined,
     invoiceProjectStatus: row.invoice_project_status as string,
     paymentStatus: row.payment_status as string,

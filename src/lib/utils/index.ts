@@ -173,7 +173,8 @@ const CURRENCY_FORMAT: Record<string, { symbol: string; locale: string }> = {
 };
 
 // ── Currency display ──────────────────────────────────────────────────────────
-export function formatCurrency(raw: string, currencyOverride?: string): string {
+export function formatCurrency(raw: string | null | undefined, currencyOverride?: string): string {
+  if (!raw) return "—";
   const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
   if (isNaN(n)) return raw || "—";
   const currency = currencyOverride ?? detectCurrency(raw);
