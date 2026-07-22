@@ -1,7 +1,7 @@
 "use client";
 // src/app/dashboard/page.tsx
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
@@ -107,6 +107,8 @@ export default function DashboardPage() {
     if (months.length > 0) setAvailableMonths(months);
   }, [loadStats, loadInvoiceList]);
 
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+
   const handleCardClick = (filter: string) => {
     if (activeFilter === filter) {
       setActiveFilter(null);
@@ -179,6 +181,14 @@ export default function DashboardPage() {
       .then(setReminderSummary)
       .catch(() => {}); // silently fail — reminder section is non-critical
   }, [month]);
+
+  // The drawer renders below the ExpenseStrip/Reminder sections, so on a
+  // shorter viewport a click can look like it did nothing unless we scroll it into view.
+  useEffect(() => {
+    if (activeFilter) {
+      drawerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeFilter]);
 
   const handleSendReminders = async (type: ReminderType | "all") => {
     setSendingReminder(true);
@@ -454,6 +464,7 @@ export default function DashboardPage() {
 
             {/* Invoice drawer — shown when a card is active */}
             {activeFilter && (
+              <div ref={drawerRef}>
               <InvoiceDrawer
                 filter={activeFilter}
                 items={invoiceItems}
@@ -465,6 +476,7 @@ export default function DashboardPage() {
                 approvingId={approvingId}
                 onClose={() => setActiveFilter(null)}
               />
+              </div>
             )}
 
             {lastUpdated && (
