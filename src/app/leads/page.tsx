@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
@@ -41,6 +42,33 @@ export default function LeadsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  async function handleSyncPipeline() {
+    setSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/pipeline-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "sharepoint" }),
+      });
+      const data = await res.json() as { staged?: number; autoLinked?: number; needsReview?: number; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? t("leads_sync_failed"));
+        return;
+      }
+      setSyncMsg(t("leads_sync_result")
+        .replace("{staged}", String(data.staged ?? 0))
+        .replace("{needsReview}", String(data.needsReview ?? 0)));
+    } catch {
+      setError(t("leads_sync_failed"));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,10 +189,21 @@ export default function LeadsPage() {
                 {t("leads_view_board")}
               </button>
             </div>
+            <Link href="/pipeline-sync" className="text-xs text-stone-500 hover:text-stone-700 hover:underline">
+              {t("leads_review_queue_link")}
+            </Link>
+            <Button variant="secondary" loading={syncing} onClick={handleSyncPipeline}>{t("leads_sync_button")}</Button>
             <Button variant="primary" onClick={openNew}>{t("leads_add")}</Button>
           </div>
         }
       />
+
+      {syncMsg && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
+          {syncMsg}
+          <button onClick={() => setSyncMsg(null)} className="text-emerald-400 hover:text-emerald-600">×</button>
+        </div>
+      )}
 
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-4 mb-5">

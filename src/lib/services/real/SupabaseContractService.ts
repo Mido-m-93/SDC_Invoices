@@ -16,6 +16,7 @@ function toRow(c: Contract): Record<string, unknown> {
     status: c.status,
     proposal_id: c.proposalId ?? null,
     contract_folder_url: c.contractFolderUrl ?? null,
+    verification: c.verification ?? null,
     created_at: c.createdAt,
     // client_id and client_name added by migration 011 — omitted until migration is run
   };
@@ -36,6 +37,7 @@ function fromRow(row: Record<string, unknown>): Contract {
     status: row.status as Contract["status"],
     proposalId: (row.proposal_id as string | null) ?? undefined,
     contractFolderUrl: (row.contract_folder_url as string | null) ?? undefined,
+    verification: (row.verification as Contract["verification"]) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

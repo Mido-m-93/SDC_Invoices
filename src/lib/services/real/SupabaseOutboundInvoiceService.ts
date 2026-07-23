@@ -26,6 +26,7 @@ function toRow(inv: OutboundInvoice): Record<string, unknown> {
     created_by: inv.createdBy,
     approved_by: inv.approvedBy,
     approved_at: inv.approvedAt,
+    verification: inv.verification ?? null,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
   };
@@ -54,6 +55,7 @@ function fromRow(row: Record<string, unknown>): OutboundInvoice {
     createdBy: (row.created_by as string) ?? "",
     approvedBy: (row.approved_by as string) ?? "",
     approvedAt: (row.approved_at as string | null) ?? null,
+    verification: (row.verification as OutboundInvoice["verification"]) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

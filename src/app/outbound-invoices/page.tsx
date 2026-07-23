@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import VerificationBadge from "@/components/ui/VerificationBadge";
 import { useLanguage, type TranslationKey } from "@/translations";
-import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary } from "@/types";
+import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary, Contract } from "@/types";
 
 const STATUS_COLORS: Record<OutboundInvoiceStatus, string> = {
   draft: "bg-stone-100 text-stone-500",
@@ -38,14 +40,17 @@ function fmt(n: number, currency = "JPY") {
   return `${currency} ${n.toLocaleString()}`;
 }
 
-export default function OutboundInvoicesPage() {
+function OutboundInvoicesPageInner() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const statusLabel = (s: OutboundInvoiceStatus | "all") => t(`outbound_status_${s}` as TranslationKey);
 
   const [invoices, setInvoices] = useState<OutboundInvoice[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [summary, setSummary] = useState<OutboundInvoiceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<OutboundInvoiceStatus | "all">("all");
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
   const [showForm, setShowForm] = useState(false);
@@ -58,15 +63,67 @@ export default function OutboundInvoicesPage() {
     try {
       const params = new URLSearchParams({ billingMonth: monthFilter });
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`/api/outbound-invoices?${params}`);
-      const data = await res.json() as { invoices: OutboundInvoice[]; summary: OutboundInvoiceSummary };
+      const [iRes, cRes] = await Promise.all([
+        fetch(`/api/outbound-invoices?${params}`),
+        fetch("/api/contracts"),
+      ]);
+      const data = await iRes.json() as { invoices: OutboundInvoice[]; summary: OutboundInvoiceSummary };
+      const cData = await cRes.json() as { contracts: Contract[] };
       setInvoices(data.invoices ?? []);
       setSummary(data.summary ?? null);
+      setContracts(cData.contracts ?? []);
     } catch { setError(t("outbound_invoices_load_failed")); }
     finally { setLoading(false); }
   }, [statusFilter, monthFilter, t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Pre-open the New Invoice form with a contract preselected when arriving via
+  // the Contracts page's "Create Invoice" link (?contractId=...).
+  useEffect(() => {
+    const contractId = searchParams.get("contractId");
+    if (!contractId || contracts.length === 0) return;
+    const contract = contracts.find(c => c.id === contractId);
+    if (!contract) return;
+    setEditing(null);
+    setForm({
+      ...EMPTY_FORM,
+      contractId: contract.id,
+      clientId: contract.clientId ?? "",
+      clientName: contract.clientName ?? "",
+      projectName: contract.projectName,
+      currency: contract.currency,
+    });
+    setShowForm(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contracts]);
+
+  function selectContract(contractId: string) {
+    const contract = contracts.find(c => c.id === contractId);
+    setForm(f => ({
+      ...f,
+      contractId,
+      clientId: contract?.clientId ?? "",
+      clientName: contract?.clientName ?? "",
+      projectName: contract?.projectName ?? "",
+      currency: contract?.currency ?? f.currency,
+    }));
+  }
+
+  async function handleVerify(inv: OutboundInvoice) {
+    setVerifying(inv.id);
+    try {
+      const res = await fetch(`/api/outbound-invoices/${inv.id}/verify`, { method: "POST" });
+      if (res.ok) load();
+    } finally {
+      setVerifying(null);
+    }
+  }
+
+  function contractLabel(contractId: string): string {
+    const c = contracts.find(c => c.id === contractId);
+    return c ? c.projectName : contractId || "—";
+  }
 
   function openNew() {
     setEditing(null);
@@ -97,12 +154,21 @@ export default function OutboundInvoicesPage() {
   }
 
   async function handleSave() {
+    if (!form.contractId) {
+      setError(t("outbound_field_contract_required"));
+      return;
+    }
     setSaving(true);
     const payload = { ...form, total: form.subtotal + form.taxAmount };
     try {
       const url = editing ? `/api/outbound-invoices/${editing.id}` : "/api/outbound-invoices";
       const method = editing ? "PUT" : "POST";
-      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        setError(data.error ?? t("outbound_invoices_save_failed"));
+        return;
+      }
       setShowForm(false);
       load();
     } catch { setError(t("outbound_invoices_save_failed")); }
@@ -194,10 +260,12 @@ export default function OutboundInvoicesPage() {
                 <th className="px-4 py-3 text-left">{t("outbound_invoices_col_invoice_number")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_col_project")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_contract")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_invoices_billing_month")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_col_due_date")}</th>
                 <th className="px-4 py-3 text-right">{t("outbound_invoices_total_label")}</th>
                 <th className="px-4 py-3 text-left">{t("col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_verification")}</th>
                 <th className="px-4 py-3 text-left">{t("col_actions")}</th>
               </tr>
             </thead>
@@ -207,6 +275,7 @@ export default function OutboundInvoicesPage() {
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{inv.invoiceNumber || "—"}</td>
                   <td className="px-4 py-3 font-medium text-stone-800">{inv.clientName || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{inv.projectName || "—"}</td>
+                  <td className="px-4 py-3 text-stone-400 text-xs">{contractLabel(inv.contractId)}</td>
                   <td className="px-4 py-3 text-stone-500">{inv.billingMonth}</td>
                   <td className={`px-4 py-3 ${inv.status === "overdue" ? "text-red-600 font-medium" : "text-stone-500"}`}>{inv.dueDate || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono font-medium text-stone-800">{fmt(inv.total, inv.currency)}</td>
@@ -214,6 +283,15 @@ export default function OutboundInvoicesPage() {
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[inv.status]}`}>
                       {statusLabel(inv.status)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <VerificationBadge
+                      verification={inv.verification}
+                      onVerify={() => handleVerify(inv)}
+                      verifying={verifying === inv.id}
+                      verifyLabel={t("outbound_action_verify")}
+                      reverifyLabel={t("outbound_action_reverify")}
+                    />
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(inv)}>{t("outbound_invoices_action_edit")}</Button>
@@ -241,6 +319,19 @@ export default function OutboundInvoicesPage() {
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
+              <Field label={t("outbound_field_contract")}>
+                <select
+                  className={inp}
+                  value={form.contractId}
+                  disabled={!!editing}
+                  onChange={(e) => selectContract(e.target.value)}
+                >
+                  <option value="">{t("outbound_field_contract_placeholder")}</option>
+                  {contracts.filter(c => c.status === "active" && c.clientId).map(c => (
+                    <option key={c.id} value={c.id}>{c.projectName} — {c.clientName ?? c.clientId}</option>
+                  ))}
+                </select>
+              </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label={t("outbound_invoices_field_invoice_number")}>
                   <input className={inp} value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} placeholder={t("outbound_invoices_field_invoice_number_placeholder")} />
@@ -251,10 +342,10 @@ export default function OutboundInvoicesPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label={t("outbound_field_client_name")}>
-                  <input className={inp} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} />
+                  <input className={`${inp} bg-stone-50`} value={form.clientName} readOnly />
                 </Field>
                 <Field label={t("outbound_invoices_field_project_name")}>
-                  <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
+                  <input className={`${inp} bg-stone-50`} value={form.projectName} readOnly />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -298,6 +389,14 @@ export default function OutboundInvoicesPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+export default function OutboundInvoicesPage() {
+  return (
+    <Suspense>
+      <OutboundInvoicesPageInner />
+    </Suspense>
   );
 }
 
