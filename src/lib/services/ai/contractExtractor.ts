@@ -102,3 +102,38 @@ export async function extractContractFields(pdfBytes: Uint8Array): Promise<Extra
     );
   }
 }
+
+// Word contracts (.doc/.docx) can't go through the vision Files/Responses API
+// the way PDFs do — extract plain text locally (mammoth, pure JS, no native
+// deps) and send that as text instead.
+export async function extractContractFieldsFromDocx(docxBytes: Uint8Array): Promise<ExtractedContractFields> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+
+  const mammoth = await import("mammoth");
+  const buffer = Buffer.from(docxBytes);
+  const { value: rawText } = await mammoth.extractRawText({ buffer });
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const response = await client.chat.completions.create({
+    model: "gpt-4o",
+    max_tokens: 512,
+    messages: [
+      {
+        role: "user",
+        content: `${CONTRACT_EXTRACT_PROMPT}\n\nDOCUMENT TEXT:\n${rawText.slice(0, 8000)}`,
+      },
+    ],
+  });
+
+  return parseContractResponse(response.choices[0]?.message?.content ?? "{}");
+}
+
+// True only if at least one real field was extracted — lets a caller decide
+// whether to fall back to trying another file (e.g. a .docx sitting next to
+// a .pdf that turned out unreadable) instead of accepting an all-null result.
+export function hasAnyContractField(fields: ExtractedContractFields | null): boolean {
+  if (!fields) return false;
+  return !!(fields.contractedAmount || fields.contractStart || fields.contractEnd || fields.scope || fields.paymentTerms);
+}
