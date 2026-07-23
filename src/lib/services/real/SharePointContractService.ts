@@ -351,40 +351,10 @@ export async function checkMemberBySharePointContracts(
   }
 
   if (candidates.length === 0) {
-    // Folder/file exists but nothing recognized inside — surface what's
-    // actually there (temporary diagnostic) instead of silently reporting
-    // "nothing found", so we can tell whether it's truly empty or just an
-    // unrecognized file type/extension.
-    let rawListing = "";
-    if (matchedItem.isFolder) {
-      try {
-        const data = await graphGet<{ value?: Array<{ id: string; name: string; folder?: object }> }>(
-          `/sites/${matchedItem.siteId}/drive/items/${matchedItem.id}/children?$select=id,name,folder`,
-          token,
-        );
-        const level1 = data.value ?? [];
-        rawListing = level1.map((i) => i.name).join(", ") || "(folder is empty)";
-        const firstSub = level1.find((i) => i.folder);
-        if (firstSub) {
-          try {
-            const nested = await graphGet<{ value?: Array<{ name: string }> }>(
-              `/sites/${matchedItem.siteId}/drive/items/${firstSub.id}/children?$select=name`,
-              token,
-            );
-            const level2 = (nested.value ?? []).map((i) => i.name).join(", ") || "(empty)";
-            rawListing += ` || INSIDE "${firstSub.name}": [${level2}]`;
-          } catch (err) {
-            rawListing += ` || (failed to list "${firstSub.name}": ${String(err)})`;
-          }
-        }
-      } catch (err) {
-        rawListing = `(failed to list folder: ${String(err)})`;
-      }
-    } else {
-      rawListing = `(direct file, unrecognized type: ${matchedItem.name})`;
-    }
-    console.log(`[SP check] Matched "${submitterName}" but no readable contract file found — contents: ${rawListing}`);
-    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: `no_readable_candidate; folder_contents=[${rawListing}]` };
+    // Folder/file exists but nothing recognized (pdf/docx/image) inside,
+    // even after one level of subfolder recursion.
+    console.log(`[SP check] Matched "${submitterName}" but no readable contract file found`);
+    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null };
   }
 
   const { fileName, contractInfo, extractionError } = await extractFromCandidates(matchedItem.siteId, candidates);

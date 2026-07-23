@@ -129,24 +129,18 @@ interface FetchContractFieldsResult {
     contractedAmount: number | null;
     contractScope: string | null;
   } | null;
-  matched: boolean;
-  contractFileName: string | null;
-  error: string | null;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { matched, contractFileName, contractInfo, extractionError } = await Promise.race([
+    const { contractInfo } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null, matched, contractFileName, error: extractionError };
+    if (!contractInfo) return { fields: null };
     return {
-      matched,
-      contractFileName,
-      error: null,
       fields: {
         contractStart:    contractInfo.contractStart,
         contractEnd:      contractInfo.contractEnd,
@@ -156,21 +150,12 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return { fields: null, matched: false, contractFileName: null, error: String(err) };
+    return { fields: null };
   }
-}
-
-interface AttemptDebug {
-  name: string;
-  matched: boolean;
-  contractFileName: string | null;
-  gotFields: boolean;
-  error: string | null;
 }
 
 async function runSync(retryFailed = false): Promise<{
   added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number; stillMissing: number;
-  attempted: AttemptDebug[];
 }> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
@@ -184,7 +169,6 @@ async function runSync(retryFailed = false): Promise<{
   let skipped             = 0;
   let contractsBackfilled = 0;
   const addedNames: string[] = [];
-  const attempted: AttemptDebug[] = [];
 
   // In retry mode the contractSyncAttemptedAt gate is ignored, so without this
   // every run would just re-hit whichever ~3 members happen to sit first in
@@ -216,13 +200,6 @@ async function runSync(retryFailed = false): Promise<{
           && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
-        attempted.push({
-          name: displayName,
-          matched: result.matched,
-          contractFileName: result.contractFileName,
-          gotFields: !!result.fields,
-          error: result.error,
-        });
         await service.saveMember({
           ...existingMember,
           ...(result.fields ?? {}),
@@ -266,7 +243,7 @@ async function runSync(retryFailed = false): Promise<{
     addedNames.push(displayName);
   }
 
-  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, stillMissing, attempted };
+  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, stillMissing };
 }
 
 export async function GET(req: NextRequest) {
