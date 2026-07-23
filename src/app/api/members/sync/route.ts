@@ -16,11 +16,12 @@ import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePoint
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
-// Backfilling contract fields (PDF download + AI extraction) for every existing
-// member on the first post-deploy sync can take longer than the old 30s budget.
-// If a run still times out, later syncs pick up wherever it left off — each
-// member is only re-processed while contractStart is still null.
 export const maxDuration = 60;
+
+// Each contract extraction is a Graph download + AI call — too slow to do for
+// every member in one invocation without risking a Vercel function timeout.
+// Cap it per run; members left over just get picked up on the next sync.
+const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 5;
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -136,7 +137,9 @@ async function fetchContractFields(displayName: string): Promise<{
   }
 }
 
-async function runSync(): Promise<{ added: number; skipped: number; total: number; names: string[] }> {
+async function runSync(): Promise<{
+  added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number;
+}> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
   const service = getMemberService();
@@ -144,8 +147,9 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
 
   const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
 
-  let added   = 0;
-  let skipped = 0;
+  let added               = 0;
+  let skipped             = 0;
+  let contractsBackfilled = 0;
   const addedNames: string[] = [];
 
   for (const item of items) {
@@ -156,8 +160,10 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
 
     if (existingMember) {
       skipped++;
-      // Backfill contract fields for members synced before this was tracked.
-      if (existingMember.contractStart == null) {
+      // Backfill contract fields for members synced before this was tracked —
+      // capped per run so this route can't time out; leftovers pick up next sync.
+      if (existingMember.contractStart == null && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+        contractsBackfilled++;
         const fields = await fetchContractFields(displayName);
         if (fields) {
           await service.saveMember({ ...existingMember, ...fields, updatedAt: new Date().toISOString() });
@@ -167,7 +173,11 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
     }
 
     const now: string = new Date().toISOString();
-    const fields = await fetchContractFields(displayName);
+    let fields: Awaited<ReturnType<typeof fetchContractFields>> = null;
+    if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      contractsBackfilled++;
+      fields = await fetchContractFields(displayName);
+    }
     const newMember: Member = {
       id:           generateId("mbr"),
       displayName,
@@ -191,7 +201,7 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
     addedNames.push(displayName);
   }
 
-  return { added, skipped, total: items.length, names: addedNames };
+  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled };
 }
 
 export async function GET() {
