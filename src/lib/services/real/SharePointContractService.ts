@@ -143,6 +143,18 @@ async function findContractCandidatesInFolder(
   return [...candidates.filter((c) => c.kind === "pdf"), ...candidates.filter((c) => c.kind === "docx")];
 }
 
+// Last-resort fallback: some contract filenames embed an 8-digit YYYYMMDD
+// date (e.g. "20241025_RCP_..."). Only recognized as a bounded, standalone
+// 8-digit run (not part of a longer number) with a plausible year/month/day —
+// not every filename has this, and we'd rather return nothing than guess
+// wrong on a legal document's date.
+function extractDateFromFilename(filename: string): string | null {
+  const match = filename.match(/(?:^|[^0-9])(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?:[^0-9]|$)/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return `${year}-${month}-${day}`;
+}
+
 // Tries each candidate file in order (PDF first, then Word) until one yields
 // at least one real field. Returns the last attempt's result if all fail, so
 // the caller still gets a filename + error to report.
@@ -167,6 +179,21 @@ async function extractFromCandidates(
       console.warn(`[SP check] Contract read failed for ${candidate.name}:`, err);
     }
   }
+
+  // Content-reading failed for every candidate — see if any filename at
+  // least gives us a date to work with, rather than returning nothing.
+  for (const candidate of candidates) {
+    const filenameDate = extractDateFromFilename(candidate.name);
+    if (filenameDate) {
+      console.log(`[SP check] Falling back to filename date for "${candidate.name}": ${filenameDate}`);
+      return {
+        fileName: candidate.name,
+        contractInfo: { memberName: null, contractedAmount: null, contractStart: filenameDate, contractEnd: null, paymentTerms: null, scope: null },
+        extractionError: null,
+      };
+    }
+  }
+
   return last;
 }
 
