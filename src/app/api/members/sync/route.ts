@@ -21,7 +21,9 @@ export const maxDuration = 60;
 // Each contract extraction is a Graph download + AI call — too slow to do for
 // every member in one invocation without risking a Vercel function timeout.
 // Cap it per run; members left over just get picked up on the next sync.
-const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 1;
+// Worst case (every extraction hits the timeout below) must stay comfortably
+// under maxDuration: 3 * 12s = 36s, leaving headroom for token/list/DB overhead.
+const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 3;
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -118,7 +120,7 @@ function normalise(s: string): string {
 // missing/unreadable contract shouldn't block the member record itself from syncing.
 // Hard-timed out: a single hung Graph/AI call must not be able to consume the
 // whole function's time budget and take the entire sync down with it.
-const CONTRACT_EXTRACTION_TIMEOUT_MS = 15_000;
+const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
 
 async function fetchContractFields(displayName: string): Promise<{
   contractStart: string | null;
