@@ -10,7 +10,11 @@ const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 
 const SP_SITE             = process.env.MICROSOFT_MEMBER_SITE_PATH
   ?? "robocp.sharepoint.com:/sites/RoboCo-opSharedFiles:";
+// Falls back to MICROSOFT_MEMBER_FOLDER_PATH too — /api/members/sync reads that
+// same env var for the identical folder, so if only one of the two is actually
+// configured in the deployment, both code paths still agree on where to look.
 const SP_CONTRACTS_FOLDER = process.env.MICROSOFT_CONTRACTS_FOLDER_PATH
+  ?? process.env.MICROSOFT_MEMBER_FOLDER_PATH
   ?? "40_ExpandTogether/02_Functions/07_Legal/02_Contracts/03_Member";
 
 async function getToken(): Promise<string> {
