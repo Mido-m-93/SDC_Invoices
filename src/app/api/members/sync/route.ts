@@ -248,6 +248,27 @@ async function runSync(retryFailed = false): Promise<{
 
 export async function GET(req: NextRequest) {
   try {
+    // Read-only lookup — check a specific member's stored contract fields
+    // without running a sync, e.g. /api/members/sync?check=Noraldeen
+    const check = req.nextUrl.searchParams.get("check");
+    if (check) {
+      const service = getMemberService();
+      const all = await service.listMembers();
+      const norm = normalise(check);
+      const matches = all.filter((m) => normalise(m.displayName).includes(norm));
+      return NextResponse.json({
+        ok: true,
+        matches: matches.map((m) => ({
+          displayName: m.displayName,
+          contractStart: m.contractStart ?? null,
+          contractEnd: m.contractEnd ?? null,
+          contractedAmount: m.contractedAmount ?? null,
+          contractScope: m.contractScope ?? null,
+          contractSyncAttemptedAt: m.contractSyncAttemptedAt ?? null,
+        })),
+      });
+    }
+
     const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
     const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
