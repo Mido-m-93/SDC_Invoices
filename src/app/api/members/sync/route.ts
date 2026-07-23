@@ -248,54 +248,6 @@ async function runSync(retryFailed = false): Promise<{
 
 export async function GET(req: NextRequest) {
   try {
-    // Read-only lookup — check a specific member's stored contract fields
-    // without running a sync, e.g. /api/members/sync?check=Noraldeen
-    const check = req.nextUrl.searchParams.get("check");
-    if (check) {
-      const service = getMemberService();
-      const all = await service.listMembers();
-      const norm = normalise(check);
-      const matches = all.filter((m) => normalise(m.displayName).includes(norm));
-      return NextResponse.json({
-        ok: true,
-        matches: matches.map((m) => ({
-          id: m.id,
-          displayName: m.displayName,
-          contractStart: m.contractStart ?? null,
-          contractEnd: m.contractEnd ?? null,
-          contractedAmount: m.contractedAmount ?? null,
-          contractScope: m.contractScope ?? null,
-          contractSyncAttemptedAt: m.contractSyncAttemptedAt ?? null,
-        })),
-      });
-    }
-
-    // One-off merge: /api/members/sync?mergeInto=<keepId>&mergeFrom=<deleteId>
-    // Copies contract fields from mergeFrom onto mergeInto, then deletes mergeFrom.
-    // Fixes duplicate member records (same person, slightly different name
-    // spacing) where invoice validation matches the wrong one.
-    const mergeInto = req.nextUrl.searchParams.get("mergeInto");
-    const mergeFrom = req.nextUrl.searchParams.get("mergeFrom");
-    if (mergeInto && mergeFrom) {
-      const service = getMemberService();
-      const keep = await service.getMember(mergeInto);
-      const drop = await service.getMember(mergeFrom);
-      if (!keep || !drop) {
-        return NextResponse.json({ ok: false, error: "One or both member IDs not found" }, { status: 404 });
-      }
-      await service.saveMember({
-        ...keep,
-        contractStart: drop.contractStart ?? keep.contractStart,
-        contractEnd: drop.contractEnd ?? keep.contractEnd,
-        contractedAmount: drop.contractedAmount ?? keep.contractedAmount,
-        contractScope: drop.contractScope ?? keep.contractScope,
-        contractSyncAttemptedAt: drop.contractSyncAttemptedAt ?? keep.contractSyncAttemptedAt,
-        updatedAt: new Date().toISOString(),
-      });
-      await service.deleteMember(mergeFrom);
-      return NextResponse.json({ ok: true, merged: { keptName: keep.displayName, droppedName: drop.displayName } });
-    }
-
     const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
     const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
