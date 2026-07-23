@@ -137,23 +137,58 @@ function imageMimeOf(name: string): string {
   return ext ? IMAGE_MIME[ext] : "image/jpeg";
 }
 
-// Internal: find every readable contract file inside a subfolder — a member's
-// folder often has both a PDF and a Word version of the same contract. PDFs
-// are ordered first (cheaper/more reliable via vision), Word docs as fallback.
+// Internal: find every readable contract file inside a member's folder.
+// Real structure turned out to be THREE levels deep, not two: each member
+// folder contains one subfolder PER CONTRACT (a master "基本契約書" plus
+// several project-specific "個別契約書" over time), and the actual PDF/Word
+// file lives one level inside each of those — not directly in the member
+// folder itself. Recurse one extra level to reach them.
 async function findContractCandidatesInFolder(
   token: string,
   siteId: string,
   folderId: string,
 ): Promise<ContractCandidate[]> {
-  const data = await graphGet<{ value?: Array<{ id: string; name: string; file?: object }> }>(
-    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file`,
+  const data = await graphGet<{
+    value?: Array<{ id: string; name: string; file?: object; folder?: object }>;
+  }>(
+    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file,folder`,
     token,
   );
-  const candidates = (data.value ?? [])
+  const children = data.value ?? [];
+
+  const directFiles = children
     .filter((item) => item.file)
-    .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name) }))
-    .filter((c): c is ContractCandidate => c.kind !== null);
-  return orderCandidates(candidates);
+    .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name) }));
+
+  const subfolders = children.filter((item) => item.folder);
+  const nestedResults = await Promise.all(
+    subfolders.map(async (sub) => {
+      try {
+        const nested = await graphGet<{ value?: Array<{ id: string; name: string; file?: object }> }>(
+          `/sites/${siteId}/drive/items/${sub.id}/children?$select=id,name,file`,
+          token,
+        );
+        return (nested.value ?? [])
+          .filter((item) => item.file)
+          .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name), parentName: sub.name }));
+      } catch (err) {
+        console.warn(`[SP check] Failed to list contract subfolder "${sub.name}":`, err);
+        return [];
+      }
+    })
+  );
+
+  const all = [...directFiles.map((f) => ({ ...f, parentName: "" })), ...nestedResults.flat()]
+    .filter((c): c is ContractCandidate & { parentName: string } => c.kind !== null);
+
+  // Prefer the master/basic contract (基本契約書) over individual per-project
+  // agreements (個別契約書) when both are present — the basic contract is
+  // more likely to carry the overall engagement's start/end dates.
+  const isBasic = (c: { name: string; parentName: string }) =>
+    c.name.includes("基本契約") || c.parentName.includes("基本契約");
+  const sorted = [...all].sort((a, b) => Number(isBasic(b)) - Number(isBasic(a)));
+
+  return orderCandidates(sorted);
 }
 
 // PDFs and images both go through vision (reliable); Word docs are text-only
