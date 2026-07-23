@@ -95,6 +95,7 @@ export interface InvoiceValidationResult {
   vendorMatched?: boolean;
   contractMatched?: boolean;
   contractId?: string;
+  contractVerification?: ConsistencyVerdict;   // AI check: this invoice vs. its matched contract
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
@@ -203,11 +204,20 @@ export interface Vendor {
   createdAt: string;
 }
 
+// ── AI consistency verification ───────────────────────────────────────────────
+export interface ConsistencyVerdict {
+  consistent: boolean;
+  discrepancies: string[];   // empty if consistent
+  confidence: number;        // 0-1
+  checkedAt: string;
+}
+
 // ── Proposal ─────────────────────────────────────────────────────────────────
 export interface Proposal {
   id: string;
   clientId: string;       // proposal sent TO a client (was vendorId)
   clientName?: string;    // display name resolved from Client record
+  leadId?: string;        // pipeline lead this proposal was raised from
   projectName: string;
   proposalDate: string;
   estimatedAmount: number;
@@ -216,6 +226,7 @@ export interface Proposal {
   status: "draft" | "submitted" | "accepted" | "rejected" | "expired";
   contractId?: string;
   folderUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
   createdAt: string;
 }
 
@@ -234,6 +245,7 @@ export interface Contract {
   status: "active" | "expired" | "cancelled";
   proposalId?: string;
   contractFolderUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
   createdAt: string;
 }
 
@@ -591,6 +603,9 @@ export interface Member {
   contractEnd?: string | null;
   contractedAmount?: number | null;
   contractScope?: string | null;
+  // Set whenever a contract-extraction attempt is made (success or failure) so a
+  // member whose PDF can't be read doesn't get retried on every single sync run.
+  contractSyncAttemptedAt?: string | null;
 }
 
 // ── Phase 11: Accounting Layer ────────────────────────────────────────────────

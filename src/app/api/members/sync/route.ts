@@ -180,21 +180,20 @@ async function runSync(): Promise<{
       skipped++;
       // Backfill contract fields for members synced before this was tracked —
       // capped per run so this route can't time out; leftovers pick up next sync.
-      if (existingMember.contractStart == null && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      // Gate on contractSyncAttemptedAt (not contractStart) so a member whose
+      // extraction genuinely fails isn't retried on every single future run —
+      // since folder-listing order never changes, that would permanently jam
+      // the front of the queue in front of everyone who hasn't been tried yet.
+      if (existingMember.contractStart == null && existingMember.contractSyncAttemptedAt == null
+          && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
-        if (result.fields) {
-          await service.saveMember({ ...existingMember, ...result.fields, updatedAt: new Date().toISOString() });
-        } else {
-          // A member whose extraction fails stays eligible forever (contractStart
-          // stays null), permanently jamming the front of the queue for every run
-          // after it — since iteration order never changes, the same handful of
-          // failures get retried before anyone new gets a turn. Mark it "tried,
-          // gave up" with an empty string (distinct from "never attempted" null)
-          // so the rest of the list can make progress instead.
-          console.warn(`[members/sync] giving up on contract extraction for "${displayName}" — marking as attempted`);
-          await service.saveMember({ ...existingMember, contractStart: "", updatedAt: new Date().toISOString() });
-        }
+        await service.saveMember({
+          ...existingMember,
+          ...(result.fields ?? {}),
+          contractSyncAttemptedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
       }
       continue;
     }
@@ -222,9 +221,8 @@ async function runSync(): Promise<{
       notes:        `Auto-synced from SharePoint (${item.name})`,
       createdAt:    now,
       updatedAt:    now,
-      // Mark a failed attempt with "" (not null) so it doesn't jam the retry
-      // queue on future runs the same way — see the existing-member branch above.
-      ...(fields ?? (attemptedExtraction ? { contractStart: "" } : {})),
+      ...fields,
+      ...(attemptedExtraction ? { contractSyncAttemptedAt: now } : {}),
     };
 
     await service.saveMember(newMember);
