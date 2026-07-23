@@ -12,10 +12,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
+import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+// Backfilling contract fields (PDF download + AI extraction) for every existing
+// member on the first post-deploy sync can take longer than the old 30s budget.
+// If a run still times out, later syncs pick up wherever it left off — each
+// member is only re-processed while contractStart is still null.
+export const maxDuration = 60;
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -108,13 +113,36 @@ function normalise(s: string): string {
   return s.toLowerCase().replace(/\s+/g, "");
 }
 
+// Reads and AI-extracts the contract PDF once — non-fatal on failure, since a
+// missing/unreadable contract shouldn't block the member record itself from syncing.
+async function fetchContractFields(displayName: string): Promise<{
+  contractStart: string | null;
+  contractEnd: string | null;
+  contractedAmount: number | null;
+  contractScope: string | null;
+} | null> {
+  try {
+    const { contractInfo } = await checkMemberBySharePointContracts(displayName);
+    if (!contractInfo) return null;
+    return {
+      contractStart:    contractInfo.contractStart,
+      contractEnd:      contractInfo.contractEnd,
+      contractedAmount: contractInfo.contractedAmount,
+      contractScope:    contractInfo.scope,
+    };
+  } catch (err) {
+    console.warn(`[members/sync] contract field extraction failed for "${displayName}":`, err);
+    return null;
+  }
+}
+
 async function runSync(): Promise<{ added: number; skipped: number; total: number; names: string[] }> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
   const service = getMemberService();
   const existing = await service.listMembers();
 
-  const existingNames = new Set(existing.map((m) => normalise(m.displayName)));
+  const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
 
   let added   = 0;
   let skipped = 0;
@@ -124,12 +152,22 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
     const displayName = extractMemberName(item.name);
     if (!displayName) { skipped++; continue; }
 
-    if (existingNames.has(normalise(displayName))) {
+    const existingMember = existingByName.get(normalise(displayName));
+
+    if (existingMember) {
       skipped++;
+      // Backfill contract fields for members synced before this was tracked.
+      if (existingMember.contractStart == null) {
+        const fields = await fetchContractFields(displayName);
+        if (fields) {
+          await service.saveMember({ ...existingMember, ...fields, updatedAt: new Date().toISOString() });
+        }
+      }
       continue;
     }
 
     const now: string = new Date().toISOString();
+    const fields = await fetchContractFields(displayName);
     const newMember: Member = {
       id:           generateId("mbr"),
       displayName,
@@ -144,10 +182,11 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
       notes:        `Auto-synced from SharePoint (${item.name})`,
       createdAt:    now,
       updatedAt:    now,
+      ...fields,
     };
 
     await service.saveMember(newMember);
-    existingNames.add(normalise(displayName));
+    existingByName.set(normalise(displayName), newMember);
     added++;
     addedNames.push(displayName);
   }

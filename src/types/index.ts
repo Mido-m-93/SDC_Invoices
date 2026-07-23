@@ -584,6 +584,13 @@ export interface Member {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  // Contract fields — extracted once from the SharePoint contract PDF during
+  // /api/members/sync, so invoice validation can read them without a live
+  // PDF fetch + AI extraction on every single validate call.
+  contractStart?: string | null;
+  contractEnd?: string | null;
+  contractedAmount?: number | null;
+  contractScope?: string | null;
 }
 
 // ── Phase 11: Accounting Layer ────────────────────────────────────────────────

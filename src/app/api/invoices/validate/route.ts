@@ -373,7 +373,20 @@ export async function POST(req: NextRequest) {
       const matchedMemberName = localMember?.displayName ?? (spMatch?.matched ? targets[i].payerName : null);
       const matchedMemberRole = localMember?.role ?? "other";
       const matchSource       = localMember ? "local" : spMatch?.matched ? "sharepoint" : null;
-      const info              = spMatch?.contractInfo;
+      // Prefer contract fields already cached on the member record (populated by
+      // /api/members/sync) over a live SharePoint fetch — avoids a PDF download +
+      // AI extraction on every single invoice validation for members we already know.
+      const info =
+        localMember && (localMember.contractStart || localMember.contractedAmount || localMember.contractScope)
+          ? {
+              memberName:       null,
+              paymentTerms:     null,
+              contractStart:    localMember.contractStart ?? null,
+              contractEnd:      localMember.contractEnd ?? null,
+              contractedAmount: localMember.contractedAmount ?? null,
+              scope:            localMember.contractScope ?? null,
+            }
+          : spMatch?.contractInfo;
       let contractorFields: Record<string, unknown> = {};
       if (matchSource) {
         const label = matchedMemberRole !== "other" ? `${matchedMemberName} (${matchedMemberRole})` : matchedMemberName;
