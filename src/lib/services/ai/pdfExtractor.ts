@@ -419,21 +419,7 @@ export interface ExtractedContractFields {
   scope: string | null;
 }
 
-export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
-  const rawText = await extractTextFromPdf(pdfBytes);
-
-  const Groq = (await import("groq-sdk")).default;
-  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-  const response = await client.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    max_tokens: 512,
-    messages: [
-      {
-        role: "user",
-        content: `Extract service contract fields from the text below and return ONLY valid JSON — no markdown, no explanation.
-
-${rawText.slice(0, 8000)}
+const CONTRACT_EXTRACT_PROMPT = `Extract service contract fields from this document and return ONLY valid JSON — no markdown, no explanation.
 
 Return exactly this JSON:
 {
@@ -449,12 +435,9 @@ Rules:
 - contractedAmount is the agreed payment / fee amount (look for 報酬, 委託料, fee, amount, 金額)
 - contractedAmount must be a plain number with no currency symbols or commas
 - Dates must be YYYY-MM-DD
-- Return null for any field you cannot find with confidence`,
-      },
-    ],
-  });
+- Return null for any field you cannot find with confidence`;
 
-  const text = response.choices[0]?.message?.content ?? "{}";
+function parseContractResponse(text: string): ExtractedContractFields {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: Record<string, unknown> = {};
   try {
@@ -462,7 +445,6 @@ Rules:
   } catch {
     return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null };
   }
-
   return {
     memberName:       typeof parsed.memberName === "string" ? parsed.memberName : null,
     contractedAmount: parseNumericField(parsed.contractedAmount),
@@ -471,6 +453,46 @@ Rules:
     paymentTerms:     typeof parsed.paymentTerms === "string" ? parsed.paymentTerms : null,
     scope:            typeof parsed.scope === "string" ? parsed.scope : null,
   };
+}
+
+// pdfjs-dist (extractTextFromPdf) throws "DOMMatrix is not defined" in this
+// serverless runtime — same issue invoice extraction already works around by
+// uploading the PDF straight to OpenAI's Files/Responses API (vision) instead
+// of extracting text locally first. Do the same here rather than relying on
+// pdfjs at all.
+export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const plainBuffer = pdfBytes.buffer.slice(
+    pdfBytes.byteOffset,
+    pdfBytes.byteOffset + pdfBytes.byteLength
+  ) as ArrayBuffer;
+  const fileBlob = new File([plainBuffer], "contract.pdf", { type: "application/pdf" });
+  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4o",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_file", file_id: uploadedFile.id },
+            { type: "input_text", text: CONTRACT_EXTRACT_PROMPT },
+          ],
+        },
+      ],
+      max_output_tokens: 512,
+    });
+    return parseContractResponse(response.output_text ?? "{}");
+  } finally {
+    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
+      console.warn("[pdfExtractor] Contract file cleanup failed:", e)
+    );
+  }
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
