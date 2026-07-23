@@ -132,21 +132,23 @@ interface FetchContractFieldsResult {
   matched: boolean;
   contractFileName: string | null;
   error: string | null;
+  debugBranch: string;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { matched, contractFileName, contractInfo, extractionError } = await Promise.race([
+    const { matched, contractFileName, contractInfo, extractionError, debugBranch } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null, matched, contractFileName, error: extractionError };
+    if (!contractInfo) return { fields: null, matched, contractFileName, error: extractionError, debugBranch };
     return {
       matched,
       contractFileName,
       error: null,
+      debugBranch,
       fields: {
         contractStart:    contractInfo.contractStart,
         contractEnd:      contractInfo.contractEnd,
@@ -156,7 +158,7 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return { fields: null, matched: false, contractFileName: null, error: String(err) };
+    return { fields: null, matched: false, contractFileName: null, error: String(err), debugBranch: "sync_route_catch" };
   }
 }
 
@@ -166,6 +168,7 @@ interface AttemptDebug {
   contractFileName: string | null;
   hadExtractedFields: boolean;
   error: string | null;
+  debugBranch: string;
 }
 
 async function runSync(): Promise<{
@@ -205,6 +208,7 @@ async function runSync(): Promise<{
           contractFileName: result.contractFileName,
           hadExtractedFields: !!result.fields,
           error: result.error,
+          debugBranch: result.debugBranch,
         });
         if (result.fields) {
           await service.saveMember({ ...existingMember, ...result.fields, updatedAt: new Date().toISOString() });
@@ -225,6 +229,7 @@ async function runSync(): Promise<{
         contractFileName: result.contractFileName,
         hadExtractedFields: !!result.fields,
         error: result.error,
+        debugBranch: result.debugBranch,
       });
     }
     const newMember: Member = {
