@@ -150,6 +150,7 @@ async function fetchContractFields(displayName: string): Promise<{
 
 async function runSync(): Promise<{
   added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number;
+  debug: { stillMissing: number; attempted: Array<{ name: string; foundContractInfo: boolean; savedNonNullField: boolean }> };
 }> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
@@ -157,11 +158,13 @@ async function runSync(): Promise<{
   const existing = await service.listMembers();
 
   const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
+  const stillMissing = existing.filter((m) => m.contractStart == null).length;
 
   let added               = 0;
   let skipped             = 0;
   let contractsBackfilled = 0;
   const addedNames: string[] = [];
+  const attempted: Array<{ name: string; foundContractInfo: boolean; savedNonNullField: boolean }> = [];
 
   for (const item of items) {
     const displayName = extractMemberName(item.name);
@@ -176,6 +179,11 @@ async function runSync(): Promise<{
       if (existingMember.contractStart == null && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const fields = await fetchContractFields(displayName);
+        attempted.push({
+          name: displayName,
+          foundContractInfo: !!fields,
+          savedNonNullField: !!(fields && (fields.contractStart || fields.contractEnd || fields.contractedAmount || fields.contractScope)),
+        });
         if (fields) {
           await service.saveMember({ ...existingMember, ...fields, updatedAt: new Date().toISOString() });
         }
@@ -212,7 +220,7 @@ async function runSync(): Promise<{
     addedNames.push(displayName);
   }
 
-  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled };
+  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, debug: { stillMissing, attempted } };
 }
 
 export async function GET() {
