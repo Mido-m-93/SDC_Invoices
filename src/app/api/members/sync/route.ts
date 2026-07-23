@@ -21,7 +21,7 @@ export const maxDuration = 60;
 // Each contract extraction is a Graph download + AI call — too slow to do for
 // every member in one invocation without risking a Vercel function timeout.
 // Cap it per run; members left over just get picked up on the next sync.
-const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 5;
+const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 1;
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -116,6 +116,10 @@ function normalise(s: string): string {
 
 // Reads and AI-extracts the contract PDF once — non-fatal on failure, since a
 // missing/unreadable contract shouldn't block the member record itself from syncing.
+// Hard-timed out: a single hung Graph/AI call must not be able to consume the
+// whole function's time budget and take the entire sync down with it.
+const CONTRACT_EXTRACTION_TIMEOUT_MS = 15_000;
+
 async function fetchContractFields(displayName: string): Promise<{
   contractStart: string | null;
   contractEnd: string | null;
@@ -123,7 +127,12 @@ async function fetchContractFields(displayName: string): Promise<{
   contractScope: string | null;
 } | null> {
   try {
-    const { contractInfo } = await checkMemberBySharePointContracts(displayName);
+    const { contractInfo } = await Promise.race([
+      checkMemberBySharePointContracts(displayName),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
+      ),
+    ]);
     if (!contractInfo) return null;
     return {
       contractStart:    contractInfo.contractStart,
@@ -132,7 +141,7 @@ async function fetchContractFields(displayName: string): Promise<{
       contractScope:    contractInfo.scope,
     };
   } catch (err) {
-    console.warn(`[members/sync] contract field extraction failed for "${displayName}":`, err);
+    console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
     return null;
   }
 }
