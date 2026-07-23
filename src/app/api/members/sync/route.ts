@@ -154,7 +154,7 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
   }
 }
 
-async function runSync(): Promise<{
+async function runSync(retryFailed = false): Promise<{
   added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number; stillMissing: number;
 }> {
   const token   = await getAccessToken();
@@ -184,7 +184,7 @@ async function runSync(): Promise<{
       // extraction genuinely fails isn't retried on every single future run —
       // since folder-listing order never changes, that would permanently jam
       // the front of the queue in front of everyone who hasn't been tried yet.
-      if (existingMember.contractStart == null && existingMember.contractSyncAttemptedAt == null
+      if (existingMember.contractStart == null && (retryFailed || existingMember.contractSyncAttemptedAt == null)
           && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
@@ -234,9 +234,10 @@ async function runSync(): Promise<{
   return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, stillMissing };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const result = await runSync();
+    const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
+    const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[GET /api/members/sync]", err);
@@ -244,9 +245,10 @@ export async function GET() {
   }
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const result = await runSync();
+    const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
+    const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[POST /api/members/sync]", err);
