@@ -122,35 +122,55 @@ function normalise(s: string): string {
 // whole function's time budget and take the entire sync down with it.
 const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
 
-async function fetchContractFields(displayName: string): Promise<{
-  contractStart: string | null;
-  contractEnd: string | null;
-  contractedAmount: number | null;
-  contractScope: string | null;
-} | null> {
+interface FetchContractFieldsResult {
+  fields: {
+    contractStart: string | null;
+    contractEnd: string | null;
+    contractedAmount: number | null;
+    contractScope: string | null;
+  } | null;
+  matched: boolean;
+  contractFileName: string | null;
+  error: string | null;
+}
+
+async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { contractInfo } = await Promise.race([
+    const { matched, contractFileName, contractInfo } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return null;
+    if (!contractInfo) return { fields: null, matched, contractFileName, error: null };
     return {
-      contractStart:    contractInfo.contractStart,
-      contractEnd:      contractInfo.contractEnd,
-      contractedAmount: contractInfo.contractedAmount,
-      contractScope:    contractInfo.scope,
+      matched,
+      contractFileName,
+      error: null,
+      fields: {
+        contractStart:    contractInfo.contractStart,
+        contractEnd:      contractInfo.contractEnd,
+        contractedAmount: contractInfo.contractedAmount,
+        contractScope:    contractInfo.scope,
+      },
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return null;
+    return { fields: null, matched: false, contractFileName: null, error: String(err) };
   }
+}
+
+interface AttemptDebug {
+  name: string;
+  matched: boolean;
+  contractFileName: string | null;
+  hadExtractedFields: boolean;
+  error: string | null;
 }
 
 async function runSync(): Promise<{
   added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number;
-  debug: { stillMissing: number; attempted: Array<{ name: string; foundContractInfo: boolean; savedNonNullField: boolean }> };
+  debug: { stillMissing: number; attempted: AttemptDebug[] };
 }> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
@@ -164,7 +184,7 @@ async function runSync(): Promise<{
   let skipped             = 0;
   let contractsBackfilled = 0;
   const addedNames: string[] = [];
-  const attempted: Array<{ name: string; foundContractInfo: boolean; savedNonNullField: boolean }> = [];
+  const attempted: AttemptDebug[] = [];
 
   for (const item of items) {
     const displayName = extractMemberName(item.name);
@@ -178,24 +198,34 @@ async function runSync(): Promise<{
       // capped per run so this route can't time out; leftovers pick up next sync.
       if (existingMember.contractStart == null && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
-        const fields = await fetchContractFields(displayName);
+        const result = await fetchContractFields(displayName);
         attempted.push({
           name: displayName,
-          foundContractInfo: !!fields,
-          savedNonNullField: !!(fields && (fields.contractStart || fields.contractEnd || fields.contractedAmount || fields.contractScope)),
+          matched: result.matched,
+          contractFileName: result.contractFileName,
+          hadExtractedFields: !!result.fields,
+          error: result.error,
         });
-        if (fields) {
-          await service.saveMember({ ...existingMember, ...fields, updatedAt: new Date().toISOString() });
+        if (result.fields) {
+          await service.saveMember({ ...existingMember, ...result.fields, updatedAt: new Date().toISOString() });
         }
       }
       continue;
     }
 
     const now: string = new Date().toISOString();
-    let fields: Awaited<ReturnType<typeof fetchContractFields>> = null;
+    let fields: FetchContractFieldsResult["fields"] = null;
     if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
       contractsBackfilled++;
-      fields = await fetchContractFields(displayName);
+      const result = await fetchContractFields(displayName);
+      fields = result.fields;
+      attempted.push({
+        name: displayName,
+        matched: result.matched,
+        contractFileName: result.contractFileName,
+        hadExtractedFields: !!result.fields,
+        error: result.error,
+      });
     }
     const newMember: Member = {
       id:           generateId("mbr"),
