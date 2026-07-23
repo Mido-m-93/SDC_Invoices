@@ -5,6 +5,7 @@ import "server-only";
 import {
   extractContractFields,
   extractContractFieldsFromDocx,
+  extractContractFieldsFromImage,
   hasAnyContractField,
   type ExtractedContractFields,
 } from "@/lib/services/ai/contractExtractor";
@@ -110,18 +111,30 @@ async function listAllMemberItems(token: string, siteId: string): Promise<Member
   }));
 }
 
-type ContractKind = "pdf" | "docx";
+type ContractKind = "pdf" | "docx" | "image";
 interface ContractCandidate {
   id: string;
   name: string;
   kind: ContractKind;
 }
 
+const IMAGE_MIME: Record<string, string> = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+  ".heic": "image/heic", ".webp": "image/webp",
+};
+
 function contractKindOf(name: string): ContractKind | null {
   const lower = name.toLowerCase();
   if (lower.endsWith(".pdf")) return "pdf";
   if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "docx";
+  if (Object.keys(IMAGE_MIME).some((ext) => lower.endsWith(ext))) return "image";
   return null;
+}
+
+function imageMimeOf(name: string): string {
+  const lower = name.toLowerCase();
+  const ext = Object.keys(IMAGE_MIME).find((e) => lower.endsWith(e));
+  return ext ? IMAGE_MIME[ext] : "image/jpeg";
 }
 
 // Internal: find every readable contract file inside a subfolder — a member's
@@ -140,7 +153,17 @@ async function findContractCandidatesInFolder(
     .filter((item) => item.file)
     .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name) }))
     .filter((c): c is ContractCandidate => c.kind !== null);
-  return [...candidates.filter((c) => c.kind === "pdf"), ...candidates.filter((c) => c.kind === "docx")];
+  return orderCandidates(candidates);
+}
+
+// PDFs and images both go through vision (reliable); Word docs are text-only
+// extraction (misses layout/handwriting), so try them last.
+function orderCandidates(candidates: ContractCandidate[]): ContractCandidate[] {
+  return [
+    ...candidates.filter((c) => c.kind === "pdf"),
+    ...candidates.filter((c) => c.kind === "image"),
+    ...candidates.filter((c) => c.kind === "docx"),
+  ];
 }
 
 // Last-resort fallback: some contract filenames embed an 8-digit YYYYMMDD
@@ -171,6 +194,8 @@ async function extractFromCandidates(
       const bytes = await downloadContractById(siteId, candidate.id);
       const contractInfo = candidate.kind === "pdf"
         ? await extractContractFields(bytes)
+        : candidate.kind === "image"
+        ? await extractContractFieldsFromImage(bytes, imageMimeOf(candidate.name), candidate.name)
         : await extractContractFieldsFromDocx(bytes);
       last = { fileName: candidate.name, contractInfo, extractionError: null };
       if (hasAnyContractField(contractInfo)) return last;
@@ -287,7 +312,7 @@ export async function checkMemberBySharePointContracts(
     const self = { id: matchedItem.id, name: matchedItem.name, kind: contractKindOf(matchedItem.name) };
     const all = [self, ...siblings.map((s) => ({ id: s.id, name: s.name, kind: contractKindOf(s.name) }))]
       .filter((c): c is ContractCandidate => c.kind !== null);
-    candidates = [...all.filter((c) => c.kind === "pdf"), ...all.filter((c) => c.kind === "docx")];
+    candidates = orderCandidates(all);
   }
 
   if (candidates.length === 0) {

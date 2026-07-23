@@ -103,6 +103,47 @@ export async function extractContractFields(pdfBytes: Uint8Array): Promise<Extra
   }
 }
 
+// Scanned contract images (.jpg/.png) — same Files/Responses upload as PDFs,
+// just tagged input_image instead of input_file.
+export async function extractContractFieldsFromImage(
+  imageBytes: Uint8Array,
+  mimeType: string,
+  filename: string,
+): Promise<ExtractedContractFields> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const plainBuffer = imageBytes.buffer.slice(
+    imageBytes.byteOffset,
+    imageBytes.byteOffset + imageBytes.byteLength
+  ) as ArrayBuffer;
+  const fileBlob = new File([plainBuffer], filename, { type: mimeType });
+  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4o",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_image", file_id: uploadedFile.id, detail: "auto" },
+            { type: "input_text", text: CONTRACT_EXTRACT_PROMPT },
+          ],
+        },
+      ],
+      max_output_tokens: 512,
+    });
+    return parseContractResponse(response.output_text ?? "{}");
+  } finally {
+    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
+      console.warn("[contractExtractor] File cleanup failed:", e)
+    );
+  }
+}
+
 // Word contracts (.doc/.docx) can't go through the vision Files/Responses API
 // the way PDFs do — extract plain text locally (mammoth, pure JS, no native
 // deps) and send that as text instead.
