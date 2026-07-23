@@ -170,7 +170,19 @@ async function runSync(retryFailed = false): Promise<{
   let contractsBackfilled = 0;
   const addedNames: string[] = [];
 
-  for (const item of items) {
+  // In retry mode the contractSyncAttemptedAt gate is ignored, so without this
+  // every run would just re-hit whichever ~3 members happen to sit first in
+  // the folder's fixed listing order forever, never rotating to anyone else.
+  // Process oldest-attempted-first instead so each run advances the queue.
+  const orderedItems = retryFailed
+    ? [...items].sort((a, b) => {
+        const ta = existingByName.get(normalise(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
+        const tb = existingByName.get(normalise(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
+        return ta.localeCompare(tb);
+      })
+    : items;
+
+  for (const item of orderedItems) {
     const displayName = extractMemberName(item.name);
     if (!displayName) { skipped++; continue; }
 
