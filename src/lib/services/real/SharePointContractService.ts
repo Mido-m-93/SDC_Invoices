@@ -78,8 +78,6 @@ export interface ContractCheckResult {
   contractInfo: ExtractedContractFields | null;
   /** Set when contractInfo is null because the PDF download/AI extraction step failed. */
   extractionError: string | null;
-  /** Which internal branch produced this result — temporary diagnostic. */
-  debugBranch: string;
 }
 
 // Internal: list every item (both files AND subfolders) in the contracts folder.
@@ -195,7 +193,7 @@ export async function checkMemberBySharePointContracts(
 
   if (!matchedItem) {
     console.log(`[SP check] No match found for "${submitterName}"`);
-    return { matched: false, contractFileName: null, contractInfo: null, extractionError: null, debugBranch: "no_match" };
+    return { matched: false, contractFileName: null, contractInfo: null, extractionError: null };
   }
 
   // Resolve the actual PDF — either the item itself or a file inside a subfolder
@@ -210,10 +208,7 @@ export async function checkMemberBySharePointContracts(
   if (!pdfId) {
     // Folder exists but no PDF inside — member is registered, just no readable contract
     console.log(`[SP check] Folder matched for "${submitterName}" but no PDF inside`);
-    return {
-      matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null,
-      debugBranch: `no_pdf_inside_folder(isFolder=${matchedItem.isFolder})`,
-    };
+    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null };
   }
 
   // Download and read the PDF with Claude
@@ -228,10 +223,7 @@ export async function checkMemberBySharePointContracts(
     console.warn(`[SP check] Contract PDF read failed for ${pdfName}:`, err);
   }
 
-  return {
-    matched: true, contractFileName: pdfName, contractInfo, extractionError,
-    debugBranch: `downloaded_and_extracted(isFolder=${matchedItem.isFolder}, hasContractInfo=${!!contractInfo})`,
-  };
+  return { matched: true, contractFileName: pdfName, contractInfo, extractionError };
 }
 
 // List all PDF files in the member contracts SharePoint folder.

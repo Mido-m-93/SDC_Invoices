@@ -129,26 +129,18 @@ interface FetchContractFieldsResult {
     contractedAmount: number | null;
     contractScope: string | null;
   } | null;
-  matched: boolean;
-  contractFileName: string | null;
-  error: string | null;
-  debugBranch: string;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { matched, contractFileName, contractInfo, extractionError, debugBranch } = await Promise.race([
+    const { contractInfo } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null, matched, contractFileName, error: extractionError, debugBranch };
+    if (!contractInfo) return { fields: null };
     return {
-      matched,
-      contractFileName,
-      error: null,
-      debugBranch,
       fields: {
         contractStart:    contractInfo.contractStart,
         contractEnd:      contractInfo.contractEnd,
@@ -158,22 +150,12 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return { fields: null, matched: false, contractFileName: null, error: String(err), debugBranch: "sync_route_catch" };
+    return { fields: null };
   }
 }
 
-interface AttemptDebug {
-  name: string;
-  matched: boolean;
-  contractFileName: string | null;
-  hadExtractedFields: boolean;
-  error: string | null;
-  debugBranch: string;
-}
-
 async function runSync(): Promise<{
-  added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number;
-  debug: { stillMissing: number; attempted: AttemptDebug[] };
+  added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number; stillMissing: number;
 }> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
@@ -187,7 +169,6 @@ async function runSync(): Promise<{
   let skipped             = 0;
   let contractsBackfilled = 0;
   const addedNames: string[] = [];
-  const attempted: AttemptDebug[] = [];
 
   for (const item of items) {
     const displayName = extractMemberName(item.name);
@@ -202,14 +183,6 @@ async function runSync(): Promise<{
       if (existingMember.contractStart == null && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
-        attempted.push({
-          name: displayName,
-          matched: result.matched,
-          contractFileName: result.contractFileName,
-          hadExtractedFields: !!result.fields,
-          error: result.error,
-          debugBranch: result.debugBranch,
-        });
         if (result.fields) {
           await service.saveMember({ ...existingMember, ...result.fields, updatedAt: new Date().toISOString() });
         }
@@ -223,14 +196,6 @@ async function runSync(): Promise<{
       contractsBackfilled++;
       const result = await fetchContractFields(displayName);
       fields = result.fields;
-      attempted.push({
-        name: displayName,
-        matched: result.matched,
-        contractFileName: result.contractFileName,
-        hadExtractedFields: !!result.fields,
-        error: result.error,
-        debugBranch: result.debugBranch,
-      });
     }
     const newMember: Member = {
       id:           generateId("mbr"),
@@ -255,7 +220,7 @@ async function runSync(): Promise<{
     addedNames.push(displayName);
   }
 
-  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, debug: { stillMissing, attempted } };
+  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, stillMissing };
 }
 
 export async function GET() {
