@@ -407,93 +407,11 @@ async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<Extrac
   };
 }
 
-// ── Contract field extraction ─────────────────────────────────────────────────
-// Dedicated prompt for member service contracts (業務委託契約) rather than invoices.
-
-export interface ExtractedContractFields {
-  memberName: string | null;
-  contractedAmount: number | null;
-  contractStart: string | null;
-  contractEnd: string | null;
-  paymentTerms: string | null;
-  scope: string | null;
-}
-
-const CONTRACT_EXTRACT_PROMPT = `Extract service contract fields from this document and return ONLY valid JSON — no markdown, no explanation.
-
-Return exactly this JSON:
-{
-  "memberName": "contractor / service provider name, or null",
-  "contractedAmount": number or null,
-  "contractStart": "YYYY-MM-DD or null",
-  "contractEnd": "YYYY-MM-DD or null",
-  "paymentTerms": "e.g. monthly / per project / one-time, or null",
-  "scope": "brief work scope description, max 100 chars, or null"
-}
-
-Rules:
-- contractedAmount is the agreed payment / fee amount (look for 報酬, 委託料, fee, amount, 金額)
-- contractedAmount must be a plain number with no currency symbols or commas
-- Dates must be YYYY-MM-DD
-- Return null for any field you cannot find with confidence`;
-
-function parseContractResponse(text: string): ExtractedContractFields {
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
-  } catch {
-    return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null };
-  }
-  return {
-    memberName:       typeof parsed.memberName === "string" ? parsed.memberName : null,
-    contractedAmount: parseNumericField(parsed.contractedAmount),
-    contractStart:    typeof parsed.contractStart === "string" ? parsed.contractStart : null,
-    contractEnd:      typeof parsed.contractEnd === "string" ? parsed.contractEnd : null,
-    paymentTerms:     typeof parsed.paymentTerms === "string" ? parsed.paymentTerms : null,
-    scope:            typeof parsed.scope === "string" ? parsed.scope : null,
-  };
-}
-
-// pdfjs-dist (extractTextFromPdf) throws "DOMMatrix is not defined" in this
-// serverless runtime — same issue invoice extraction already works around by
-// uploading the PDF straight to OpenAI's Files/Responses API (vision) instead
-// of extracting text locally first. Do the same here rather than relying on
-// pdfjs at all.
-export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const plainBuffer = pdfBytes.buffer.slice(
-    pdfBytes.byteOffset,
-    pdfBytes.byteOffset + pdfBytes.byteLength
-  ) as ArrayBuffer;
-  const fileBlob = new File([plainBuffer], "contract.pdf", { type: "application/pdf" });
-  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
-
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: [
-        {
-          role: "user",
-          content: [
-            { type: "input_file", file_id: uploadedFile.id },
-            { type: "input_text", text: CONTRACT_EXTRACT_PROMPT },
-          ],
-        },
-      ],
-      max_output_tokens: 512,
-    });
-    return parseContractResponse(response.output_text ?? "{}");
-  } finally {
-    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
-      console.warn("[pdfExtractor] Contract file cleanup failed:", e)
-    );
-  }
-}
+// Contract field extraction (ExtractedContractFields / extractContractFields)
+// now lives in ./contractExtractor.ts — deliberately NOT in this file, since
+// importing anything from here (even functions that never call
+// extractTextFromPdf) can crash on pdfjs-dist's module-load-time
+// "DOMMatrix is not defined" failure in this serverless runtime.
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 // Priority: Google Document AI → OpenAI GPT-4o → Groq (text-only fallback)

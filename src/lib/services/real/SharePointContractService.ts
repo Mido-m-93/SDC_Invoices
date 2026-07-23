@@ -2,7 +2,7 @@
 // Fetches invoice PDF attachments and member contracts from SharePoint via Graph API.
 
 import "server-only";
-import { extractContractFields, type ExtractedContractFields } from "@/lib/services/ai/pdfExtractor";
+import { extractContractFields, type ExtractedContractFields } from "@/lib/services/ai/contractExtractor";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
