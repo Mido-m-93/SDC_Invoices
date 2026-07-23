@@ -76,6 +76,8 @@ export interface ContractCheckResult {
   contractFileName: string | null;
   /** Extracted fields from the contract PDF. Null if not matched or PDF read failed. */
   contractInfo: ExtractedContractFields | null;
+  /** Set when contractInfo is null because the PDF download/AI extraction step failed. */
+  extractionError: string | null;
 }
 
 // Internal: list every item (both files AND subfolders) in the contracts folder.
@@ -191,7 +193,7 @@ export async function checkMemberBySharePointContracts(
 
   if (!matchedItem) {
     console.log(`[SP check] No match found for "${submitterName}"`);
-    return { matched: false, contractFileName: null, contractInfo: null };
+    return { matched: false, contractFileName: null, contractInfo: null, extractionError: null };
   }
 
   // Resolve the actual PDF — either the item itself or a file inside a subfolder
@@ -206,20 +208,22 @@ export async function checkMemberBySharePointContracts(
   if (!pdfId) {
     // Folder exists but no PDF inside — member is registered, just no readable contract
     console.log(`[SP check] Folder matched for "${submitterName}" but no PDF inside`);
-    return { matched: true, contractFileName: matchedItem.name, contractInfo: null };
+    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null };
   }
 
   // Download and read the PDF with Claude
   let contractInfo: ExtractedContractFields | null = null;
+  let extractionError: string | null = null;
   try {
     const bytes = await downloadContractById(matchedItem.siteId, pdfId);
     contractInfo = await extractContractFields(bytes);
     console.log(`[SP check] Contract read for "${submitterName}":`, contractInfo);
   } catch (err) {
+    extractionError = String(err);
     console.warn(`[SP check] Contract PDF read failed for ${pdfName}:`, err);
   }
 
-  return { matched: true, contractFileName: pdfName, contractInfo };
+  return { matched: true, contractFileName: pdfName, contractInfo, extractionError };
 }
 
 // List all PDF files in the member contracts SharePoint folder.

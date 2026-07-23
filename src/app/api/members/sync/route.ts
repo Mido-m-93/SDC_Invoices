@@ -136,13 +136,13 @@ interface FetchContractFieldsResult {
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { matched, contractFileName, contractInfo } = await Promise.race([
+    const { matched, contractFileName, contractInfo, extractionError } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null, matched, contractFileName, error: null };
+    if (!contractInfo) return { fields: null, matched, contractFileName, error: extractionError };
     return {
       matched,
       contractFileName,
