@@ -88,7 +88,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <span className="flex-1 truncate text-sm font-medium text-white">{user}</span>
                 <button
                   onClick={signOut}
-                  title="Sign out"
+                  title={t("sign_out_tooltip")}
                   className="text-white/30 transition hover:text-white"
                 >
                   <LogoutIcon size={14} />

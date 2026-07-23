@@ -5,14 +5,8 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
+import { useLanguage } from "@/translations";
 import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client } from "@/types";
-
-const STATUS_LABELS: Record<PipelineRecordStatus, string> = {
-  auto_linked: "Auto-linked",
-  needs_review: "Needs Review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
 
 const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
   auto_linked: "bg-emerald-50 text-emerald-700",
@@ -24,6 +18,13 @@ const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
 type Override = { clientId: string; clientName: string };
 
 export default function PipelineSyncPage() {
+  const { t } = useLanguage();
+  const STATUS_LABELS: Record<PipelineRecordStatus, string> = {
+    auto_linked: t("pipeline_sync_status_auto_linked"),
+    needs_review: t("pipeline_sync_status_needs_review"),
+    approved: t("pipeline_sync_status_approved"),
+    rejected: t("pipeline_sync_status_rejected"),
+  };
   const [records, setRecords] = useState<StagedPipelineRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineRecordStatus | "all">("all");
@@ -42,7 +43,7 @@ export default function PipelineSyncPage() {
       setRecords(rData.records ?? []);
       setClients(cData.clients ?? []);
     } catch {
-      setError("Failed to load pipeline sync data");
+      setError(t("pipeline_sync_error_load"));
     } finally {
       setLoading(false);
     }
@@ -64,10 +65,10 @@ export default function PipelineSyncPage() {
         body: JSON.stringify({ source }),
       });
       const data = (await res.json()) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number };
-      if (!res.ok) { setError(data.error ?? "Sync failed"); return; }
+      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_sync_failed")); return; }
       await load();
     } catch {
-      setError("Sync failed");
+      setError(t("pipeline_sync_error_sync_failed"));
     } finally {
       setSyncing(null);
     }
@@ -84,17 +85,17 @@ export default function PipelineSyncPage() {
         body: JSON.stringify({ overrideClientId: override.clientId || undefined }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok) { setError(data.error ?? "Approve failed"); return; }
+      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_approve_failed")); return; }
       await load();
     } catch {
-      setError("Approve failed");
+      setError(t("pipeline_sync_error_approve_failed"));
     } finally {
       setBusyId(null);
     }
   }
 
   async function reject(r: StagedPipelineRecord) {
-    const reason = prompt(`Reject "${r.rawClientName}" — reason?`);
+    const reason = prompt(t("pipeline_sync_reject_prompt").replace("{name}", r.rawClientName));
     if (reason === null) return;
     setBusyId(r.id);
     setError(null);
@@ -105,10 +106,10 @@ export default function PipelineSyncPage() {
         body: JSON.stringify({ reason }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok) { setError(data.error ?? "Reject failed"); return; }
+      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_reject_failed")); return; }
       await load();
     } catch {
-      setError("Reject failed");
+      setError(t("pipeline_sync_error_reject_failed"));
     } finally {
       setBusyId(null);
     }
@@ -126,22 +127,22 @@ export default function PipelineSyncPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Pipeline Sync"
-        subtitle="Notion + SharePoint → AI matching → review queue"
+        title={t("nav_pipeline_sync")}
+        subtitle={t("pipeline_sync_subtitle")}
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" loading={syncing === "notion"} onClick={() => runSync("notion")}>
-              Run Notion Sync
+              {t("pipeline_sync_run_notion")}
             </Button>
             <Button variant="secondary" loading={syncing === "sharepoint"} onClick={() => runSync("sharepoint")}>
-              Run SharePoint Sync
+              {t("pipeline_sync_run_sharepoint")}
             </Button>
           </div>
         }
       />
 
       <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-        <strong>Mock mode</strong> — sources are fixture data, and approving writes to mock storage only. No real Notion/SharePoint connection or production data is touched yet.
+        <strong>{t("pipeline_sync_mock_mode_label")}</strong> — {t("pipeline_sync_mock_mode_text")}
       </div>
 
       {error && (
@@ -160,17 +161,17 @@ export default function PipelineSyncPage() {
               statusFilter === s ? "border-[#1a3d2b] bg-[#1a3d2b] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
             }`}
           >
-            {s === "all" ? "All" : STATUS_LABELS[s]}
+            {s === "all" ? t("pipeline_sync_filter_all") : STATUS_LABELS[s]}
             <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === s ? "bg-white/20" : "bg-stone-100"}`}>{counts[s]}</span>
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white px-6 py-12 text-center">
-          <p className="text-sm text-stone-400">No staged records. Run a sync above to pull mock pipeline data.</p>
+          <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -187,21 +188,21 @@ export default function PipelineSyncPage() {
                         {STATUS_LABELS[r.status]}
                       </span>
                       {pending && (
-                        <span className="text-xs text-stone-400">confidence {(r.matchConfidence * 100).toFixed(0)}%</span>
+                        <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
                       )}
                     </div>
                     <p className="mt-1 font-medium text-stone-900">{r.rawClientName}</p>
                     <p className="text-sm text-stone-500">{r.projectName || "—"} · {r.stageOrStatus}</p>
                     <p className="text-xs text-stone-400 mt-0.5">
-                      {r.estimatedAmount ? `${r.currency} ${r.estimatedAmount.toLocaleString()}` : "No amount"}
+                      {r.estimatedAmount ? `${r.currency} ${r.estimatedAmount.toLocaleString()}` : t("pipeline_sync_no_amount")}
                       {r.contactName ? ` · ${r.contactName}` : ""}
                     </p>
                     {r.status === "rejected" && r.reviewerComment && (
-                      <p className="mt-1 text-xs text-red-600">Rejected: {r.reviewerComment}</p>
+                      <p className="mt-1 text-xs text-red-600">{t("pipeline_sync_rejected_label").replace("{comment}", r.reviewerComment)}</p>
                     )}
                     {r.status === "approved" && (
                       <p className="mt-1 text-xs text-blue-600">
-                        Linked to {r.matchedClientName} · lead {r.createdLeadId}
+                        {t("pipeline_sync_linked_to").replace("{client}", r.matchedClientName ?? "").replace("{leadId}", r.createdLeadId ?? "")}
                       </p>
                     )}
                   </div>
@@ -226,10 +227,10 @@ export default function PipelineSyncPage() {
                 {pending && (
                   <div className="mt-3 flex justify-end gap-2 border-t border-stone-100 pt-3">
                     <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
-                      Reject
+                      {t("pipeline_sync_reject")}
                     </Button>
                     <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => approve(r)}>
-                      Approve & Create Lead
+                      {t("pipeline_sync_approve")}
                     </Button>
                   </div>
                 )}

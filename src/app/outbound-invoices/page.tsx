@@ -4,16 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import { useLanguage, type TranslationKey } from "@/translations";
 import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary } from "@/types";
-
-const STATUS_LABELS: Record<OutboundInvoiceStatus, string> = {
-  draft: "Draft",
-  pending_approval: "Pending Approval",
-  sent: "Sent",
-  overdue: "Overdue",
-  paid: "Paid",
-  cancelled: "Cancelled",
-};
 
 const STATUS_COLORS: Record<OutboundInvoiceStatus, string> = {
   draft: "bg-stone-100 text-stone-500",
@@ -47,6 +39,9 @@ function fmt(n: number, currency = "JPY") {
 }
 
 export default function OutboundInvoicesPage() {
+  const { t } = useLanguage();
+  const statusLabel = (s: OutboundInvoiceStatus | "all") => t(`outbound_status_${s}` as TranslationKey);
+
   const [invoices, setInvoices] = useState<OutboundInvoice[]>([]);
   const [summary, setSummary] = useState<OutboundInvoiceSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,9 +62,9 @@ export default function OutboundInvoicesPage() {
       const data = await res.json() as { invoices: OutboundInvoice[]; summary: OutboundInvoiceSummary };
       setInvoices(data.invoices ?? []);
       setSummary(data.summary ?? null);
-    } catch { setError("Failed to load outbound invoices"); }
+    } catch { setError(t("outbound_invoices_load_failed")); }
     finally { setLoading(false); }
-  }, [statusFilter, monthFilter]);
+  }, [statusFilter, monthFilter, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -110,7 +105,7 @@ export default function OutboundInvoicesPage() {
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       setShowForm(false);
       load();
-    } catch { setError("Failed to save invoice"); }
+    } catch { setError(t("outbound_invoices_save_failed")); }
     finally { setSaving(false); }
   }
 
@@ -122,11 +117,11 @@ export default function OutboundInvoicesPage() {
         body: JSON.stringify({ status, actorName: "system" }),
       });
       load();
-    } catch { setError("Failed to update status"); }
+    } catch { setError(t("outbound_invoices_status_update_failed")); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this outbound invoice?")) return;
+    if (!confirm(t("outbound_invoices_delete_confirm"))) return;
     await fetch(`/api/outbound-invoices/${id}`, { method: "DELETE" });
     load();
   }
@@ -140,22 +135,22 @@ export default function OutboundInvoicesPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Outbound Invoices"
-        subtitle="Track invoices issued to clients and payment collection"
-        actions={<Button variant="primary" onClick={openNew}>+ New Invoice</Button>}
+        title={t("outbound_invoices_title")}
+        subtitle={t("outbound_invoices_subtitle")}
+        actions={<Button variant="primary" onClick={openNew}>{t("outbound_new_invoice")}</Button>}
       />
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
-        ⚠ This tool tracks outbound invoice status. Actual invoice sending and payment collection are handled separately.
+        {t("outbound_invoices_notice")}
       </div>
 
       {/* Summary stats */}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Total" value={summary.total} />
-          <StatCard label="Sent" value={summary.sent} color="blue" />
-          <StatCard label="Overdue" value={summary.overdue} color="red" />
-          <StatCard label="Outstanding" value={fmt(summary.totalOutstanding, summary.currency)} color="amber" />
+          <StatCard label={t("outbound_invoices_stat_total")} value={summary.total} />
+          <StatCard label={t("outbound_status_sent")} value={summary.sent} color="blue" />
+          <StatCard label={t("outbound_status_overdue")} value={summary.overdue} color="red" />
+          <StatCard label={t("outbound_stat_outstanding")} value={fmt(summary.totalOutstanding, summary.currency)} color="amber" />
         </div>
       )}
 
@@ -179,31 +174,31 @@ export default function OutboundInvoicesPage() {
             onClick={() => setStatusFilter(s)}
             className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
           >
-            {s === "all" ? "All" : STATUS_LABELS[s]}
+            {statusLabel(s)}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : invoices.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No outbound invoices found for this month.</p>
-          <Button variant="primary" className="mt-4" onClick={openNew}>Create first invoice</Button>
+          <p className="text-stone-400 text-sm">{t("outbound_invoices_empty_title")}</p>
+          <Button variant="primary" className="mt-4" onClick={openNew}>{t("outbound_invoices_create_first")}</Button>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">Invoice #</th>
-                <th className="px-4 py-3 text-left">Client</th>
-                <th className="px-4 py-3 text-left">Project</th>
-                <th className="px-4 py-3 text-left">Billing Month</th>
-                <th className="px-4 py-3 text-left">Due Date</th>
-                <th className="px-4 py-3 text-right">Total</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">{t("outbound_invoices_col_invoice_number")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_client")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_project")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_invoices_billing_month")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_due_date")}</th>
+                <th className="px-4 py-3 text-right">{t("outbound_invoices_total_label")}</th>
+                <th className="px-4 py-3 text-left">{t("col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("col_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -217,18 +212,18 @@ export default function OutboundInvoicesPage() {
                   <td className="px-4 py-3 text-right font-mono font-medium text-stone-800">{fmt(inv.total, inv.currency)}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[inv.status]}`}>
-                      {STATUS_LABELS[inv.status]}
+                      {statusLabel(inv.status)}
                     </span>
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(inv)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(inv)}>{t("outbound_invoices_action_edit")}</Button>
                     {inv.status === "draft" && (
-                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(inv.id, "sent")}>Mark Sent</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(inv.id, "sent")}>{t("outbound_action_mark_sent")}</Button>
                     )}
                     {inv.status === "sent" && (
-                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(inv.id, "paid")}>Mark Paid</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleStatusChange(inv.id, "paid")}>{t("outbound_action_mark_paid")}</Button>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(inv.id)}>Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(inv.id)}>{t("outbound_invoices_action_delete")}</Button>
                   </td>
                 </tr>
               ))}
@@ -242,62 +237,62 @@ export default function OutboundInvoicesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{editing ? "Edit Outbound Invoice" : "New Outbound Invoice"}</h2>
+              <h2 className="text-base font-semibold">{editing ? t("outbound_invoices_modal_edit_title") : t("outbound_modal_new_title")}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Invoice Number">
-                  <input className={inp} value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} placeholder="INV-2024-001" />
+                <Field label={t("outbound_invoices_field_invoice_number")}>
+                  <input className={inp} value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} placeholder={t("outbound_invoices_field_invoice_number_placeholder")} />
                 </Field>
-                <Field label="Billing Month">
+                <Field label={t("outbound_invoices_billing_month")}>
                   <input className={inp} type="month" value={form.billingMonth} onChange={(e) => set("billingMonth", e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Client Name *">
+                <Field label={t("outbound_field_client_name")}>
                   <input className={inp} value={form.clientName} onChange={(e) => set("clientName", e.target.value)} />
                 </Field>
-                <Field label="Project Name">
+                <Field label={t("outbound_invoices_field_project_name")}>
                   <input className={inp} value={form.projectName} onChange={(e) => set("projectName", e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Issue Date">
+                <Field label={t("outbound_invoices_field_issue_date")}>
                   <input className={inp} type="date" value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} />
                 </Field>
-                <Field label="Due Date">
+                <Field label={t("outbound_col_due_date")}>
                   <input className={inp} type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <Field label="Subtotal">
+                <Field label={t("outbound_invoices_field_subtotal")}>
                   <input className={inp} type="number" value={form.subtotal} onChange={(e) => set("subtotal", parseFloat(e.target.value) || 0)} />
                 </Field>
-                <Field label="Tax Amount">
+                <Field label={t("outbound_invoices_field_tax_amount")}>
                   <input className={inp} type="number" value={form.taxAmount} onChange={(e) => set("taxAmount", parseFloat(e.target.value) || 0)} />
                 </Field>
-                <Field label="Total">
+                <Field label={t("outbound_invoices_total_label")}>
                   <input className={`${inp} bg-stone-50`} value={form.total} readOnly />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Currency">
+                <Field label={t("outbound_invoices_field_currency")}>
                   <select className={inp} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
                     <option>JPY</option><option>USD</option><option>EUR</option>
                   </select>
                 </Field>
-                <Field label="Created By">
+                <Field label={t("outbound_invoices_field_created_by")}>
                   <input className={inp} value={form.createdBy} onChange={(e) => set("createdBy", e.target.value)} />
                 </Field>
               </div>
-              <Field label="Notes">
+              <Field label={t("outbound_field_notes")}>
                 <textarea className={`${inp} h-16`} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
               </Field>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button variant="primary" loading={saving} onClick={handleSave}>Save Invoice</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
+              <Button variant="primary" loading={saving} onClick={handleSave}>{t("outbound_invoices_save_invoice")}</Button>
             </div>
           </div>
         </div>

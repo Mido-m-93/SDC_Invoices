@@ -98,6 +98,9 @@ function toValidationRow(r: InvoiceValidationResult): Record<string, unknown> {
     contract_id: r.contractId ?? null,
     validated_by: r.validatedBy ?? null,
     approved_by: r.approvedBy ?? null,
+    mf_billing_id: r.mfBillingId ?? null,
+    mf_billing_url: r.mfBillingUrl ?? null,
+    mf_sent_at: r.mfSentAt ?? null,
   };
 }
 
@@ -125,6 +128,9 @@ function fromValidationRow(row: Record<string, unknown>): InvoiceValidationResul
     contractId: row.contract_id as string | undefined,
     validatedBy: (row.validated_by as string) || undefined,
     approvedBy: (row.approved_by as string) || undefined,
+    mfBillingId: (row.mf_billing_id as string) || undefined,
+    mfBillingUrl: (row.mf_billing_url as string) || undefined,
+    mfSentAt: (row.mf_sent_at as string) || undefined,
   };
 }
 

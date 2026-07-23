@@ -7,7 +7,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
 import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
-import { formatCurrency, formatTimestamp, formatAmount, detectCurrency } from "@/lib/utils";
+import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
 
 interface Props {
@@ -176,7 +176,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
               <ValidationStages v={v} submission={s} />
               {onSendToMF && (
                 <div className="mt-3">
-                  {!v.mfBillingUrl && (
+                  {!v.mfBillingUrl && (v.statusCode === "READY" || v.humanApproved === true) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -269,7 +269,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
                   </p>
                   <ul className="space-y-1">
                     {v.issues.flatMap((issue) =>
-                      issue.split("\n").filter(Boolean)
+                      translateIssue(issue, language).split("\n").filter(Boolean)
                     ).map((line, idx) => (
                       <li key={idx} className="text-xs text-amber-700 font-mono">
                         • {line}

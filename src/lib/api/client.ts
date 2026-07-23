@@ -172,6 +172,14 @@ export async function sendInvoiceToMoneyForward(
   });
 }
 
+export async function sendExpenseToMoneyForward(
+  claimId: string
+): Promise<{ billingId: string; billingUrl: string }> {
+  return apiFetch(`/api/expenses/${claimId}/send-to-mf`, {
+    method: "POST",
+  });
+}
+
 // ── Validation results & filed documents ─────────────────────────────────────
 // These come from the storage API route
 

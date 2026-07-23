@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import type { Member, MemberRole, MemberStatus } from "@/types";
 import { generateId } from "@/lib/utils";
+import { useLanguage, type TranslationKey } from "@/translations";
 
 const EMPTY_MEMBER: Omit<Member, "id" | "createdAt" | "updatedAt" | "avatarUrl"> = {
   displayName: "",
@@ -36,6 +37,7 @@ const STATUS_COLORS: Record<MemberStatus, string> = {
 };
 
 export default function MembersPage() {
+  const { t } = useLanguage();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,11 +59,11 @@ export default function MembersPage() {
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setMembers(data.members ?? []);
     } catch (e) {
-      setError(`Failed to load members: ${e instanceof Error ? e.message : String(e)}`);
+      setError(t("members_error_load").replace("{message}", e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -97,14 +99,14 @@ export default function MembersPage() {
       setShowForm(false);
       load();
     } catch {
-      setError("Failed to save member");
+      setError(t("members_error_save"));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this member?")) return;
+    if (!confirm(t("members_delete_confirm"))) return;
     await fetch(`/api/members/${id}`, { method: "DELETE" });
     load();
   }
@@ -116,7 +118,7 @@ export default function MembersPage() {
     try {
       const res = await fetch("/api/members/sync", { method: "POST" });
       const data = await res.json() as { ok: boolean; added: number; skipped: number; total: number; error?: string };
-      if (!data.ok) throw new Error(data.error ?? "Sync failed");
+      if (!data.ok) throw new Error(data.error ?? t("members_sync_error_fallback"));
       setSyncResult({ added: data.added, skipped: data.skipped, total: data.total });
       load();
     } catch (e) {
@@ -132,17 +134,17 @@ export default function MembersPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Team Members"
-        subtitle="Internal members and contractors"
+        title={t("members_title")}
+        subtitle={t("members_subtitle")}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={handleSync} disabled={syncing}
               className="border border-stone-300 text-stone-700 hover:bg-stone-50 text-sm">
-              {syncing ? "Syncing…" : "↻ Sync from SharePoint"}
+              {syncing ? t("members_syncing") : t("members_sync_button")}
             </Button>
             <Button variant="primary" onClick={openNew}
               className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">
-              + Add Member
+              {t("members_add_button")}
             </Button>
           </div>
         }
@@ -151,10 +153,10 @@ export default function MembersPage() {
       {syncResult && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 flex justify-between items-center">
           <span>
-            SharePoint sync complete —{" "}
-            <strong>{syncResult.added} new member{syncResult.added !== 1 ? "s" : ""} added</strong>
-            {syncResult.skipped > 0 && `, ${syncResult.skipped} already registered`}
-            {" "}(scanned {syncResult.total} items)
+            {t("members_sync_result_main").replace("{added}", String(syncResult.added))}
+            {syncResult.skipped > 0 &&
+              t("members_sync_result_skipped").replace("{skipped}", String(syncResult.skipped))}
+            {t("members_sync_result_scanned").replace("{total}", String(syncResult.total))}
           </span>
           <button onClick={() => setSyncResult(null)} className="text-green-400 hover:text-green-600 ml-4">×</button>
         </div>
@@ -168,12 +170,12 @@ export default function MembersPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("members_loading")}</p>
       ) : members.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No members registered yet.</p>
+          <p className="text-stone-400 text-sm">{t("members_empty_title")}</p>
           <Button variant="primary" className="mt-4 bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white" onClick={openNew}>
-            Add your first member
+            {t("members_empty_add")}
           </Button>
         </div>
       ) : (
@@ -181,13 +183,13 @@ export default function MembersPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Email</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-left">Department</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Join Date</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">{t("members_col_name")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_email")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_role")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_department")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_join_date")}</th>
+                <th className="px-4 py-3 text-left">{t("members_col_actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -202,19 +204,19 @@ export default function MembersPage() {
                   <td className="px-4 py-3 text-stone-600">{m.email || "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_COLORS[m.role]}`}>
-                      {m.role}
+                      {t(`members_role_${m.role}` as TranslationKey)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-stone-500">{m.department || "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[m.status]}`}>
-                      {m.status.replace("_", " ")}
+                      {t(`members_status_${m.status}` as TranslationKey)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{m.joinDate || "—"}</td>
                   <td className="px-4 py-3 flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>Edit</Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(m.id)}>Delete</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>{t("members_action_edit")}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(m.id)}>{t("members_action_delete")}</Button>
                   </td>
                 </tr>
               ))}
@@ -227,72 +229,72 @@ export default function MembersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{editing ? "Edit Member" : "Add Member"}</h2>
+              <h2 className="text-base font-semibold">{editing ? t("members_modal_edit_title") : t("members_modal_new_title")}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700 text-xl leading-none">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <Field label="Display Name *">
+              <Field label={t("members_field_display_name")}>
                 <input
                   className={input}
                   value={form.displayName}
                   onChange={(e) => set("displayName", e.target.value)}
-                  placeholder="Full name"
+                  placeholder={t("members_field_display_name_placeholder")}
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Email">
+                <Field label={t("members_field_email")}>
                   <input
                     type="email"
                     className={input}
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
-                    placeholder="name@example.com"
+                    placeholder={t("members_field_email_placeholder")}
                   />
                 </Field>
-                <Field label="Phone">
+                <Field label={t("members_field_phone")}>
                   <input
                     className={input}
                     value={form.phone}
                     onChange={(e) => set("phone", e.target.value)}
-                    placeholder="+81 90-0000-0000"
+                    placeholder={t("members_field_phone_placeholder")}
                   />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Role *">
+                <Field label={t("members_field_role")}>
                   <select
                     className={input}
                     value={form.role}
                     onChange={(e) => set("role", e.target.value as MemberRole)}
                   >
-                    <option value="admin">Admin</option>
-                    <option value="sales">Sales</option>
-                    <option value="accounting">Accounting</option>
-                    <option value="engineer">Engineer</option>
-                    <option value="designer">Designer</option>
-                    <option value="manager">Manager</option>
-                    <option value="other">Other</option>
+                    <option value="admin">{t("members_role_admin")}</option>
+                    <option value="sales">{t("members_role_sales")}</option>
+                    <option value="accounting">{t("members_role_accounting")}</option>
+                    <option value="engineer">{t("members_role_engineer")}</option>
+                    <option value="designer">{t("members_role_designer")}</option>
+                    <option value="manager">{t("members_role_manager")}</option>
+                    <option value="other">{t("members_role_other")}</option>
                   </select>
                 </Field>
-                <Field label="Department">
+                <Field label={t("members_field_department")}>
                   <input
                     className={input}
                     value={form.department}
                     onChange={(e) => set("department", e.target.value)}
-                    placeholder="e.g. Engineering"
+                    placeholder={t("members_field_department_placeholder")}
                   />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Employee Code">
+                <Field label={t("members_field_employee_code")}>
                   <input
                     className={input}
                     value={form.employeeCode}
                     onChange={(e) => set("employeeCode", e.target.value)}
-                    placeholder="EMP-001"
+                    placeholder={t("members_field_employee_code_placeholder")}
                   />
                 </Field>
-                <Field label="Join Date">
+                <Field label={t("members_field_join_date")}>
                   <input
                     type="date"
                     className={input}
@@ -301,36 +303,36 @@ export default function MembersPage() {
                   />
                 </Field>
               </div>
-              <Field label="Status">
+              <Field label={t("members_field_status")}>
                 <select
                   className={input}
                   value={form.status}
                   onChange={(e) => set("status", e.target.value as MemberStatus)}
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="on_leave">On Leave</option>
+                  <option value="active">{t("members_status_active")}</option>
+                  <option value="inactive">{t("members_status_inactive")}</option>
+                  <option value="on_leave">{t("members_status_on_leave")}</option>
                 </select>
               </Field>
-              <Field label="Notes">
+              <Field label={t("members_field_notes")}>
                 <textarea
                   className={`${input} resize-none`}
                   rows={3}
                   value={form.notes}
                   onChange={(e) => set("notes", e.target.value)}
-                  placeholder="Additional notes…"
+                  placeholder={t("members_field_notes_placeholder")}
                 />
               </Field>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
               <Button
                 variant="primary"
                 loading={saving}
                 onClick={handleSave}
                 className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white"
               >
-                Save Member
+                {t("members_save")}
               </Button>
             </div>
           </div>

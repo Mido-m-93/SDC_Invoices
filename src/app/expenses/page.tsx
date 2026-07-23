@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { sendExpenseToMoneyForward } from "@/lib/api/client";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
@@ -60,6 +61,7 @@ export default function ExpensesPage() {
   const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
+  const [sendingToMF, setSendingToMF] = useState<string | null>(null);
 
   const statusLabel = (s: ExpenseStatus | "all") => t(`expenses_status_${s}` as TranslationKey);
   const categoryLabel = (c: ExpenseCategory) => t(`expenses_category_${c}` as TranslationKey);
@@ -174,6 +176,19 @@ export default function ExpensesPage() {
     if (!confirm(t("expenses_delete_confirm"))) return;
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function handleSendToMF(id: string) {
+    setSendingToMF(id);
+    setError(null);
+    try {
+      await sendExpenseToMoneyForward(id);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSendingToMF(null);
+    }
   }
 
   const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
@@ -349,6 +364,15 @@ export default function ExpensesPage() {
                     )}
                     {c.status !== "rejected" && c.status !== "paid" && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>{t("expenses_action_reject")}</Button>
+                    )}
+                    {(c.status === "approved" || c.status === "paid") && !c.mfBillingUrl && (
+                      <Button variant="ghost" size="sm" loading={sendingToMF === c.id} onClick={() => handleSendToMF(c.id)}>💴 {t("action_send_to_mf")}</Button>
+                    )}
+                    {c.mfBillingUrl && (
+                      <a href={c.mfBillingUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline whitespace-nowrap self-center" title={t("mf_sent")}>
+                        💴 {t("action_view_in_mf")}
+                      </a>
                     )}
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("expenses_action_delete")}</Button>
                   </td>

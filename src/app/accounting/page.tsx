@@ -10,6 +10,8 @@ import type {
   AccountingSummary,
 } from "@/types";
 import { generateId } from "@/lib/utils";
+import { useLanguage } from "@/translations";
+import type { TranslationKey } from "@/translations";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,7 @@ const EMPTY_FORM: Omit<AccountingEntry, "id" | "month" | "createdAt" | "updatedA
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AccountingPage() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>("journal");
 
   // Journal state
@@ -98,11 +101,11 @@ export default function AccountingPage() {
       setEntries(data.entries ?? []);
       setSummary(data.summary ?? null);
     } catch {
-      setError("Failed to load accounting entries");
+      setError(t("accounting_load_failed"));
     } finally {
       setLoading(false);
     }
-  }, [filterMonth, filterType, filterStatus]);
+  }, [filterMonth, filterType, filterStatus, t]);
 
   const loadPl = useCallback(async () => {
     setPlLoading(true);
@@ -111,11 +114,11 @@ export default function AccountingPage() {
       const data = await res.json() as ProfitAndLoss;
       setPl(data);
     } catch {
-      setError("Failed to load P&L data");
+      setError(t("accounting_pl_load_failed"));
     } finally {
       setPlLoading(false);
     }
-  }, [plMonth]);
+  }, [plMonth, t]);
 
   useEffect(() => {
     if (activeTab === "journal") loadEntries();
@@ -179,7 +182,7 @@ export default function AccountingPage() {
       setShowForm(false);
       loadEntries();
     } catch {
-      setError("Failed to save entry");
+      setError(t("accounting_save_failed"));
     } finally {
       setSaving(false);
     }
@@ -190,27 +193,27 @@ export default function AccountingPage() {
       await fetch(`/api/accounting/${id}/post`, { method: "POST" });
       loadEntries();
     } catch {
-      setError("Failed to post entry");
+      setError(t("accounting_post_failed"));
     }
   }
 
   async function handleVoid(id: string) {
-    if (!confirm("Void this entry? This cannot be undone.")) return;
+    if (!confirm(t("accounting_void_confirm"))) return;
     try {
       await fetch(`/api/accounting/${id}/void`, { method: "POST" });
       loadEntries();
     } catch {
-      setError("Failed to void entry");
+      setError(t("accounting_void_failed"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this entry?")) return;
+    if (!confirm(t("accounting_delete_confirm"))) return;
     try {
       await fetch(`/api/accounting/${id}`, { method: "DELETE" });
       loadEntries();
     } catch {
-      setError("Failed to delete entry");
+      setError(t("accounting_delete_failed"));
     }
   }
 
@@ -227,6 +230,10 @@ export default function AccountingPage() {
     });
   };
 
+  const typeLabel = (type: AccountingEntryType) => t(`accounting_type_${type}` as TranslationKey);
+  const statusLabel = (status: AccountingEntryStatus) => t(`accounting_status_${status}` as TranslationKey);
+  const sourceLabel = (source: string) => t(`accounting_source_${source}` as TranslationKey);
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -234,15 +241,15 @@ export default function AccountingPage() {
       {/* Page Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Accounting Ledger</h1>
-          <p className="mt-1 text-sm text-stone-500">Journal entries, revenue/expense tracking, P&amp;L</p>
+          <h1 className="text-2xl font-bold text-stone-900">{t("accounting_title")}</h1>
+          <p className="mt-1 text-sm text-stone-500">{t("accounting_subtitle")}</p>
         </div>
         {activeTab === "journal" && (
           <button
             onClick={openNew}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a3d2b] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#153325] focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/50 transition"
           >
-            + Add Entry
+            {t("accounting_add_entry")}
           </button>
         )}
       </div>
@@ -267,7 +274,7 @@ export default function AccountingPage() {
                 : "border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-300"
             }`}
           >
-            {tab === "journal" ? "Journal Entries" : "P&L"}
+            {tab === "journal" ? t("accounting_tab_journal") : t("accounting_tab_pl")}
           </button>
         ))}
       </div>
@@ -278,7 +285,7 @@ export default function AccountingPage() {
           {/* Filter bar */}
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="flex flex-col gap-0.5">
-              <label className="text-xs text-stone-500">Month</label>
+              <label className="text-xs text-stone-500">{t("accounting_filter_month")}</label>
               <input
                 type="month"
                 value={filterMonth}
@@ -287,29 +294,29 @@ export default function AccountingPage() {
               />
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-xs text-stone-500">Type</label>
+              <label className="text-xs text-stone-500">{t("accounting_filter_type")}</label>
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as AccountingEntryType | "all")}
                 className={inp}
               >
-                <option value="all">All Types</option>
-                {ENTRY_TYPES.map((t) => (
-                  <option key={t} value={t}>{capitalize(t)}</option>
+                <option value="all">{t("accounting_filter_all_types")}</option>
+                {ENTRY_TYPES.map((et) => (
+                  <option key={et} value={et}>{typeLabel(et)}</option>
                 ))}
               </select>
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-xs text-stone-500">Status</label>
+              <label className="text-xs text-stone-500">{t("accounting_filter_status")}</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as AccountingEntryStatus | "all")}
                 className={inp}
               >
-                <option value="all">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="posted">Posted</option>
-                <option value="voided">Voided</option>
+                <option value="all">{t("accounting_filter_all_statuses")}</option>
+                <option value="draft">{t("accounting_status_draft")}</option>
+                <option value="posted">{t("accounting_status_posted")}</option>
+                <option value="voided">{t("accounting_status_voided")}</option>
               </select>
             </div>
           </div>
@@ -317,23 +324,23 @@ export default function AccountingPage() {
           {/* Summary bar */}
           {summary && (
             <div className="mb-5 grid grid-cols-3 gap-4">
-              <SummaryCard label="Revenue" value={summary.revenue} currency={summary.currency} color="text-green-700" bg="bg-green-50 border-green-100" />
-              <SummaryCard label="Expenses" value={summary.expenses} currency={summary.currency} color="text-red-700" bg="bg-red-50 border-red-100" />
-              <SummaryCard label="Profit" value={summary.profit} currency={summary.currency} color={summary.profit >= 0 ? "text-green-700" : "text-red-700"} bg="bg-stone-50 border-stone-200" />
+              <SummaryCard label={t("accounting_summary_revenue")} value={summary.revenue} currency={summary.currency} color="text-green-700" bg="bg-green-50 border-green-100" />
+              <SummaryCard label={t("accounting_summary_expenses")} value={summary.expenses} currency={summary.currency} color="text-red-700" bg="bg-red-50 border-red-100" />
+              <SummaryCard label={t("accounting_summary_profit")} value={summary.profit} currency={summary.currency} color={summary.profit >= 0 ? "text-green-700" : "text-red-700"} bg="bg-stone-50 border-stone-200" />
             </div>
           )}
 
           {/* Table */}
           {loading ? (
-            <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
+            <p className="py-8 text-center text-sm text-stone-400">{t("loading")}</p>
           ) : entries.length === 0 ? (
             <div className="rounded-xl border border-stone-200 bg-white px-6 py-12 text-center">
-              <p className="text-sm text-stone-400">No entries found for the selected filters.</p>
+              <p className="text-sm text-stone-400">{t("accounting_empty_title")}</p>
               <button
                 onClick={openNew}
                 className="mt-4 inline-flex items-center rounded-lg bg-[#1a3d2b] px-4 py-2 text-sm font-medium text-white hover:bg-[#153325] transition"
               >
-                + Add Entry
+                {t("accounting_add_entry")}
               </button>
             </div>
           ) : (
@@ -342,15 +349,15 @@ export default function AccountingPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
                     <tr>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-left">Category</th>
-                      <th className="px-4 py-3 text-left">Description</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3 text-left">Currency</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Source</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_date")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_type")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_category")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_description")}</th>
+                      <th className="px-4 py-3 text-right">{t("accounting_col_amount")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_currency")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_status")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_source")}</th>
+                      <th className="px-4 py-3 text-left">{t("accounting_col_actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
@@ -359,12 +366,12 @@ export default function AccountingPage() {
                         <td className="px-4 py-3 text-stone-600">{entry.entryDate}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[entry.type]}`}>
-                            {capitalize(entry.type)}
+                            {typeLabel(entry.type)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-stone-600">{entry.category || "—"}</td>
+                        <td className="px-4 py-3 text-stone-600">{entry.category || t("none")}</td>
                         <td className="px-4 py-3 max-w-[220px] truncate text-stone-700" title={entry.description}>
-                          {entry.description || "—"}
+                          {entry.description || t("none")}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-stone-800">
                           {entry.amount.toLocaleString()}
@@ -372,23 +379,23 @@ export default function AccountingPage() {
                         <td className="px-4 py-3 text-stone-500">{entry.currency}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[entry.status]}`}>
-                            {capitalize(entry.status)}
+                            {statusLabel(entry.status)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-stone-500 text-xs">
-                          {entry.sourceType ? `${entry.sourceType}${entry.sourceId ? ` #${entry.sourceId}` : ""}` : "—"}
+                          {entry.sourceType ? `${entry.sourceType}${entry.sourceId ? ` #${entry.sourceId}` : ""}` : t("none")}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1 flex-wrap">
-                            <ActionBtn onClick={() => openEdit(entry)}>Edit</ActionBtn>
+                            <ActionBtn onClick={() => openEdit(entry)}>{t("accounting_action_edit")}</ActionBtn>
                             {entry.status === "draft" && (
-                              <ActionBtn onClick={() => handlePost(entry.id)}>Post</ActionBtn>
+                              <ActionBtn onClick={() => handlePost(entry.id)}>{t("accounting_action_post")}</ActionBtn>
                             )}
                             {(entry.status === "draft" || entry.status === "posted") && (
-                              <ActionBtn onClick={() => handleVoid(entry.id)} danger>Void</ActionBtn>
+                              <ActionBtn onClick={() => handleVoid(entry.id)} danger>{t("accounting_action_void")}</ActionBtn>
                             )}
                             {entry.status === "draft" && (
-                              <ActionBtn onClick={() => handleDelete(entry.id)} danger>Delete</ActionBtn>
+                              <ActionBtn onClick={() => handleDelete(entry.id)} danger>{t("accounting_action_delete")}</ActionBtn>
                             )}
                           </div>
                         </td>
@@ -408,7 +415,7 @@ export default function AccountingPage() {
           {/* Month selector */}
           <div className="mb-5 flex items-center gap-3">
             <div className="flex flex-col gap-0.5">
-              <label className="text-xs text-stone-500">Month</label>
+              <label className="text-xs text-stone-500">{t("accounting_filter_month")}</label>
               <input
                 type="month"
                 value={plMonth}
@@ -419,20 +426,20 @@ export default function AccountingPage() {
           </div>
 
           {plLoading ? (
-            <p className="py-8 text-center text-sm text-stone-400">Loading…</p>
+            <p className="py-8 text-center text-sm text-stone-400">{t("loading")}</p>
           ) : !pl ? (
             <div className="rounded-xl border border-stone-200 bg-white px-6 py-12 text-center">
-              <p className="text-sm text-stone-400">No P&amp;L data available for this month.</p>
+              <p className="text-sm text-stone-400">{t("accounting_pl_empty")}</p>
             </div>
           ) : (
             <>
               {/* Summary cards */}
               <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <PlCard label="Total Revenue" value={pl.totalRevenue} currency={pl.currency} color="text-green-700" bg="bg-green-50 border-green-100" />
-                <PlCard label="Total Expenses" value={pl.totalExpenses} currency={pl.currency} color="text-red-700" bg="bg-red-50 border-red-100" />
-                <PlCard label="Gross Profit" value={pl.grossProfit} currency={pl.currency} color={pl.grossProfit >= 0 ? "text-green-700" : "text-red-700"} bg="bg-stone-50 border-stone-200" />
+                <PlCard label={t("accounting_pl_total_revenue")} value={pl.totalRevenue} currency={pl.currency} color="text-green-700" bg="bg-green-50 border-green-100" />
+                <PlCard label={t("accounting_pl_total_expenses")} value={pl.totalExpenses} currency={pl.currency} color="text-red-700" bg="bg-red-50 border-red-100" />
+                <PlCard label={t("accounting_pl_gross_profit")} value={pl.grossProfit} currency={pl.currency} color={pl.grossProfit >= 0 ? "text-green-700" : "text-red-700"} bg="bg-stone-50 border-stone-200" />
                 <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-                  <p className="text-xs font-medium text-stone-500">Gross Margin %</p>
+                  <p className="text-xs font-medium text-stone-500">{t("accounting_pl_gross_margin_pct")}</p>
                   <p className={`mt-1 text-2xl font-bold ${pl.grossMarginPct >= 0 ? "text-green-700" : "text-red-700"}`}>
                     {pl.grossMarginPct.toFixed(1)}%
                   </p>
@@ -443,23 +450,23 @@ export default function AccountingPage() {
               {pl.byCategory.length > 0 && (
                 <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                   <div className="border-b border-stone-100 px-5 py-3">
-                    <h3 className="text-sm font-semibold text-stone-700">Category Breakdown</h3>
+                    <h3 className="text-sm font-semibold text-stone-700">{t("accounting_pl_category_breakdown")}</h3>
                   </div>
                   <table className="w-full text-sm">
                     <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
                       <tr>
-                        <th className="px-4 py-3 text-left">Category</th>
-                        <th className="px-4 py-3 text-left">Type</th>
-                        <th className="px-4 py-3 text-right">Total ({pl.currency})</th>
+                        <th className="px-4 py-3 text-left">{t("accounting_pl_col_category")}</th>
+                        <th className="px-4 py-3 text-left">{t("accounting_pl_col_type")}</th>
+                        <th className="px-4 py-3 text-right">{t("accounting_pl_col_total").replace("{currency}", pl.currency)}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {pl.byCategory.map((row, i) => (
                         <tr key={i} className="hover:bg-stone-50">
-                          <td className="px-4 py-3 text-stone-700">{row.category || "—"}</td>
+                          <td className="px-4 py-3 text-stone-700">{row.category || t("none")}</td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[row.type]}`}>
-                              {capitalize(row.type)}
+                              {typeLabel(row.type)}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-stone-800">
@@ -483,7 +490,7 @@ export default function AccountingPage() {
             {/* Modal header */}
             <div className="flex items-center justify-between border-b border-stone-100 px-6 py-4">
               <h2 className="text-base font-semibold text-stone-900">
-                {editing ? "Edit Journal Entry" : "New Journal Entry"}
+                {editing ? t("accounting_modal_edit_title") : t("accounting_modal_new_title")}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -497,7 +504,7 @@ export default function AccountingPage() {
             <div className="overflow-y-auto px-6 py-5">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Entry Date *">
+                  <Field label={t("accounting_field_entry_date")}>
                     <input
                       type="date"
                       className={inp}
@@ -505,52 +512,52 @@ export default function AccountingPage() {
                       onChange={(e) => setField("entryDate", e.target.value)}
                     />
                   </Field>
-                  <Field label="Type *">
+                  <Field label={t("accounting_field_type")}>
                     <select
                       className={inp}
                       value={form.type}
                       onChange={(e) => setField("type", e.target.value as AccountingEntryType)}
                     >
-                      {ENTRY_TYPES.map((t) => (
-                        <option key={t} value={t}>{capitalize(t)}</option>
+                      {ENTRY_TYPES.map((et) => (
+                        <option key={et} value={et}>{typeLabel(et)}</option>
                       ))}
                     </select>
                   </Field>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Category">
+                  <Field label={t("accounting_field_category")}>
                     <input
                       className={inp}
                       value={form.category}
                       onChange={(e) => setField("category", e.target.value)}
-                      placeholder="e.g. Consulting, SaaS, Payroll…"
+                      placeholder={t("accounting_field_category_placeholder")}
                     />
                   </Field>
-                  <Field label="Status">
+                  <Field label={t("accounting_field_status")}>
                     <select
                       className={inp}
                       value={form.status}
                       onChange={(e) => setField("status", e.target.value as AccountingEntryStatus)}
                     >
-                      <option value="draft">Draft</option>
-                      <option value="posted">Posted</option>
-                      <option value="voided">Voided</option>
+                      <option value="draft">{t("accounting_status_draft")}</option>
+                      <option value="posted">{t("accounting_status_posted")}</option>
+                      <option value="voided">{t("accounting_status_voided")}</option>
                     </select>
                   </Field>
                 </div>
 
-                <Field label="Description">
+                <Field label={t("accounting_field_description")}>
                   <textarea
                     className={`${inp} h-16 resize-none`}
                     value={form.description}
                     onChange={(e) => setField("description", e.target.value)}
-                    placeholder="Brief description of this entry…"
+                    placeholder={t("accounting_field_description_placeholder")}
                   />
                 </Field>
 
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Amount *">
+                  <Field label={t("accounting_field_amount")}>
                     <input
                       type="number"
                       className={inp}
@@ -560,7 +567,7 @@ export default function AccountingPage() {
                       step="0.01"
                     />
                   </Field>
-                  <Field label="Currency">
+                  <Field label={t("accounting_field_currency")}>
                     <select
                       className={inp}
                       value={form.currency}
@@ -571,7 +578,7 @@ export default function AccountingPage() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="Exchange Rate">
+                  <Field label={t("accounting_field_exchange_rate")}>
                     <input
                       type="number"
                       className={inp}
@@ -583,7 +590,7 @@ export default function AccountingPage() {
                   </Field>
                 </div>
 
-                <Field label="Amount (JPY) — auto-calculated">
+                <Field label={t("accounting_field_amount_jpy")}>
                   <input
                     type="number"
                     className={`${inp} bg-stone-50 text-stone-500`}
@@ -593,53 +600,53 @@ export default function AccountingPage() {
                 </Field>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Source Type">
+                  <Field label={t("accounting_field_source_type")}>
                     <select
                       className={inp}
                       value={form.sourceType}
                       onChange={(e) => setField("sourceType", e.target.value)}
                     >
-                      <option value="">— none —</option>
+                      <option value="">{t("accounting_field_source_type_none")}</option>
                       {SOURCE_TYPES.map((s) => (
-                        <option key={s} value={s}>{capitalize(s)}</option>
+                        <option key={s} value={s}>{sourceLabel(s)}</option>
                       ))}
                     </select>
                   </Field>
-                  <Field label="Source ID">
+                  <Field label={t("accounting_field_source_id")}>
                     <input
                       className={inp}
                       value={form.sourceId}
                       onChange={(e) => setField("sourceId", e.target.value)}
-                      placeholder="Reference ID"
+                      placeholder={t("accounting_field_source_id_placeholder")}
                     />
                   </Field>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Client ID">
+                  <Field label={t("accounting_field_client_id")}>
                     <input
                       className={inp}
                       value={form.clientId}
                       onChange={(e) => setField("clientId", e.target.value)}
-                      placeholder="Client reference"
+                      placeholder={t("accounting_field_client_id_placeholder")}
                     />
                   </Field>
-                  <Field label="Vendor ID">
+                  <Field label={t("accounting_field_vendor_id")}>
                     <input
                       className={inp}
                       value={form.vendorId}
                       onChange={(e) => setField("vendorId", e.target.value)}
-                      placeholder="Vendor reference"
+                      placeholder={t("accounting_field_vendor_id_placeholder")}
                     />
                   </Field>
                 </div>
 
-                <Field label="Notes">
+                <Field label={t("accounting_field_notes")}>
                   <textarea
                     className={`${inp} h-16 resize-none`}
                     value={form.notes}
                     onChange={(e) => setField("notes", e.target.value)}
-                    placeholder="Any additional notes…"
+                    placeholder={t("accounting_field_notes_placeholder")}
                   />
                 </Field>
               </div>
@@ -651,14 +658,14 @@ export default function AccountingPage() {
                 onClick={() => setShowForm(false)}
                 className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 transition"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
                 className="inline-flex items-center rounded-lg bg-[#1a3d2b] px-4 py-2 text-sm font-medium text-white hover:bg-[#153325] disabled:opacity-50 transition"
               >
-                {saving ? "Saving…" : "Save Entry"}
+                {saving ? t("accounting_saving") : t("accounting_save_entry")}
               </button>
             </div>
           </div>
@@ -753,7 +760,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inp =
   "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/30";
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

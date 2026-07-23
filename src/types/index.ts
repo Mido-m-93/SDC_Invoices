@@ -394,6 +394,10 @@ export interface ExpenseClaim {
   bankAccount?: string;
   createdAt: string;
   updatedAt: string;
+  // Money Forward integration
+  mfBillingId?: string;
+  mfBillingUrl?: string;
+  mfSentAt?: string;
 }
 
 export interface ExpenseValidationResult {

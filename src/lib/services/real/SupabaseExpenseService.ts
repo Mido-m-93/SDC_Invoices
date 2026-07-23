@@ -63,6 +63,9 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     bank_account: c.bankAccount,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
+    mf_billing_id: c.mfBillingId ?? null,
+    mf_billing_url: c.mfBillingUrl ?? null,
+    mf_sent_at: c.mfSentAt ?? null,
   };
 }
 
@@ -96,6 +99,9 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     bankAccount: (row.bank_account as string) ?? "",
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    mfBillingId: (row.mf_billing_id as string) || undefined,
+    mfBillingUrl: (row.mf_billing_url as string) || undefined,
+    mfSentAt: (row.mf_sent_at as string) || undefined,
   };
 }
 
