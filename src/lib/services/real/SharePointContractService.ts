@@ -358,11 +358,25 @@ export async function checkMemberBySharePointContracts(
     let rawListing = "";
     if (matchedItem.isFolder) {
       try {
-        const data = await graphGet<{ value?: Array<{ name: string }> }>(
-          `/sites/${matchedItem.siteId}/drive/items/${matchedItem.id}/children?$select=name`,
+        const data = await graphGet<{ value?: Array<{ id: string; name: string; folder?: object }> }>(
+          `/sites/${matchedItem.siteId}/drive/items/${matchedItem.id}/children?$select=id,name,folder`,
           token,
         );
-        rawListing = (data.value ?? []).map((i) => i.name).join(", ") || "(folder is empty)";
+        const level1 = data.value ?? [];
+        rawListing = level1.map((i) => i.name).join(", ") || "(folder is empty)";
+        const firstSub = level1.find((i) => i.folder);
+        if (firstSub) {
+          try {
+            const nested = await graphGet<{ value?: Array<{ name: string }> }>(
+              `/sites/${matchedItem.siteId}/drive/items/${firstSub.id}/children?$select=name`,
+              token,
+            );
+            const level2 = (nested.value ?? []).map((i) => i.name).join(", ") || "(empty)";
+            rawListing += ` || INSIDE "${firstSub.name}": [${level2}]`;
+          } catch (err) {
+            rawListing += ` || (failed to list "${firstSub.name}": ${String(err)})`;
+          }
+        }
       } catch (err) {
         rawListing = `(failed to list folder: ${String(err)})`;
       }
