@@ -185,6 +185,15 @@ async function runSync(): Promise<{
         const result = await fetchContractFields(displayName);
         if (result.fields) {
           await service.saveMember({ ...existingMember, ...result.fields, updatedAt: new Date().toISOString() });
+        } else {
+          // A member whose extraction fails stays eligible forever (contractStart
+          // stays null), permanently jamming the front of the queue for every run
+          // after it — since iteration order never changes, the same handful of
+          // failures get retried before anyone new gets a turn. Mark it "tried,
+          // gave up" with an empty string (distinct from "never attempted" null)
+          // so the rest of the list can make progress instead.
+          console.warn(`[members/sync] giving up on contract extraction for "${displayName}" — marking as attempted`);
+          await service.saveMember({ ...existingMember, contractStart: "", updatedAt: new Date().toISOString() });
         }
       }
       continue;
@@ -192,8 +201,10 @@ async function runSync(): Promise<{
 
     const now: string = new Date().toISOString();
     let fields: FetchContractFieldsResult["fields"] = null;
+    let attemptedExtraction = false;
     if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
       contractsBackfilled++;
+      attemptedExtraction = true;
       const result = await fetchContractFields(displayName);
       fields = result.fields;
     }
@@ -211,7 +222,9 @@ async function runSync(): Promise<{
       notes:        `Auto-synced from SharePoint (${item.name})`,
       createdAt:    now,
       updatedAt:    now,
-      ...fields,
+      // Mark a failed attempt with "" (not null) so it doesn't jam the retry
+      // queue on future runs the same way — see the existing-member branch above.
+      ...(fields ?? (attemptedExtraction ? { contractStart: "" } : {})),
     };
 
     await service.saveMember(newMember);
