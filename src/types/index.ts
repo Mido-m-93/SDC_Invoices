@@ -95,6 +95,7 @@ export interface InvoiceValidationResult {
   vendorMatched?: boolean;
   contractMatched?: boolean;
   contractId?: string;
+  contractEndDate?: string | null;   // registered contract's end date, for expiry flagging on Stage 4
   contractVerification?: ConsistencyVerdict;   // AI check: this invoice vs. its matched contract
   // Audit trail
   validatedBy?: string;
@@ -473,6 +474,7 @@ export interface OutboundInvoice {
   billingDate?: string;
   driveFileId?: string;
   driveFileUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
 }
 
 export interface OutboundInvoiceSummary {

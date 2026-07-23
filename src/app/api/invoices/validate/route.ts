@@ -8,6 +8,7 @@ import { matchSubmissionToMember } from "@/lib/services/ai/matchingService";
 import { enrichWithRisk } from "@/lib/services/riskEnrichment";
 import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import { extractFromPdf } from "@/lib/services/ai/pdfExtractor";
+import { verifyConsistency } from "@/lib/services/ai/consistencyVerifier";
 
 // ── Local member name matching (mirrors SharePointContractService token logic) ──
 function normName(s: string) { return s.toLowerCase().replace(/\s+/g, ""); }
@@ -399,7 +400,20 @@ export async function POST(req: NextRequest) {
           contractMatched:        !!info?.contractedAmount,
           riskLevel:              "OK",
           reviewerRecommendation: parts.join(" | "),
+          contractEndDate:        info?.contractEnd ?? null,
         };
+
+        // AI checkpoint: Invoice ↔ Contract — does this invoice actually match the
+        // contracted terms (amount/scope), not just the contractor's identity?
+        if (info?.contractedAmount || info?.scope) {
+          try {
+            contractorFields.contractVerification = await verifyConsistency(
+              "invoice", r.extractedFields, "contract", info,
+            );
+          } catch (err) {
+            console.warn(`[validate] Invoice↔Contract verification failed for ${targets[i].id}, skipping:`, err);
+          }
+        }
       }
 
       // Drive check: payerName was an email with no PDF name fallback

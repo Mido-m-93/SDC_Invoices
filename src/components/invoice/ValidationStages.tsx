@@ -179,15 +179,21 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
   })();
 
   // ── Stage 4: SharePoint contractor check ──────────────────────────────────
+  const contractExpired = !!v.contractEndDate && new Date(v.contractEndDate) < new Date();
+
   const stage4Status: StageStatus =
-    v.vendorMatched ? "pass" :
-    "warn";
+    !v.vendorMatched ? "warn" :
+    contractExpired  ? "warn" :
+    "pass";
 
   const stage4Detail =
     v.vendorMatched
-      ? (v.reviewerRecommendation
-          ? `${t("stage4_registered")} ${translateRecommendation(v.reviewerRecommendation, language)}`
-          : t("stage4_found"))
+      ? [
+          v.reviewerRecommendation
+            ? `${t("stage4_registered")} ${translateRecommendation(v.reviewerRecommendation, language)}`
+            : t("stage4_found"),
+          contractExpired ? t("stage4_contract_expired").replace("{date}", v.contractEndDate!) : "",
+        ].filter(Boolean).join("\n")
       : t("stage4_not_found");
 
   return (
