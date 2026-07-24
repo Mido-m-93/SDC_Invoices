@@ -173,6 +173,7 @@ const ja = {
   pipeline_sync_run_sharepoint: "SharePoint同期を実行",
   pipeline_sync_mock_mode_label: "モックモード",
   pipeline_sync_mock_mode_text: "データソースは仮のフィクスチャーであり、承認するとモックストレージにのみ書き込まれます。実際のNotion/SharePoint接続や本番データにはまだ影響しません。",
+  pipeline_sync_last_run_label: "前回の同期:",
   pipeline_sync_status_auto_linked: "自動リンク済み",
   pipeline_sync_status_needs_review: "要確認",
   pipeline_sync_status_approved: "承認済み",
