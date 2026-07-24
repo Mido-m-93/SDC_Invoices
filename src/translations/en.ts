@@ -173,6 +173,7 @@ const en = {
   pipeline_sync_run_sharepoint: "Run SharePoint Sync",
   pipeline_sync_mock_mode_label: "Mock mode",
   pipeline_sync_mock_mode_text: "sources are fixture data, and approving writes to mock storage only. No real Notion/SharePoint connection or production data is touched yet.",
+  pipeline_sync_last_run_label: "Last sync:",
   pipeline_sync_status_auto_linked: "Auto-linked",
   pipeline_sync_status_needs_review: "Needs Review",
   pipeline_sync_status_approved: "Approved",

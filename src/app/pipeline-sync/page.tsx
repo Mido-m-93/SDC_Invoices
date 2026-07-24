@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import { useLanguage } from "@/translations";
-import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client } from "@/types";
+import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry } from "@/types";
 
 const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
   auto_linked: "bg-emerald-50 text-emerald-700",
@@ -33,6 +33,7 @@ export default function PipelineSyncPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
+  const [syncDetail, setSyncDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +59,7 @@ export default function PipelineSyncPage() {
   async function runSync(source: PipelineSourceType) {
     setSyncing(source);
     setError(null);
+    setSyncDetail(null);
     try {
       const res = await fetch("/api/pipeline-sync", {
         method: "POST",
@@ -67,10 +69,24 @@ export default function PipelineSyncPage() {
       const data = (await res.json()) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number };
       if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_sync_failed")); return; }
       await load();
+      await loadLastExtractDetail(source);
     } catch {
       setError(t("pipeline_sync_error_sync_failed"));
     } finally {
       setSyncing(null);
+    }
+  }
+
+  async function loadLastExtractDetail(source: PipelineSourceType) {
+    try {
+      const res = await fetch("/api/pipeline-sync/audit");
+      const data = (await res.json()) as { entries?: PipelineSyncAuditEntry[] };
+      const last = (data.entries ?? [])
+        .filter((e) => e.action === "extract" && e.source === source)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+      setSyncDetail(last ? last.detail : null);
+    } catch {
+      // best-effort diagnostic only — don't surface a fetch error here
     }
   }
 
@@ -149,6 +165,15 @@ export default function PipelineSyncPage() {
         <div className="mb-4 flex justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">×</button>
+        </div>
+      )}
+
+      {syncDetail && (
+        <div className="mb-4 flex justify-between gap-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800">
+          <span>
+            <strong>{t("pipeline_sync_last_run_label")}</strong> {syncDetail}
+          </span>
+          <button onClick={() => setSyncDetail(null)} className="shrink-0 text-sky-400 hover:text-sky-600">×</button>
         </div>
       )}
 
