@@ -35,14 +35,17 @@ export default function ContractsPage() {
   const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
+  const [showSyncDetails, setShowSyncDetails] = useState(false);
 
   async function handleSync() {
     setSyncing(true);
     setSyncMsg(null);
+    setSyncDetails(null);
     setError(null);
     try {
       const res = await fetch("/api/contracts/sync", { method: "POST" });
-      const data = await res.json() as { matched?: number; updated?: number; skipped?: number; total?: number; error?: string };
+      const data = await res.json() as { matched?: number; updated?: number; skipped?: number; total?: number; error?: string; details?: typeof syncDetails };
       if (!res.ok) {
         setError(data.error ?? t("contracts_sync_failed"));
         return;
@@ -51,6 +54,7 @@ export default function ContractsPage() {
         .replace("{updated}", String(data.updated ?? 0))
         .replace("{matched}", String(data.matched ?? 0))
         .replace("{total}", String(data.total ?? 0)));
+      setSyncDetails(data.details ?? []);
       load();
     } catch {
       setError(t("contracts_sync_failed"));
@@ -182,9 +186,46 @@ export default function ContractsPage() {
       />
 
       {syncMsg && (
-        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
-          {syncMsg}
-          <button onClick={() => setSyncMsg(null)} className="text-emerald-400 hover:text-emerald-600">×</button>
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700">
+          <div className="flex justify-between items-center">
+            <span>{syncMsg}</span>
+            <div className="flex items-center gap-3">
+              {syncDetails && syncDetails.length > 0 && (
+                <button onClick={() => setShowSyncDetails(v => !v)} className="text-xs underline text-emerald-700 hover:text-emerald-900">
+                  {showSyncDetails ? t("contracts_sync_hide_files") : t("contracts_sync_show_files")}
+                </button>
+              )}
+              <button onClick={() => { setSyncMsg(null); setSyncDetails(null); }} className="text-emerald-400 hover:text-emerald-600">×</button>
+            </div>
+          </div>
+          {showSyncDetails && syncDetails && (
+            <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-emerald-200 bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-emerald-50 text-emerald-700 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-2 text-left">{t("contracts_sync_col_folder")}</th>
+                    <th className="px-3 py-2 text-left">{t("contracts_sync_col_file")}</th>
+                    <th className="px-3 py-2 text-left">{t("contracts_sync_col_result")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 text-stone-600">
+                  {syncDetails.map((d, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5">{d.folder}</td>
+                      <td className="px-3 py-1.5">{d.file}</td>
+                      <td className="px-3 py-1.5">
+                        {d.updated
+                          ? <span className="text-emerald-600">{t("contracts_sync_updated")}</span>
+                          : d.matchedContractId
+                          ? <span className="text-amber-600">{t("contracts_sync_matched_no_update")}</span>
+                          : <span className="text-stone-400">{d.reason ?? "—"}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
