@@ -32,10 +32,10 @@ import {
   saveStagedPipelineRecord,
   appendPipelineAuditEntry,
   loadPipelineAuditLog,
-} from "@/lib/services/mock/fileStore";
+} from "@/lib/services/pipelineSyncStore";
 
-function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): void {
-  appendPipelineAuditEntry({
+async function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): Promise<void> {
+  await appendPipelineAuditEntry({
     id: generateId("padt"),
     timestamp: new Date().toISOString(),
     ...entry,
@@ -46,7 +46,7 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
   if (source === "notion") {
     const rawText = getMockNotionRawText();
     const items = await extractPipelineRecordsFromText(rawText);
-    audit({
+    await audit({
       actor: "system",
       action: "extract",
       recordId: null,
@@ -59,7 +59,7 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
   // back to fixture data otherwise (e.g. local dev without Graph credentials).
   const hasAzureCreds = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
   if (!hasAzureCreds) {
-    audit({
+    await audit({
       actor: "system",
       action: "extract",
       recordId: null,
@@ -70,7 +70,7 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
   }
 
   const { items, scan } = await fetchRealSharePointPipelineItems();
-  audit({
+  await audit({
     actor: "system",
     action: "extract",
     recordId: null,
@@ -99,7 +99,7 @@ export async function runPipelineSync(
   let needsReview = 0;
   const now = new Date().toISOString();
 
-  items.forEach((item, index) => {
+  for (const [index, item] of items.entries()) {
     const candidates = rankClientCandidates(item.rawClientName, clients);
     const top = candidates[0];
     const status: PipelineRecordStatus =
@@ -130,9 +130,9 @@ export async function runPipelineSync(
       createdAt: now,
       updatedAt: now,
     };
-    saveStagedPipelineRecord(record);
+    await saveStagedPipelineRecord(record);
 
-    audit({
+    await audit({
       actor: "system",
       action: "match",
       recordId: record.id,
@@ -141,9 +141,9 @@ export async function runPipelineSync(
         ? `Matched "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
         : `No candidate match for "${item.rawClientName}" → needs_review`,
     });
-  });
+  }
 
-  audit({
+  await audit({
     actor: actorName,
     action: "sync",
     recordId: null,
@@ -158,7 +158,7 @@ export async function listStagedRecords(filters?: {
   status?: PipelineRecordStatus;
   source?: PipelineSourceType;
 }): Promise<StagedPipelineRecord[]> {
-  let all = loadStagedPipelineRecords();
+  let all = await loadStagedPipelineRecords();
   if (filters?.status) all = all.filter((r) => r.status === filters.status);
   if (filters?.source) all = all.filter((r) => r.source === filters.source);
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -184,7 +184,7 @@ export async function approveStagedRecord(
   actorName: string,
   overrideClientId?: string
 ): Promise<StagedPipelineRecord> {
-  const record = loadStagedPipelineRecords().find((r) => r.id === id);
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
   if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
   if (record.status === "approved" || record.status === "rejected") {
     throw new Error(`Record "${id}" already ${record.status}`);
@@ -221,7 +221,7 @@ export async function approveStagedRecord(
       updatedAt: now,
     };
     await clientService.saveClient(client);
-    audit({
+    await audit({
       actor: actorName,
       action: "approve",
       recordId: record.id,
@@ -235,7 +235,7 @@ export async function approveStagedRecord(
     if (!knownNames.has(record.rawClientName)) {
       client = { ...client, aliases: [...(client.aliases ?? []), record.rawClientName], updatedAt: now };
       await clientService.saveClient(client);
-      audit({
+      await audit({
         actor: actorName,
         action: "approve",
         recordId: record.id,
@@ -275,9 +275,9 @@ export async function approveStagedRecord(
     createdLeadId: lead.id,
     updatedAt: now,
   };
-  saveStagedPipelineRecord(updated);
+  await saveStagedPipelineRecord(updated);
 
-  audit({
+  await audit({
     actor: actorName,
     action: "approve",
     recordId: record.id,
@@ -293,7 +293,7 @@ export async function rejectStagedRecord(
   actorName: string,
   reason: string
 ): Promise<StagedPipelineRecord> {
-  const record = loadStagedPipelineRecords().find((r) => r.id === id);
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
   if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
 
   const updated: StagedPipelineRecord = {
@@ -302,9 +302,9 @@ export async function rejectStagedRecord(
     reviewerComment: reason,
     updatedAt: new Date().toISOString(),
   };
-  saveStagedPipelineRecord(updated);
+  await saveStagedPipelineRecord(updated);
 
-  audit({
+  await audit({
     actor: actorName,
     action: "reject",
     recordId: record.id,
@@ -316,5 +316,6 @@ export async function rejectStagedRecord(
 }
 
 export async function getAuditLog(recordId?: string): Promise<PipelineSyncAuditEntry[]> {
-  return loadPipelineAuditLog(recordId).sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  const all = await loadPipelineAuditLog(recordId);
+  return all.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
 }
