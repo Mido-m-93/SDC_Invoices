@@ -5,7 +5,8 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
-import type { Proposal, Client } from "@/types";
+import VerificationBadge from "@/components/ui/VerificationBadge";
+import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 
@@ -29,7 +30,7 @@ const STATUS_COLORS: Record<Proposal["status"], string> = {
 type ProposalForm = Omit<Proposal, "id" | "createdAt">;
 
 const EMPTY: ProposalForm = {
-  clientId: "", clientName: "", projectName: "", proposalDate: "",
+  clientId: "", clientName: "", leadId: "", projectName: "", proposalDate: "",
   estimatedAmount: 0, currency: "JPY", description: "",
   status: "draft", contractId: "", folderUrl: "",
 };
@@ -39,6 +40,7 @@ export default function ProposalsPage() {
   const statusLabel = (s: Proposal["status"]) => t(`proposals_status_${s}` as TranslationKey);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Proposal | null>(null);
@@ -47,18 +49,32 @@ export default function ProposalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [acceptedResult, setAcceptedResult] = useState<AcceptedResult | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
+
+  async function handleVerify(p: Proposal) {
+    setVerifying(p.id);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}/verify`, { method: "POST" });
+      if (res.ok) load();
+    } finally {
+      setVerifying(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, cRes] = await Promise.all([
+      const [pRes, cRes, lRes] = await Promise.all([
         fetch("/api/proposals"),
         fetch("/api/clients"),
+        fetch("/api/leads"),
       ]);
       const pData = await pRes.json() as { proposals: Proposal[] };
       const cData = await cRes.json() as { clients: Client[] };
+      const lData = await lRes.json() as { leads: Lead[] };
       setProposals(pData.proposals ?? []);
       setClients(cData.clients ?? []);
+      setLeads(lData.leads ?? []);
     } catch {
       setError(t("proposals_error_load_failed"));
     } finally {
@@ -81,7 +97,7 @@ export default function ProposalsPage() {
   function openEdit(p: Proposal) {
     setEditing(p);
     setForm({
-      clientId: p.clientId, clientName: p.clientName ?? "",
+      clientId: p.clientId, clientName: p.clientName ?? "", leadId: p.leadId ?? "",
       projectName: p.projectName, proposalDate: p.proposalDate,
       estimatedAmount: p.estimatedAmount, currency: p.currency,
       description: p.description, status: p.status,
@@ -119,13 +135,27 @@ export default function ProposalsPage() {
     load();
   }
 
-  async function handleAccept(p: Proposal) {
-    if (!confirm(t("proposals_confirm_accept").replace("{project}", p.projectName))) return;
+  async function handleAccept(p: Proposal, override = false) {
+    if (!override && !confirm(t("proposals_confirm_accept").replace("{project}", p.projectName))) return;
     setAccepting(p.id);
     try {
-      const res = await fetch(`/api/proposals/${p.id}/accept`, { method: "POST" });
-      const data = await res.json() as { success: boolean; proposal: Proposal; contract: { id: string; projectName: string }; leadsAdvanced: number; error?: string };
-      if (!res.ok) { setError(t("proposals_error_accept_failed").replace("{error}", data.error ?? t("proposals_error_unknown"))); return; }
+      const res = await fetch(`/api/proposals/${p.id}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ override }),
+      });
+      const data = await res.json() as { success: boolean; proposal: Proposal; contract: { id: string; projectName: string }; leadsAdvanced: number; error?: string; discrepancies?: string[]; requiresOverride?: boolean };
+      if (!res.ok) {
+        if (data.requiresOverride) {
+          const list = (data.discrepancies ?? []).map(d => `• ${d}`).join("\n");
+          if (confirm(`${t("proposals_verification_mismatch")}\n\n${list}\n\n${t("proposals_verification_override_confirm")}`)) {
+            await handleAccept(p, true);
+          }
+          return;
+        }
+        setError(t("proposals_error_accept_failed").replace("{error}", data.error ?? t("proposals_error_unknown")));
+        return;
+      }
       const client = clients.find(c => c.id === p.clientId);
       setAcceptedResult({
         proposal: data.proposal,
@@ -211,6 +241,7 @@ export default function ProposalsPage() {
                 <th className="px-4 py-3 text-left">{t("proposals_col_date")}</th>
                 <th className="px-4 py-3 text-right">{t("proposals_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("proposals_col_verification")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_contract")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_folder")}</th>
                 <th className="px-4 py-3" />
@@ -231,6 +262,15 @@ export default function ProposalsPage() {
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[p.status]}`}>
                       {statusLabel(p.status)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <VerificationBadge
+                      verification={p.verification}
+                      onVerify={() => handleVerify(p)}
+                      verifying={verifying === p.id}
+                      verifyLabel={t("proposals_action_verify")}
+                      reverifyLabel={t("proposals_action_reverify")}
+                    />
                   </td>
                   <td className="px-4 py-3 text-stone-400 font-mono text-xs">{p.contractId || "—"}</td>
                   <td className="px-4 py-3">
@@ -333,6 +373,21 @@ export default function ProposalsPage() {
                   onClientCreated={(c) => setClients(cs => [...cs, c])}
                   className={input}
                 />
+              </Field>
+              <Field label={t("proposals_field_lead")}>
+                <select
+                  className={input}
+                  value={form.leadId ?? ""}
+                  disabled={!!editing}
+                  onChange={e => set("leadId", e.target.value)}
+                >
+                  <option value="">{t("proposals_field_lead_placeholder")}</option>
+                  {leads
+                    .filter(l => !form.clientId || l.clientId === form.clientId)
+                    .map(l => (
+                      <option key={l.id} value={l.id}>{l.title} — {l.clientName}</option>
+                    ))}
+                </select>
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label={t("proposals_field_date")}>

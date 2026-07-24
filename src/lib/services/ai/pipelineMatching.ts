@@ -30,7 +30,9 @@ function normalizeExact(name: string): string {
 
 // Jaccard similarity over normalized token sets, plus a bonus for exact
 // substring containment (handles "Acme" vs "Acme Japan K.K.").
-function similarity(a: string, b: string): number {
+// Exported so other name-matching call sites (e.g. contract sync) share this
+// scorer instead of hand-rolling their own fuzzy matcher.
+export function similarity(a: string, b: string): number {
   const tokensA = new Set(normalizeTokens(a));
   const tokensB = new Set(normalizeTokens(b));
   if (tokensA.size === 0 || tokensB.size === 0) return 0;
