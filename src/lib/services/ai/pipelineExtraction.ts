@@ -2,12 +2,12 @@
 // lib/services/ai/pipelineExtraction.ts — pipeline record extraction
 //
 // Turns freeform text (a Notion page body) into structured pipeline items.
-// Uses Claude (ANTHROPIC_API_KEY is already configured in this project),
-// same JSON-extraction pattern as SupabaseExpenseService's receipt extraction.
+// Uses OpenAI (OPENAI_API_KEY is already configured in this project), same
+// JSON-extraction pattern as contractExtractor.ts's docx path.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 export interface ExtractedPipelineItem {
   rawClientName: string;
@@ -20,9 +20,9 @@ export interface ExtractedPipelineItem {
   notes: string | null;
 }
 
-let _client: Anthropic | undefined;
-function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _client: OpenAI | undefined;
+function getClient(): OpenAI {
+  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return _client;
 }
 
@@ -49,12 +49,12 @@ export async function extractPipelineRecordsFromText(
   rawText: string
 ): Promise<ExtractedPipelineItem[]> {
   if (!rawText.trim()) return [];
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not set — required for pipeline extraction");
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set — required for pipeline extraction");
   }
 
-  const response = await getClient().messages.create({
-    model: "claude-haiku-4-5",
+  const response = await getClient().chat.completions.create({
+    model: "gpt-4o",
     max_tokens: 2048,
     messages: [
       {
@@ -85,7 +85,7 @@ Rules:
     ],
   });
 
-  const text = (response.content[0] as { type: string; text?: string }).text?.trim() ?? "[]";
+  const text = response.choices[0]?.message?.content?.trim() ?? "[]";
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return [];
 
@@ -96,7 +96,7 @@ Rules:
       .map(coerceItem)
       .filter((item): item is ExtractedPipelineItem => item !== null);
   } catch (err) {
-    console.warn("[pipelineExtraction] Failed to parse Claude response:", err);
+    console.warn("[pipelineExtraction] Failed to parse GPT response:", err);
     return [];
   }
 }
