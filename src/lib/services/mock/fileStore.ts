@@ -3,6 +3,7 @@
 // Survives Next.js hot module replacement because it writes to disk.
 
 import fs from "fs";
+import os from "os";
 import path from "path";
 import type {
   InvoiceSubmission,
@@ -23,7 +24,11 @@ import type {
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
-const STORE_PATH = path.join(process.cwd(), "tmp-invoice-store.json");
+// process.cwd() is read-only on Vercel's deployed functions (only /tmp is
+// writable there), so writeStore() would throw on every call and the mock
+// store would never actually persist. os.tmpdir() resolves to /tmp on
+// Vercel and to the system temp dir locally, so it works in both places.
+const STORE_PATH = path.join(os.tmpdir(), "tmp-invoice-store.json");
 
 interface MockStore {
   submissions: InvoiceSubmission[];
