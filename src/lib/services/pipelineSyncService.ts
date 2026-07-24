@@ -45,7 +45,10 @@ async function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): P
 async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipelineItem[]> {
   if (source === "notion") {
     const rawText = getMockNotionRawText();
-    const items = await extractPipelineRecordsFromText(rawText);
+    const items = await extractPipelineRecordsFromText(rawText).catch((err) => {
+      console.warn("[pipelineSyncService] Notion extraction failed:", err);
+      return [];
+    });
     await audit({
       actor: "system",
       action: "extract",

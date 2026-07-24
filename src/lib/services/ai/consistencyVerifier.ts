@@ -5,16 +5,16 @@
 // Contract↔Proposal, Invoice↔Contract): given two records that are supposed
 // to describe the same deal, flag anything that doesn't line up (amount,
 // client, dates, scope) instead of assuming the later stage always matches
-// the earlier one. Same Claude JSON-extraction pattern as pipelineExtraction.ts.
+// the earlier one. Same GPT JSON-extraction pattern as pipelineExtraction.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { ConsistencyVerdict } from "@/types";
 
-let _client: Anthropic | undefined;
-function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _client: OpenAI | undefined;
+function getClient(): OpenAI {
+  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return _client;
 }
 
@@ -32,12 +32,12 @@ export async function verifyConsistency(
 ): Promise<ConsistencyVerdict> {
   const checkedAt = new Date().toISOString();
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not set — required for consistency verification");
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set — required for consistency verification");
   }
 
-  const response = await getClient().messages.create({
-    model: "claude-haiku-4-5",
+  const response = await getClient().chat.completions.create({
+    model: "gpt-4o",
     max_tokens: 1024,
     messages: [
       {
@@ -60,7 +60,7 @@ Return ONLY valid JSON, no markdown, no explanation, in exactly this shape:
     ],
   });
 
-  const text = (response.content[0] as { type: string; text?: string }).text?.trim() ?? "{}";
+  const text = response.choices[0]?.message?.content?.trim() ?? "{}";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     return { consistent: true, discrepancies: [], confidence: 0, checkedAt };
@@ -75,7 +75,7 @@ Return ONLY valid JSON, no markdown, no explanation, in exactly this shape:
       checkedAt,
     };
   } catch (err) {
-    console.warn("[consistencyVerifier] Failed to parse Claude response:", err);
+    console.warn("[consistencyVerifier] Failed to parse GPT response:", err);
     return { consistent: true, discrepancies: [], confidence: 0, checkedAt };
   }
 }
