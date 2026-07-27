@@ -120,30 +120,26 @@ export class MoneyForwardService {
     payload: MFSendPayload
   ): Promise<MFSendResult> {
     const body = {
-      partner_id:   partnerId,
       title:        payload.title,
       billing_date: payload.billingDate,
       due_date:     payload.dueDate ?? null,
       memo:         payload.memo ?? "",
-      currency:     payload.currency ?? "JPY",
-      billing_items_attributes: [
+      items: [
         {
-          name:       payload.title,
-          quantity:   1,
-          unit_price: payload.amount,
-          tax_type:   "inclusive",
+          name:     payload.title,
+          quantity: 1,
+          price:    payload.amount,
+          excise:   "untaxable",
         },
       ],
     };
 
-    const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/received_invoices`, body);
-    console.log("[MF] POST /received_invoices response:", JSON.stringify(res).slice(0, 400));
+    const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/invoice_template_billings`, body);
+    console.log("[MF] POST /invoice_template_billings response:", JSON.stringify(res).slice(0, 400));
 
-    const record = (res.data ?? res) as { id?: string; pdf_url?: string; web_url?: string };
+    const record = res as { id?: string; pdf_url?: string; web_url?: string };
     const id  = String(record.id ?? "");
-    const url = record.web_url
-      ?? record.pdf_url
-      ?? `https://invoice.moneyforward.com/received_invoices/${id}`;
+    const url = (record.pdf_url ?? `https://invoice.moneyforward.com/billings/${id}`);
 
     return { billingId: id, billingUrl: url, partnerId };
   }
