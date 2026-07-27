@@ -31,17 +31,18 @@ export async function GET(req: NextRequest) {
     let dbError = "";
     try {
       const db = getSupabaseClient();
-      const { error, count } = await db.from("app_config").upsert({
-        id: "main",
-        mf_access_token:  tokens.accessToken,
-        mf_refresh_token: tokens.refreshToken,
-      }, { onConflict: "id", count: "exact" });
-      if (error) throw error;
+      const { error, count } = await db
+        .from("app_config")
+        .update({ mf_access_token: tokens.accessToken, mf_refresh_token: tokens.refreshToken })
+        .eq("id", "main")
+        .select("id");
+      const errMsg = error ? JSON.stringify(error) : null;
+      if (errMsg) throw new Error(errMsg);
       savedToDb = true;
-      console.log("[MF callback] Tokens saved to Supabase, rows affected:", count);
+      console.log("[MF callback] Tokens saved, rows:", count);
     } catch (dbErr) {
-      dbError = String(dbErr);
-      console.error("[MF callback] Failed to save tokens to Supabase:", dbErr);
+      dbError = dbErr instanceof Error ? dbErr.message : JSON.stringify(dbErr);
+      console.error("[MF callback] Failed to save tokens:", dbError);
     }
 
     return new NextResponse(
