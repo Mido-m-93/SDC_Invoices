@@ -43,11 +43,11 @@ export class MoneyForwardService {
     if (this.tokensLoaded) return;
     try {
       const db = getSupabaseClient();
-      const { data, error } = await db.rpc("get_mf_tokens");
+      const { data, error } = await db.storage.from("mf-config").download("tokens.json");
       if (!error && data) {
-        const row = data as { mf_access_token?: string; mf_refresh_token?: string };
-        this.accessToken  = row.mf_access_token  || process.env.MF_ACCESS_TOKEN  || "";
-        this.refreshToken = row.mf_refresh_token || process.env.MF_REFRESH_TOKEN || "";
+        const tokens = JSON.parse(await data.text()) as { access?: string; refresh?: string };
+        this.accessToken  = tokens.access  || process.env.MF_ACCESS_TOKEN  || "";
+        this.refreshToken = tokens.refresh || process.env.MF_REFRESH_TOKEN || "";
       } else {
         this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
         this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
@@ -65,9 +65,13 @@ export class MoneyForwardService {
   private async persistTokens(): Promise<void> {
     try {
       const db = getSupabaseClient();
-      await db.rpc("set_mf_tokens", { p_access: this.accessToken, p_refresh: this.refreshToken });
+      const payload = JSON.stringify({ access: this.accessToken, refresh: this.refreshToken });
+      await db.storage.from("mf-config").upload("tokens.json", payload, {
+        upsert: true,
+        contentType: "application/json",
+      });
     } catch (err) {
-      console.warn("[MoneyForwardService] Could not persist tokens to Supabase:", err);
+      console.warn("[MoneyForwardService] Could not persist tokens:", err);
     }
   }
 

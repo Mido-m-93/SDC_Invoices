@@ -7,17 +7,17 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const db = getSupabaseClient();
-    const { data, error } = await db.rpc("get_mf_tokens");
+    const { data, error } = await db.storage.from("mf-config").download("tokens.json");
 
     if (error) {
-      return NextResponse.json({ error: JSON.stringify(error) }, { status: 500 });
+      return NextResponse.json({ storageError: JSON.stringify(error), env_MF_ACCESS_TOKEN: process.env.MF_ACCESS_TOKEN ? "set" : "EMPTY" }, { status: 200 });
     }
 
-    const row = data as { mf_access_token?: string; mf_refresh_token?: string } | null;
+    const tokens = JSON.parse(await data.text()) as { access?: string; refresh?: string };
     return NextResponse.json({
-      rpcOk: true,
-      mf_access_token:  row?.mf_access_token  ? `set (${row.mf_access_token.length} chars)` : "EMPTY",
-      mf_refresh_token: row?.mf_refresh_token ? `set (${row.mf_refresh_token.length} chars)` : "EMPTY",
+      storageOk: true,
+      access_token:  tokens.access  ? `set (${tokens.access.length} chars)` : "EMPTY",
+      refresh_token: tokens.refresh ? `set (${tokens.refresh.length} chars)` : "EMPTY",
       env_MF_ACCESS_TOKEN: process.env.MF_ACCESS_TOKEN ? `set (${process.env.MF_ACCESS_TOKEN.length} chars)` : "EMPTY",
     });
   } catch (err) {

@@ -31,13 +31,14 @@ export async function GET(req: NextRequest) {
     let dbError = "";
     try {
       const db = getSupabaseClient();
-      const { error } = await db.rpc("set_mf_tokens", {
-        p_access:  tokens.accessToken,
-        p_refresh: tokens.refreshToken,
+      const payload = JSON.stringify({ access: tokens.accessToken, refresh: tokens.refreshToken });
+      const { error } = await db.storage.from("mf-config").upload("tokens.json", payload, {
+        upsert: true,
+        contentType: "application/json",
       });
       if (error) throw new Error(JSON.stringify(error));
       savedToDb = true;
-      console.log("[MF callback] Tokens saved via rpc");
+      console.log("[MF callback] Tokens saved to Storage");
     } catch (dbErr) {
       dbError = dbErr instanceof Error ? dbErr.message : JSON.stringify(dbErr);
       console.error("[MF callback] Failed to save tokens:", dbError);
