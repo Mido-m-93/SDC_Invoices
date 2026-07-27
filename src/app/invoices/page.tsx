@@ -52,6 +52,27 @@ export default function InvoicesPage() {
   const [clearing, setClearing] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [sendingToMF, setSendingToMF] = useState(false);
+
+  async function handleSendToMF(item: InvoiceListItem) {
+    if (!item.validation) return;
+    setSendingToMF(true);
+    try {
+      const res = await fetch("/api/invoices/send-to-mf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submission: item.submission, validation: item.validation }),
+      });
+      const data = await res.json() as { success?: boolean; billingUrl?: string; error?: string; reason?: string };
+      if (!res.ok) throw new Error(data.reason ?? data.error ?? `HTTP ${res.status}`);
+      setSavedMsg(`✓ Sent to MoneyForward${data.billingUrl ? " — " + data.billingUrl : ""}`);
+      await loadInvoices();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSendingToMF(false);
+    }
+  }
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -598,6 +619,8 @@ export default function InvoicesPage() {
         <InvoiceDetailPanel
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
+          onSendToMF={handleSendToMF}
+          sendingToMF={sendingToMF}
         />
       )}
 
