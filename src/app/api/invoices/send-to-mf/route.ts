@@ -55,10 +55,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const partnerName = (submission.payerName || submission.externalProjectName || submission.internalDepartment || "Unknown").trim() || "Unknown";
     const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
     const mfService = new MoneyForwardService();
     const result    = await mfService.sendInvoice({
-      partnerName: submission.payerName,
+      partnerName,
       title:       buildTitle(submission),
       billingDate,
       amount,
