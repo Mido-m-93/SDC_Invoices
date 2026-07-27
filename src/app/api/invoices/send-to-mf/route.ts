@@ -92,18 +92,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (err) {
     const message = String(err);
+    console.error("[POST /api/invoices/send-to-mf]", err);
 
-    if (message.includes("MF_ACCESS_TOKEN not set") || message.includes("401")) {
+    if (message.includes("MF_ACCESS_TOKEN not set")) {
       return NextResponse.json(
-        {
-          error: "Money Forward not connected",
-          action: "Visit /api/auth/moneyforward to authorize the app",
-        },
+        { error: "Money Forward not connected — no token found", detail: message },
         { status: 401 }
       );
     }
 
-    console.error("[POST /api/invoices/send-to-mf]", err);
     return NextResponse.json(
       { error: "Failed to send to Money Forward", detail: message },
       { status: 500 }
