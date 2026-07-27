@@ -30,14 +30,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Block only invoices that have never been validated
-  if (!validation.statusCode) {
-    return NextResponse.json(
-      { error: "Cannot send to Money Forward", reason: "Invoice has not been validated yet." },
-      { status: 422 }
-    );
-  }
-
   try {
     // Parse billing date from closingMonth (YYYY-MM â†’ YYYY-MM-01 as fallback)
     const billingDate = parseBillingDate(submission.closingMonth);
