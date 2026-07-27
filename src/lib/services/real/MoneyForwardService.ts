@@ -95,28 +95,22 @@ export class MoneyForwardService {
   // ── Partner (取引先) management ─────────────────────────────────────────────
 
   private async findOrCreatePartner(name: string): Promise<string> {
-    // Search by name
-    const list = await this.apiFetch<{ partners: Array<{ id: string; name: string }> }>(
+    const list = await this.apiFetch<{ data: Array<{ id: string; name: string }> }>(
       `GET`,
       `/partners?name=${encodeURIComponent(name)}`
     );
-    console.log("[MF] GET /partners response:", JSON.stringify(list).slice(0, 300));
 
-    const match = list.partners?.find(
+    const match = list.data?.find(
       (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase()
     );
     if (match) return match.id;
 
-    // Create new partner — try both wrapper formats
-    const postBody = { partner: { name } };
-    console.log("[MF] POST /partners body:", JSON.stringify(postBody));
-    const created = await this.apiFetch<{ partner: { id: string } }>(
+    const created = await this.apiFetch<{ id: string }>(
       `POST`,
       `/partners`,
-      postBody
+      { name }
     );
-    console.log("[MF] POST /partners response:", JSON.stringify(created).slice(0, 300));
-    return created.partner.id;
+    return created.id;
   }
 
   // ── Billing (受取請求書) creation ───────────────────────────────────────────
@@ -126,31 +120,29 @@ export class MoneyForwardService {
     payload: MFSendPayload
   ): Promise<MFSendResult> {
     const body = {
-      billing: {
-        partner_id:    partnerId,
-        title:         payload.title,
-        billing_date:  payload.billingDate,
-        due_date:      payload.dueDate ?? null,
-        memo:          payload.memo ?? "",
-        currency: payload.currency ?? "JPY",
-        items: [
-          {
-            name:       payload.title,
-            quantity:   1,
-            unit_price: payload.amount,
-            tax_type:   "inclusive",
-          },
-        ],
-      },
+      partner_id:   partnerId,
+      title:        payload.title,
+      billing_date: payload.billingDate,
+      due_date:     payload.dueDate ?? null,
+      memo:         payload.memo ?? "",
+      currency:     payload.currency ?? "JPY",
+      billing_items_attributes: [
+        {
+          name:       payload.title,
+          quantity:   1,
+          unit_price: payload.amount,
+          tax_type:   "inclusive",
+        },
+      ],
     };
 
-    const res = await this.apiFetch<{
-      billing: { id: string; pdf_url?: string; web_url?: string };
-    }>(`POST`, `/billings`, body);
+    const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/billings`, body);
+    console.log("[MF] POST /billings response:", JSON.stringify(res).slice(0, 400));
 
-    const id  = res.billing.id;
-    const url = res.billing.web_url
-      ?? res.billing.pdf_url
+    const record = (res.data ?? res) as { id?: string; pdf_url?: string; web_url?: string };
+    const id  = String(record.id ?? "");
+    const url = record.web_url
+      ?? record.pdf_url
       ?? `https://invoice.moneyforward.com/billings/${id}`;
 
     return { billingId: id, billingUrl: url, partnerId };
