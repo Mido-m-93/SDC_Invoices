@@ -100,18 +100,22 @@ export class MoneyForwardService {
       `GET`,
       `/partners?name=${encodeURIComponent(name)}`
     );
+    console.log("[MF] GET /partners response:", JSON.stringify(list).slice(0, 300));
 
     const match = list.partners?.find(
       (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase()
     );
     if (match) return match.id;
 
-    // Create new partner
+    // Create new partner — try both wrapper formats
+    const postBody = { partner: { name } };
+    console.log("[MF] POST /partners body:", JSON.stringify(postBody));
     const created = await this.apiFetch<{ partner: { id: string } }>(
       `POST`,
       `/partners`,
-      { partner: { name } }
+      postBody
     );
+    console.log("[MF] POST /partners response:", JSON.stringify(created).slice(0, 300));
     return created.partner.id;
   }
 
