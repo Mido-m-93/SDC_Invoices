@@ -30,15 +30,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Only send validated invoices
-  const canSend =
-    validation.statusCode === "READY" || validation.humanApproved === true;
-  if (!canSend) {
+  // Block only invoices that have never been validated
+  if (!validation.statusCode) {
     return NextResponse.json(
-      {
-        error: "Cannot send to Money Forward",
-        reason: `Status is ${validation.statusCode}. Only READY or human-approved invoices can be sent.`,
-      },
+      { error: "Cannot send to Money Forward", reason: "Invoice has not been validated yet." },
       { status: 422 }
     );
   }
