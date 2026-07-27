@@ -116,8 +116,21 @@ export class MoneyForwardService {
   // ── Billing (受取請求書) creation ───────────────────────────────────────────
 
   private async getDefaultDepartmentId(): Promise<string> {
-    const res = await this.apiFetch<{ data: Array<{ id: string }> }>(`GET`, `/departments`);
-    const id = res.data?.[0]?.id;
+    // Try flat departments first, then nested under office
+    try {
+      const res = await this.apiFetch<{ data: Array<{ id: string }> }>(`GET`, `/departments`);
+      const id = res.data?.[0]?.id;
+      if (id) return id;
+    } catch { /* try office-nested path */ }
+
+    const offices = await this.apiFetch<{ data: Array<{ id: string }> }>(`GET`, `/offices`);
+    console.log("[MF] GET /offices response:", JSON.stringify(offices).slice(0, 300));
+    const officeId = offices.data?.[0]?.id;
+    if (!officeId) throw new Error("[MoneyForwardService] No office found in MF account");
+
+    const depts = await this.apiFetch<{ data: Array<{ id: string }> }>(`GET`, `/offices/${officeId}/departments`);
+    console.log("[MF] GET /offices/{id}/departments response:", JSON.stringify(depts).slice(0, 300));
+    const id = depts.data?.[0]?.id;
     if (!id) throw new Error("[MoneyForwardService] No departments found in MF account");
     return id;
   }
