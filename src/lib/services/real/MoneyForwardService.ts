@@ -1,22 +1,5 @@
 import "server-only";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MoneyForwardService.ts — Money Forward Cloud Invoice (クラウド請求書) integration
-//
-// Required env vars:
-//   MF_CLIENT_ID          OAuth2 client ID from MF developer portal
-//   MF_CLIENT_SECRET      OAuth2 client secret
-//   MF_ACCESS_TOKEN       Bearer token (obtained via /api/auth/moneyforward)
-//   MF_REFRESH_TOKEN      Refresh token (obtained via /api/auth/moneyforward)
-//   MF_REDIRECT_URI       Must match what's registered in MF developer portal
-//                         (e.g. http://localhost:3000/api/auth/moneyforward/callback)
-//
-// OAuth flow:
-//   1. GET /api/auth/moneyforward         → redirects to MF authorization page
-//   2. MF redirects to callback with code
-//   3. GET /api/auth/moneyforward/callback → exchanges code for tokens
-//   4. Copy MF_ACCESS_TOKEN + MF_REFRESH_TOKEN into .env.local and restart
-// ─────────────────────────────────────────────────────────────────────────────
+import { getSupabaseClient } from "@/lib/supabase";
 
 const MF_API_BASE = "https://invoice.moneyforward.com/api/v3";
 const MF_AUTHORIZE_URL = "https://api.biz.moneyforward.com/authorize";
@@ -41,25 +24,52 @@ export interface MFSendResult {
 }
 
 export class MoneyForwardService {
-  private accessToken: string;
-  private readonly refreshToken: string;
+  private accessToken: string = "";
+  private refreshToken: string = "";
   private readonly clientId: string;
   private readonly clientSecret: string;
+  private tokensLoaded = false;
 
   constructor() {
-    const accessToken = process.env.MF_ACCESS_TOKEN;
-    const refreshToken = process.env.MF_REFRESH_TOKEN;
-    const clientId = process.env.MF_CLIENT_ID;
+    const clientId     = process.env.MF_CLIENT_ID;
     const clientSecret = process.env.MF_CLIENT_SECRET;
-
-    if (!accessToken) throw new Error("[MoneyForwardService] MF_ACCESS_TOKEN not set. Complete the OAuth flow at /api/auth/moneyforward");
     if (!clientId)     throw new Error("[MoneyForwardService] MF_CLIENT_ID not set");
     if (!clientSecret) throw new Error("[MoneyForwardService] MF_CLIENT_SECRET not set");
-
-    this.accessToken  = accessToken;
-    this.refreshToken = refreshToken ?? "";
     this.clientId     = clientId;
     this.clientSecret = clientSecret;
+  }
+
+  private async ensureTokens(): Promise<void> {
+    if (this.tokensLoaded) return;
+    try {
+      const db = getSupabaseClient();
+      const { data } = await db
+        .from("app_config")
+        .select("mf_access_token, mf_refresh_token")
+        .eq("id", "main")
+        .single();
+      this.accessToken  = (data as Record<string, string> | null)?.mf_access_token  || process.env.MF_ACCESS_TOKEN  || "";
+      this.refreshToken = (data as Record<string, string> | null)?.mf_refresh_token || process.env.MF_REFRESH_TOKEN || "";
+    } catch {
+      this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
+      this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
+    }
+    this.tokensLoaded = true;
+    if (!this.accessToken) {
+      throw new Error("[MoneyForwardService] MF_ACCESS_TOKEN not set. Complete the OAuth flow at /api/auth/moneyforward");
+    }
+  }
+
+  private async persistTokens(): Promise<void> {
+    try {
+      const db = getSupabaseClient();
+      await db.from("app_config").update({
+        mf_access_token:  this.accessToken,
+        mf_refresh_token: this.refreshToken,
+      }).eq("id", "main");
+    } catch (err) {
+      console.warn("[MoneyForwardService] Could not persist tokens to Supabase:", err);
+    }
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -137,6 +147,7 @@ export class MoneyForwardService {
     path: string,
     body?: unknown
   ): Promise<T> {
+    await this.ensureTokens();
     const url = `${MF_API_BASE}${path}`;
 
     const init: RequestInit = {
@@ -186,8 +197,10 @@ export class MoneyForwardService {
         }),
       });
       if (!res.ok) return false;
-      const data = await res.json() as { access_token: string };
+      const data = await res.json() as { access_token: string; refresh_token?: string };
       this.accessToken = data.access_token;
+      if (data.refresh_token) this.refreshToken = data.refresh_token;
+      await this.persistTokens();
       return true;
     } catch {
       return false;

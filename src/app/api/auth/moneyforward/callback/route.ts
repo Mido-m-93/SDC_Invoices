@@ -1,7 +1,7 @@
-
-// GET /api/auth/moneyforward/callback â€” exchange authorization code for tokens
+// GET /api/auth/moneyforward/callback - exchange authorization code for tokens
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeMFCode } from "@/lib/services/real/MoneyForwardService";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +26,27 @@ export async function GET(req: NextRequest) {
   try {
     const tokens = await exchangeMFCode(code);
 
+    // Persist tokens to Supabase so they survive serverless restarts
+    let savedToDb = false;
+    try {
+      const db = getSupabaseClient();
+      await db.from("app_config").update({
+        mf_access_token:  tokens.accessToken,
+        mf_refresh_token: tokens.refreshToken,
+      }).eq("id", "main");
+      savedToDb = true;
+    } catch (dbErr) {
+      console.error("[MF callback] Failed to save tokens to Supabase:", dbErr);
+    }
+
     return new NextResponse(
       html(`
-        <h2>Money Forward connected!</h2>
-        <p>Copy these values into your <code>.env.local</code> and restart the dev server.</p>
-        <table>
+        <h2>Money Forward connected! &check;</h2>
+        <p>${savedToDb
+          ? "Tokens saved to Supabase automatically &mdash; no manual step needed."
+          : "&#9888; Could not save to Supabase. Copy these values into your <code>.env.local</code> manually."
+        }</p>
+        ${!savedToDb ? `<table>
           <tr>
             <td><code>MF_ACCESS_TOKEN</code></td>
             <td><textarea rows="2" style="width:600px">${tokens.accessToken}</textarea></td>
@@ -39,8 +55,8 @@ export async function GET(req: NextRequest) {
             <td><code>MF_REFRESH_TOKEN</code></td>
             <td><textarea rows="2" style="width:600px">${tokens.refreshToken}</textarea></td>
           </tr>
-        </table>
-        <p style="color:#888">Access token expires in ${Math.round(tokens.expiresIn / 60)} minutes. The app will try to refresh it automatically using MF_REFRESH_TOKEN.</p>
+        </table>` : ""}
+        <p style="color:#888">Access token expires in ${Math.round(tokens.expiresIn / 60)} minutes. The app refreshes it automatically.</p>
       `),
       { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
