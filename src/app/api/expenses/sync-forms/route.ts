@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +33,20 @@ type ExpenseField =
   | "description" | "bankAccount";
 
 const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
-  { keywords: ["Start time", "開始時刻"],           field: "submittedAt" },
-  { keywords: ["Email"],                            field: "submittedByEmail" },
-  { keywords: ["金額", "Amount"],                   field: "amount" },
-  { keywords: ["日付", "Date"],                     field: "expenseDate" },
-  { keywords: ["領収書", "Receipt"],                 field: "receiptUrl" },
-  { keywords: ["備考", "Notes", "Route"],            field: "description" },
-  { keywords: ["銀行口座", "Bank Account", "振込先"], field: "bankAccount" },
-  { keywords: ["お名前", "名前", "氏名", "Name"],   field: "submittedBy" },
+  { keywords: ["Start time", "開始時刻"],                                                           field: "submittedAt" },
+  { keywords: ["Email"],                                                                            field: "submittedByEmail" },
+  { keywords: ["金額", "Amount", "費用", "請求金額", "経費金額", "経費額", "合計"],                 field: "amount" },
+  { keywords: ["日付", "Date", "支出日", "購入日", "経費発生日"],                                    field: "expenseDate" },
+  { keywords: ["領収書", "Receipt", "添付", "ファイル", "upload", "attachment", "file", "請求書"], field: "receiptUrl" },
+  {
+    keywords: [
+      "備考", "Notes", "Route", "目的", "用途", "内容", "支出内容", "経費内容", "経費の目的",
+      "使途", "詳細", "Detail", "reason", "purpose", "description", "memo", "メモ", "コメント",
+    ],
+    field: "description",
+  },
+  { keywords: ["銀行口座", "Bank Account", "振込先", "口座", "bank"],                              field: "bankAccount" },
+  { keywords: ["お名前", "名前", "氏名", "Name", "氏名・名前"],                                    field: "submittedBy" },
 ];
 
 function buildFieldMap(headers: string[]): Map<string, ExpenseField> {
@@ -102,6 +109,17 @@ function inferCategory(description: string): ExpenseCategory {
   return "other";
 }
 
+function extractFilename(url: string): string {
+  if (!url) return "";
+  try {
+    const pathname = new URL(url).pathname;
+    const last = decodeURIComponent(pathname.split("/").filter(Boolean).pop() ?? "");
+    return last || (url.split("/").pop()?.split("?")[0] ?? "receipt");
+  } catch {
+    return url.split("/").pop()?.split("?")[0] ?? "receipt";
+  }
+}
+
 // ── Row mapper ────────────────────────────────────────────────────────────────
 function mapRow(
   row: Record<string, unknown>,
@@ -141,7 +159,7 @@ function mapRow(
     currency:           "JPY",
     paymentMethod:      "personal_reimbursement",
     receiptUrl:         receiptRaw,
-    receiptFilename:    receiptRaw ? `receipt_row${rowIndex + 2}` : "",
+    receiptFilename:    extractFilename(receiptRaw),
     projectName:        "",
     internalDepartment: "",
     expenseDate:        serialToDate(get("expenseDate")),
@@ -155,6 +173,7 @@ function mapRow(
     extractedAmount:    null,
     extractedDate:      null,
     extractedVendor:    null,
+    extractedPurpose:   null,
     policyViolations:   violations,
     bankAccount:        get("bankAccount"),
     createdAt:          now,
@@ -367,12 +386,26 @@ export async function POST(_req: NextRequest) {
       );
     }
 
+    // Filter out permanently blocked IDs before saving
+    const db = getSupabaseClient();
+    const allIds = claims.map((c) => c.id);
+    let blockedSet = new Set<string>();
+    if (allIds.length > 0) {
+      const { data: blocked } = await db
+        .from("expense_sync_blocklist")
+        .select("id")
+        .in("id", allIds);
+      blockedSet = new Set((blocked ?? []).map((r: { id: string }) => r.id));
+    }
+    const toSave = claims.filter((c) => !blockedSet.has(c.id));
+
     const svc = getExpenseService();
-    await Promise.all(claims.map((c) => svc.saveClaim(c)));
+    await Promise.all(toSave.map((c) => svc.saveClaim(c)));
 
     const skipped = rows.length - claims.length;
-    console.log(`[expenses/sync-forms] rows=${rows.length} parsed=${claims.length} skipped=${skipped}`);
-    return NextResponse.json({ count: claims.length, synced: claims.length, totalRows: rows.length, skipped });
+    const blockedCount = claims.length - toSave.length;
+    console.log(`[expenses/sync-forms] rows=${rows.length} parsed=${claims.length} blocked=${blockedCount} saved=${toSave.length} skipped=${skipped}`);
+    return NextResponse.json({ count: toSave.length, synced: toSave.length, totalRows: rows.length, skipped: skipped + blockedCount });
   } catch (err) {
     console.error("[POST /api/expenses/sync-forms]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

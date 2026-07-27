@@ -407,71 +407,11 @@ async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<Extrac
   };
 }
 
-// ── Contract field extraction ─────────────────────────────────────────────────
-// Dedicated prompt for member service contracts (業務委託契約) rather than invoices.
-
-export interface ExtractedContractFields {
-  memberName: string | null;
-  contractedAmount: number | null;
-  contractStart: string | null;
-  contractEnd: string | null;
-  paymentTerms: string | null;
-  scope: string | null;
-}
-
-export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
-  const rawText = await extractTextFromPdf(pdfBytes);
-
-  const Groq = (await import("groq-sdk")).default;
-  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-  const response = await client.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    max_tokens: 512,
-    messages: [
-      {
-        role: "user",
-        content: `Extract service contract fields from the text below and return ONLY valid JSON — no markdown, no explanation.
-
-${rawText.slice(0, 8000)}
-
-Return exactly this JSON:
-{
-  "memberName": "contractor / service provider name, or null",
-  "contractedAmount": number or null,
-  "contractStart": "YYYY-MM-DD or null",
-  "contractEnd": "YYYY-MM-DD or null",
-  "paymentTerms": "e.g. monthly / per project / one-time, or null",
-  "scope": "brief work scope description, max 100 chars, or null"
-}
-
-Rules:
-- contractedAmount is the agreed payment / fee amount (look for 報酬, 委託料, fee, amount, 金額)
-- contractedAmount must be a plain number with no currency symbols or commas
-- Dates must be YYYY-MM-DD
-- Return null for any field you cannot find with confidence`,
-      },
-    ],
-  });
-
-  const text = response.choices[0]?.message?.content ?? "{}";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
-  } catch {
-    return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null };
-  }
-
-  return {
-    memberName:       typeof parsed.memberName === "string" ? parsed.memberName : null,
-    contractedAmount: parseNumericField(parsed.contractedAmount),
-    contractStart:    typeof parsed.contractStart === "string" ? parsed.contractStart : null,
-    contractEnd:      typeof parsed.contractEnd === "string" ? parsed.contractEnd : null,
-    paymentTerms:     typeof parsed.paymentTerms === "string" ? parsed.paymentTerms : null,
-    scope:            typeof parsed.scope === "string" ? parsed.scope : null,
-  };
-}
+// Contract field extraction (ExtractedContractFields / extractContractFields)
+// now lives in ./contractExtractor.ts — deliberately NOT in this file, since
+// importing anything from here (even functions that never call
+// extractTextFromPdf) can crash on pdfjs-dist's module-load-time
+// "DOMMatrix is not defined" failure in this serverless runtime.
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 // Priority: Google Document AI → OpenAI GPT-4o → Groq (text-only fallback)

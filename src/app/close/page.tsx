@@ -3,17 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import clsx from "clsx";
+import { useLanguage, type TranslationKey } from "@/translations";
 import type { MonthlyChecklistItem, BankSyncStatus, ChecklistItemStatus } from "@/types";
 
 const CATEGORIES = ["invoices", "expenses", "outbound", "bank", "tax", "payroll", "reporting"];
-const CATEGORY_LABELS: Record<string, string> = {
-  invoices:  "Inbound Invoices",
-  expenses:  "Expense Claims",
-  outbound:  "Outbound Invoices",
-  bank:      "Bank Sync",
-  tax:       "Tax",
-  payroll:   "Payroll",
-  reporting: "Reporting",
+const CATEGORY_LABEL_KEYS: Record<string, TranslationKey> = {
+  invoices:  "close_category_invoices",
+  expenses:  "expenses_title",
+  outbound:  "nav_outbound_invoices",
+  bank:      "close_category_bank",
+  tax:       "close_category_tax",
+  payroll:   "close_category_payroll",
+  reporting: "close_category_reporting",
 };
 
 const STATUS_ICON: Record<ChecklistItemStatus, string> = {
@@ -43,6 +44,7 @@ function monthOptions(): string[] {
 }
 
 export default function ClosePage() {
+  const { t } = useLanguage();
   const months = monthOptions();
   const [month, setMonth]         = useState(months[0]);
   const [checklist, setChecklist] = useState<MonthlyChecklistItem[]>([]);
@@ -109,8 +111,8 @@ export default function ClosePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-stone-900">Monthly Close</h1>
-            <p className="mt-1 text-sm text-stone-500">Phase 10 — Bank sync monitoring + close checklist</p>
+            <h1 className="text-2xl font-bold text-stone-900">{t("nav_close_checklist")}</h1>
+            <p className="mt-1 text-sm text-stone-500">{t("close_subtitle")}</p>
           </div>
           <select
             value={month}
@@ -134,13 +136,13 @@ export default function ClosePage() {
               {bankSync.status === "ok" ? "✓" : bankSync.status === "error" ? "✗" : "!"}
             </div>
             <div>
-              <p className="font-medium text-stone-800 text-sm">Money Forward Bank Sync</p>
+              <p className="font-medium text-stone-800 text-sm">{t("close_bank_sync_label")}</p>
               <p className={clsx("text-xs mt-0.5", BANK_SYNC_COLOR[bankSync.status])}>{bankSync.message}</p>
               {bankSync.lastSyncAt && (
-                <p className="text-xs text-stone-400 mt-1">Last sync: {bankSync.lastSyncAt.slice(0, 10)}</p>
+                <p className="text-xs text-stone-400 mt-1">{t("close_last_sync").replace("{date}", bankSync.lastSyncAt.slice(0, 10))}</p>
               )}
               {(bankSync.unresolvedCount ?? 0) > 0 && (
-                <p className="text-xs text-red-600 mt-1">{bankSync.unresolvedCount} unresolved items</p>
+                <p className="text-xs text-red-600 mt-1">{t("close_unresolved_items").replace("{count}", String(bankSync.unresolvedCount))}</p>
               )}
             </div>
           </div>
@@ -149,7 +151,7 @@ export default function ClosePage() {
         {/* Progress */}
         <div className="rounded-xl border border-stone-100 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-stone-700">Close Progress</p>
+            <p className="text-sm font-medium text-stone-700">{t("close_progress_label")}</p>
             <p className="text-sm font-bold text-stone-900">{completedCount} / {totalCount} ({progress}%)</p>
           </div>
           <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
@@ -159,20 +161,20 @@ export default function ClosePage() {
             />
           </div>
           {progress === 100 && (
-            <p className="mt-2 text-xs text-green-600 font-medium">Month close complete ✓</p>
+            <p className="mt-2 text-xs text-green-600 font-medium">{t("close_complete_label")}</p>
           )}
         </div>
 
         {/* Checklist by category */}
         {loading ? (
-          <p className="text-sm text-stone-400 py-8 text-center">Loading checklist…</p>
+          <p className="text-sm text-stone-400 py-8 text-center">{t("loading")}</p>
         ) : (
           <div className="space-y-4">
             {byCategory.map(({ cat, items }) => (
               <div key={cat} className="rounded-xl border border-stone-100 bg-white shadow-sm overflow-hidden">
                 <div className="px-4 py-3 bg-stone-50 border-b border-stone-100">
                   <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                    {CATEGORY_LABELS[cat] ?? cat}
+                    {CATEGORY_LABEL_KEYS[cat] ? t(CATEGORY_LABEL_KEYS[cat]) : cat}
                   </p>
                 </div>
                 <ul className="divide-y divide-stone-50">
@@ -188,7 +190,7 @@ export default function ClosePage() {
                           item.status === "blocked" ? "border-red-400 bg-red-50 text-red-500" :
                           "border-stone-300 text-stone-300 hover:border-[#1a3d2b]",
                         )}
-                        title={`Status: ${item.status} — click to cycle`}
+                        title={t("close_status_tooltip").replace("{status}", item.status)}
                       >
                         {saving === item.id ? "…" : STATUS_ICON[item.status]}
                       </button>
@@ -198,7 +200,7 @@ export default function ClosePage() {
                         </p>
                         {item.completedBy && item.status === "done" && (
                           <p className="text-xs text-stone-400 mt-0.5">
-                            Completed by {item.completedBy}
+                            {t("close_completed_by").replace("{name}", item.completedBy)}
                             {item.completedAt ? ` · ${item.completedAt.slice(0, 10)}` : ""}
                           </p>
                         )}
@@ -209,19 +211,19 @@ export default function ClosePage() {
                               value={noteValue}
                               onChange={(e) => setNoteValue(e.target.value)}
                               className="flex-1 rounded border border-stone-200 px-2 py-1 text-xs text-stone-700"
-                              placeholder="Add note…"
+                              placeholder={t("close_note_placeholder")}
                             />
-                            <button onClick={() => { void saveNote(item); }} className="text-xs text-[#1a3d2b] font-medium">Save</button>
-                            <button onClick={() => setNoteEditing(null)} className="text-xs text-stone-400">Cancel</button>
+                            <button onClick={() => { void saveNote(item); }} className="text-xs text-[#1a3d2b] font-medium">{t("close_save_button")}</button>
+                            <button onClick={() => setNoteEditing(null)} className="text-xs text-stone-400">{t("cancel")}</button>
                           </div>
                         ) : item.notes ? (
                           <p className="text-xs text-stone-500 mt-0.5 italic">
                             {item.notes}
-                            <button onClick={() => { setNoteEditing(item.id); setNoteValue(item.notes ?? ""); }} className="ml-2 text-stone-400 not-italic hover:text-stone-600">Edit</button>
+                            <button onClick={() => { setNoteEditing(item.id); setNoteValue(item.notes ?? ""); }} className="ml-2 text-stone-400 not-italic hover:text-stone-600">{t("close_edit_button")}</button>
                           </p>
                         ) : (
                           <button onClick={() => { setNoteEditing(item.id); setNoteValue(""); }} className="text-xs text-stone-300 hover:text-stone-500 mt-0.5">
-                            + note
+                            {t("close_add_note_button")}
                           </button>
                         )}
                       </div>

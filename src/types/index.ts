@@ -95,6 +95,8 @@ export interface InvoiceValidationResult {
   vendorMatched?: boolean;
   contractMatched?: boolean;
   contractId?: string;
+  contractEndDate?: string | null;   // registered contract's end date, for expiry flagging on Stage 4
+  contractVerification?: ConsistencyVerdict;   // AI check: this invoice vs. its matched contract
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
@@ -203,11 +205,20 @@ export interface Vendor {
   createdAt: string;
 }
 
+// ── AI consistency verification ───────────────────────────────────────────────
+export interface ConsistencyVerdict {
+  consistent: boolean;
+  discrepancies: string[];   // empty if consistent
+  confidence: number;        // 0-1
+  checkedAt: string;
+}
+
 // ── Proposal ─────────────────────────────────────────────────────────────────
 export interface Proposal {
   id: string;
   clientId: string;       // proposal sent TO a client (was vendorId)
   clientName?: string;    // display name resolved from Client record
+  leadId?: string;        // pipeline lead this proposal was raised from
   projectName: string;
   proposalDate: string;
   estimatedAmount: number;
@@ -216,6 +227,7 @@ export interface Proposal {
   status: "draft" | "submitted" | "accepted" | "rejected" | "expired";
   contractId?: string;
   folderUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
   createdAt: string;
 }
 
@@ -234,6 +246,7 @@ export interface Contract {
   status: "active" | "expired" | "cancelled";
   proposalId?: string;
   contractFolderUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
   createdAt: string;
 }
 
@@ -389,10 +402,15 @@ export interface ExpenseClaim {
   extractedAmount: number | null;
   extractedDate: string | null;
   extractedVendor: string | null;
+  extractedPurpose?: string | null;
   policyViolations: string[];
   bankAccount?: string;
   createdAt: string;
   updatedAt: string;
+  // Money Forward integration
+  mfBillingId?: string;
+  mfBillingUrl?: string;
+  mfSentAt?: string;
 }
 
 export interface ExpenseValidationResult {
@@ -411,6 +429,7 @@ export interface ExpenseValidationResult {
   extractedPurpose: string | null;
   memberMatched: boolean;
   contractFileName: string | null;
+  receiptFetchError?: string;
 }
 
 // ── Phase 9: Outbound invoice support ─────────────────────────────────────────
@@ -455,6 +474,7 @@ export interface OutboundInvoice {
   billingDate?: string;
   driveFileId?: string;
   driveFileUrl?: string;
+  verification?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
 }
 
 export interface OutboundInvoiceSummary {
@@ -578,6 +598,16 @@ export interface Member {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  // Contract fields — extracted once from the SharePoint contract PDF during
+  // /api/members/sync, so invoice validation can read them without a live
+  // PDF fetch + AI extraction on every single validate call.
+  contractStart?: string | null;
+  contractEnd?: string | null;
+  contractedAmount?: number | null;
+  contractScope?: string | null;
+  // Set whenever a contract-extraction attempt is made (success or failure) so a
+  // member whose PDF can't be read doesn't get retried on every single sync run.
+  contractSyncAttemptedAt?: string | null;
 }
 
 // ── Phase 11: Accounting Layer ────────────────────────────────────────────────

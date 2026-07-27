@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import type { Client } from "@/types";
+import { useLanguage } from "@/translations";
 
 interface ClientPickerProps {
   clients: Client[];
@@ -23,12 +24,14 @@ export default function ClientPicker({
   onChange,
   onClientCreated,
   className,
-  placeholder = "Search or type a new client name…",
+  placeholder,
   createEndpoint = "/api/clients",
 }: ClientPickerProps) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const resolvedPlaceholder = placeholder ?? t("client_picker_placeholder");
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -68,7 +71,7 @@ export default function ClientPicker({
     <div ref={containerRef} className="relative">
       <input
         className={className}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         value={clientName}
         onChange={(e) => {
           onChange("", e.target.value);
@@ -77,8 +80,8 @@ export default function ClientPicker({
         onFocus={() => setOpen(true)}
       />
       {clientId && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-600" title="Linked to a client record">
-          ✓ linked
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-600" title={t("client_picker_linked_title")}>
+          {t("client_picker_linked_badge")}
         </span>
       )}
       {open && (
@@ -101,7 +104,7 @@ export default function ClientPicker({
           ))}
           {matches.length === 0 && (
             <div className="px-3 py-2 text-stone-400">
-              {query ? "No matching clients." : "No clients yet — type a name to create one."}
+              {query ? t("client_picker_no_matches") : t("client_picker_empty")}
             </div>
           )}
           {query && !exactMatch && (
@@ -111,7 +114,7 @@ export default function ClientPicker({
               onClick={handleCreate}
               disabled={creating}
             >
-              {creating ? "Creating…" : `+ Create client "${clientName.trim()}"`}
+              {creating ? t("client_picker_creating") : t("client_picker_create_button").replace("{name}", clientName.trim())}
             </button>
           )}
         </div>

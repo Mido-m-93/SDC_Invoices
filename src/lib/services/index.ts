@@ -60,7 +60,6 @@ import {
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
-import { MockExpenseService } from "./mock/expenseService";
 
 import { RealSheetsService } from "./real/SheetsService";
 import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
@@ -224,12 +223,9 @@ export function getReminderService(): IReminderService {
 }
 
 // ── Expense (Phase 8) ────────────────────────────────────────────────────────
+// Mock mode permanently disabled — always use Supabase for expense claims.
 export function getExpenseService(): IExpenseService {
-  if (!_expense) {
-    _expense = isMock("NEXT_PUBLIC_USE_MOCK_EXPENSE")
-      ? new MockExpenseService()
-      : new SupabaseExpenseService();
-  }
+  if (!_expense) _expense = new SupabaseExpenseService();
   return _expense;
 }
 

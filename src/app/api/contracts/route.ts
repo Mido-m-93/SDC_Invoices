@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { getContractService } from "@/lib/services";
+import { getContractService, getProposalService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Contract } from "@/types";
@@ -25,6 +25,22 @@ export async function POST(req: NextRequest) {
   if (!user) return response!;
   try {
     const body = await req.json() as Partial<Contract>;
+
+    // Client-side contracts must trace back to an accepted proposal (pipeline: Proposal → Contract).
+    // Vendor-only contracts (no clientId) are unaffected — they never went through the Proposal pipeline.
+    if (body.clientId) {
+      if (!body.proposalId) {
+        return NextResponse.json({ error: "proposalId is required for client contracts — this contract must come from an accepted proposal" }, { status: 400 });
+      }
+      const proposal = await getProposalService().listProposals().then(ps => ps.find(p => p.id === body.proposalId));
+      if (!proposal) {
+        return NextResponse.json({ error: `Proposal ${body.proposalId} not found` }, { status: 400 });
+      }
+      if (proposal.status !== "accepted") {
+        return NextResponse.json({ error: `Proposal ${body.proposalId} is not accepted yet (status: ${proposal.status})` }, { status: 400 });
+      }
+    }
+
     const contract: Contract = {
       id: body.id || generateId("con"),
       vendorId: body.vendorId ?? "",

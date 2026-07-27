@@ -2,7 +2,13 @@
 // Fetches invoice PDF attachments and member contracts from SharePoint via Graph API.
 
 import "server-only";
-import { extractContractFields, type ExtractedContractFields } from "@/lib/services/ai/pdfExtractor";
+import {
+  extractContractFields,
+  extractContractFieldsFromDocx,
+  extractContractFieldsFromImage,
+  hasAnyContractField,
+  type ExtractedContractFields,
+} from "@/lib/services/ai/contractExtractor";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -10,7 +16,11 @@ const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 
 const SP_SITE             = process.env.MICROSOFT_MEMBER_SITE_PATH
   ?? "robocp.sharepoint.com:/sites/RoboCo-opSharedFiles:";
+// Falls back to MICROSOFT_MEMBER_FOLDER_PATH too — /api/members/sync reads that
+// same env var for the identical folder, so if only one of the two is actually
+// configured in the deployment, both code paths still agree on where to look.
 const SP_CONTRACTS_FOLDER = process.env.MICROSOFT_CONTRACTS_FOLDER_PATH
+  ?? process.env.MICROSOFT_MEMBER_FOLDER_PATH
   ?? "40_ExpandTogether/02_Functions/07_Legal/02_Contracts/03_Member";
 
 async function getToken(): Promise<string> {
@@ -72,6 +82,8 @@ export interface ContractCheckResult {
   contractFileName: string | null;
   /** Extracted fields from the contract PDF. Null if not matched or PDF read failed. */
   contractInfo: ExtractedContractFields | null;
+  /** Set when contractInfo is null because the PDF download/AI extraction step failed. */
+  extractionError: string | null;
 }
 
 // Internal: list every item (both files AND subfolders) in the contracts folder.
@@ -99,20 +111,150 @@ async function listAllMemberItems(token: string, siteId: string): Promise<Member
   }));
 }
 
-// Internal: find the first PDF inside a subfolder.
-async function findPdfInFolder(
+type ContractKind = "pdf" | "docx" | "image";
+interface ContractCandidate {
+  id: string;
+  name: string;
+  kind: ContractKind;
+}
+
+const IMAGE_MIME: Record<string, string> = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+  ".heic": "image/heic", ".webp": "image/webp",
+};
+
+function contractKindOf(name: string): ContractKind | null {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "pdf";
+  if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "docx";
+  if (Object.keys(IMAGE_MIME).some((ext) => lower.endsWith(ext))) return "image";
+  return null;
+}
+
+function imageMimeOf(name: string): string {
+  const lower = name.toLowerCase();
+  const ext = Object.keys(IMAGE_MIME).find((e) => lower.endsWith(e));
+  return ext ? IMAGE_MIME[ext] : "image/jpeg";
+}
+
+// Internal: find every readable contract file inside a member's folder.
+// Real structure turned out to be THREE levels deep, not two: each member
+// folder contains one subfolder PER CONTRACT (a master "基本契約書" plus
+// several project-specific "個別契約書" over time), and the actual PDF/Word
+// file lives one level inside each of those — not directly in the member
+// folder itself. Recurse one extra level to reach them.
+async function findContractCandidatesInFolder(
   token: string,
   siteId: string,
   folderId: string,
-): Promise<{ id: string; name: string } | null> {
-  const data = await graphGet<{ value?: Array<{ id: string; name: string; file?: object }> }>(
-    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file`,
+): Promise<ContractCandidate[]> {
+  const data = await graphGet<{
+    value?: Array<{ id: string; name: string; file?: object; folder?: object }>;
+  }>(
+    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file,folder`,
     token,
   );
-  const pdf = (data.value ?? []).find(
-    (item) => item.file && item.name.toLowerCase().endsWith(".pdf"),
+  const children = data.value ?? [];
+
+  const directFiles = children
+    .filter((item) => item.file)
+    .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name) }));
+
+  const subfolders = children.filter((item) => item.folder);
+  const nestedResults = await Promise.all(
+    subfolders.map(async (sub) => {
+      try {
+        const nested = await graphGet<{ value?: Array<{ id: string; name: string; file?: object }> }>(
+          `/sites/${siteId}/drive/items/${sub.id}/children?$select=id,name,file`,
+          token,
+        );
+        return (nested.value ?? [])
+          .filter((item) => item.file)
+          .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name), parentName: sub.name }));
+      } catch (err) {
+        console.warn(`[SP check] Failed to list contract subfolder "${sub.name}":`, err);
+        return [];
+      }
+    })
   );
-  return pdf ? { id: pdf.id, name: pdf.name } : null;
+
+  const all = [...directFiles.map((f) => ({ ...f, parentName: "" })), ...nestedResults.flat()]
+    .filter((c): c is ContractCandidate & { parentName: string } => c.kind !== null);
+
+  // Prefer the master/basic contract (基本契約書) over individual per-project
+  // agreements (個別契約書) when both are present — the basic contract is
+  // more likely to carry the overall engagement's start/end dates.
+  const isBasic = (c: { name: string; parentName: string }) =>
+    c.name.includes("基本契約") || c.parentName.includes("基本契約");
+  const sorted = [...all].sort((a, b) => Number(isBasic(b)) - Number(isBasic(a)));
+
+  return orderCandidates(sorted);
+}
+
+// PDFs and images both go through vision (reliable); Word docs are text-only
+// extraction (misses layout/handwriting), so try them last.
+function orderCandidates(candidates: ContractCandidate[]): ContractCandidate[] {
+  return [
+    ...candidates.filter((c) => c.kind === "pdf"),
+    ...candidates.filter((c) => c.kind === "image"),
+    ...candidates.filter((c) => c.kind === "docx"),
+  ];
+}
+
+// Last-resort fallback: some contract filenames embed an 8-digit YYYYMMDD
+// date (e.g. "20241025_RCP_..."). Only recognized as a bounded, standalone
+// 8-digit run (not part of a longer number) with a plausible year/month/day —
+// not every filename has this, and we'd rather return nothing than guess
+// wrong on a legal document's date.
+function extractDateFromFilename(filename: string): string | null {
+  const match = filename.match(/(?:^|[^0-9])(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?:[^0-9]|$)/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return `${year}-${month}-${day}`;
+}
+
+// Tries each candidate file in order (PDF first, then Word) until one yields
+// at least one real field. Returns the last attempt's result if all fail, so
+// the caller still gets a filename + error to report.
+async function extractFromCandidates(
+  siteId: string,
+  candidates: ContractCandidate[],
+): Promise<{ fileName: string; contractInfo: ExtractedContractFields | null; extractionError: string | null }> {
+  let last: { fileName: string; contractInfo: ExtractedContractFields | null; extractionError: string | null } = {
+    fileName: "", contractInfo: null, extractionError: "no readable contract file found",
+  };
+
+  for (const candidate of candidates) {
+    try {
+      const bytes = await downloadContractById(siteId, candidate.id);
+      const contractInfo = candidate.kind === "pdf"
+        ? await extractContractFields(bytes)
+        : candidate.kind === "image"
+        ? await extractContractFieldsFromImage(bytes, imageMimeOf(candidate.name), candidate.name)
+        : await extractContractFieldsFromDocx(bytes);
+      last = { fileName: candidate.name, contractInfo, extractionError: null };
+      if (hasAnyContractField(contractInfo)) return last;
+    } catch (err) {
+      last = { fileName: candidate.name, contractInfo: null, extractionError: String(err) };
+      console.warn(`[SP check] Contract read failed for ${candidate.name}:`, err);
+    }
+  }
+
+  // Content-reading failed for every candidate — see if any filename at
+  // least gives us a date to work with, rather than returning nothing.
+  for (const candidate of candidates) {
+    const filenameDate = extractDateFromFilename(candidate.name);
+    if (filenameDate) {
+      console.log(`[SP check] Falling back to filename date for "${candidate.name}": ${filenameDate}`);
+      return {
+        fileName: candidate.name,
+        contractInfo: { memberName: null, contractedAmount: null, contractStart: filenameDate, contractEnd: null, paymentTerms: null, scope: null },
+        extractionError: null,
+      };
+    }
+  }
+
+  return last;
 }
 
 /**
@@ -187,35 +329,38 @@ export async function checkMemberBySharePointContracts(
 
   if (!matchedItem) {
     console.log(`[SP check] No match found for "${submitterName}"`);
-    return { matched: false, contractFileName: null, contractInfo: null };
+    return { matched: false, contractFileName: null, contractInfo: null, extractionError: null };
   }
 
-  // Resolve the actual PDF — either the item itself or a file inside a subfolder
-  let pdfId   = matchedItem.isFolder ? null : matchedItem.id;
-  let pdfName = matchedItem.name;
-
+  // Resolve every readable candidate — either files inside a matched subfolder,
+  // or (for a direct-file match) the file itself plus any sibling top-level
+  // item with the same normalized name but a different extension (a member's
+  // contract is sometimes stored as both a PDF and a Word doc side by side).
+  let candidates: ContractCandidate[];
   if (matchedItem.isFolder) {
-    const pdf = await findPdfInFolder(token, matchedItem.siteId, matchedItem.id);
-    if (pdf) { pdfId = pdf.id; pdfName = pdf.name; }
+    candidates = await findContractCandidatesInFolder(token, matchedItem.siteId, matchedItem.id);
+  } else {
+    const matchedNorm = normalizeForMatch(extractMemberName(matchedItem.name));
+    const siblings = items.filter(
+      (i) => !i.isFolder && i.id !== matchedItem!.id && normalizeForMatch(extractMemberName(i.name)) === matchedNorm
+    );
+    const self = { id: matchedItem.id, name: matchedItem.name, kind: contractKindOf(matchedItem.name) };
+    const all = [self, ...siblings.map((s) => ({ id: s.id, name: s.name, kind: contractKindOf(s.name) }))]
+      .filter((c): c is ContractCandidate => c.kind !== null);
+    candidates = orderCandidates(all);
   }
 
-  if (!pdfId) {
-    // Folder exists but no PDF inside — member is registered, just no readable contract
-    console.log(`[SP check] Folder matched for "${submitterName}" but no PDF inside`);
-    return { matched: true, contractFileName: matchedItem.name, contractInfo: null };
+  if (candidates.length === 0) {
+    // Folder/file exists but nothing recognized (pdf/docx/image) inside,
+    // even after one level of subfolder recursion.
+    console.log(`[SP check] Matched "${submitterName}" but no readable contract file found`);
+    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null };
   }
 
-  // Download and read the PDF with Claude
-  let contractInfo: ExtractedContractFields | null = null;
-  try {
-    const bytes = await downloadContractById(matchedItem.siteId, pdfId);
-    contractInfo = await extractContractFields(bytes);
-    console.log(`[SP check] Contract read for "${submitterName}":`, contractInfo);
-  } catch (err) {
-    console.warn(`[SP check] Contract PDF read failed for ${pdfName}:`, err);
-  }
+  const { fileName, contractInfo, extractionError } = await extractFromCandidates(matchedItem.siteId, candidates);
+  console.log(`[SP check] Contract read for "${submitterName}" (${fileName}):`, contractInfo ?? extractionError);
 
-  return { matched: true, contractFileName: pdfName, contractInfo };
+  return { matched: true, contractFileName: fileName, contractInfo, extractionError };
 }
 
 // List all PDF files in the member contracts SharePoint folder.

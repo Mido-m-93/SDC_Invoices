@@ -9,6 +9,7 @@ function toRow(p: Proposal): Record<string, unknown> {
     vendor_id: "",          // NOT NULL legacy column — kept empty, client_id is the real link
     client_id: p.clientId,
     client_name: p.clientName ?? null,
+    lead_id: p.leadId ?? null,
     project_name: p.projectName,
     proposal_date: p.proposalDate,
     estimated_amount: p.estimatedAmount,
@@ -17,6 +18,7 @@ function toRow(p: Proposal): Record<string, unknown> {
     status: p.status,
     contract_id: p.contractId ?? null,
     folder_url: p.folderUrl ?? null,
+    verification: p.verification ?? null,
     created_at: p.createdAt,
   };
 }
@@ -27,6 +29,7 @@ function fromRow(row: Record<string, unknown>): Proposal {
     // handle legacy rows that stored vendor_id before the rename
     clientId: ((row.client_id ?? row.vendor_id) as string) ?? "",
     clientName: (row.client_name as string | null) ?? undefined,
+    leadId: (row.lead_id as string | null) ?? undefined,
     projectName: row.project_name as string,
     proposalDate: row.proposal_date as string,
     estimatedAmount: row.estimated_amount as number,
@@ -35,6 +38,7 @@ function fromRow(row: Record<string, unknown>): Proposal {
     status: row.status as Proposal["status"],
     contractId: (row.contract_id as string | null) ?? undefined,
     folderUrl: (row.folder_url as string | null) ?? undefined,
+    verification: (row.verification as Proposal["verification"]) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

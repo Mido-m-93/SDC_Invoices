@@ -65,7 +65,7 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     internalDepartment: row.internal_department as string,
     externalProjectName: row.external_project_name as string,
     projectType: row.project_type as string,
-    claimedAmountTaxIncluded: row.claimed_amount_tax_included as string,
+    claimedAmountTaxIncluded: (row.claimed_amount_tax_included as string) || "",
     currency: (row.currency as string) || undefined,
     invoiceProjectStatus: row.invoice_project_status as string,
     paymentStatus: row.payment_status as string,
@@ -96,8 +96,13 @@ function toValidationRow(r: InvoiceValidationResult): Record<string, unknown> {
     vendor_matched: r.vendorMatched ?? null,
     contract_matched: r.contractMatched ?? null,
     contract_id: r.contractId ?? null,
+    contract_end_date: r.contractEndDate ?? null,
+    contract_verification: r.contractVerification ?? null,
     validated_by: r.validatedBy ?? null,
     approved_by: r.approvedBy ?? null,
+    mf_billing_id: r.mfBillingId ?? null,
+    mf_billing_url: r.mfBillingUrl ?? null,
+    mf_sent_at: r.mfSentAt ?? null,
   };
 }
 
@@ -123,8 +128,13 @@ function fromValidationRow(row: Record<string, unknown>): InvoiceValidationResul
     vendorMatched: row.vendor_matched as boolean | undefined,
     contractMatched: row.contract_matched as boolean | undefined,
     contractId: row.contract_id as string | undefined,
+    contractEndDate: (row.contract_end_date as string) ?? null,
+    contractVerification: (row.contract_verification as InvoiceValidationResult["contractVerification"]) ?? undefined,
     validatedBy: (row.validated_by as string) || undefined,
     approvedBy: (row.approved_by as string) || undefined,
+    mfBillingId: (row.mf_billing_id as string) || undefined,
+    mfBillingUrl: (row.mf_billing_url as string) || undefined,
+    mfSentAt: (row.mf_sent_at as string) || undefined,
   };
 }
 

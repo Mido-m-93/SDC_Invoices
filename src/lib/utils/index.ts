@@ -173,7 +173,8 @@ const CURRENCY_FORMAT: Record<string, { symbol: string; locale: string }> = {
 };
 
 // ── Currency display ──────────────────────────────────────────────────────────
-export function formatCurrency(raw: string, currencyOverride?: string): string {
+export function formatCurrency(raw: string | null | undefined, currencyOverride?: string): string {
+  if (!raw) return "—";
   const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
   if (isNaN(n)) return raw || "—";
   const currency = currencyOverride ?? detectCurrency(raw);
@@ -184,4 +185,81 @@ export function formatCurrency(raw: string, currencyOverride?: string): string {
 export function formatAmount(n: number, currency: string): string {
   const { symbol, locale } = CURRENCY_FORMAT[currency] ?? CURRENCY_FORMAT.JPY;
   return `${symbol}${n.toLocaleString(locale)}`;
+}
+
+// ── Validation issue translation ──────────────────────────────────────────────
+// Issue codes/messages are generated server-side in English (invoiceValidator.ts,
+// api/invoices/validate/route.ts). This is the single place that turns them into
+// Japanese for display — every render site (list previews, detail panels,
+// exception reports) should go through this instead of showing the raw string.
+const BARE_ISSUE_CODE_JA: Record<string, string> = {
+  VALIDATION_ERROR: "検証エラー",
+  MISSING_ATTACHMENT: "添付ファイルなし",
+  PDF_LINK_ERROR: "リンクエラー",
+  PROJECT_INFO_MISSING: "案件情報なし",
+  DATE_MISSING: "日付なし",
+  TAX_MISSING: "税額なし",
+  DUPLICATE_FILE: "重複ファイル",
+};
+
+export function translateIssue(issue: string, language: Language): string {
+  if (language !== "ja") return issue;
+  if (BARE_ISSUE_CODE_JA[issue]) return BARE_ISSUE_CODE_JA[issue];
+
+  let m = issue.match(/^Duplicate:\s*(\d+)\s*other submission\(s\)\s*for\s+(.+?)\s*this month(.*)$/i);
+  if (m) {
+    const [, count, name, rest] = m;
+    const diff = rest.match(/amounts differ:\s*previous\s*(.+?)\s*vs current\s*(.+)$/i);
+    const suffix = diff ? ` — ⚠ 金額差異あり: 前回 ${diff[1]} → 今回 ${diff[2]}` : "";
+    return `重複: ${name} の今月の提出が他に ${count} 件あります${suffix}`;
+  }
+
+  if (/^PDF_PARSE_ERROR:/i.test(issue)) {
+    return "⚠ 請求書PDFはダウンロードされましたが、フィールドを抽出できませんでした — 手動で確認してください。";
+  }
+
+  if (/^PDF_FIELDS_UNREADABLE:/i.test(issue)) {
+    return "⚠ 請求書のテキストは読み取れましたが、日付・金額・支払先名を特定できませんでした — 手動で確認してください。";
+  }
+
+  m = issue.match(/^PAYEE_NAME_MISMATCH:\s*Submitter name\s*"(.+?)"\s*not found in invoice PDF$/i);
+  if (m) return `提出者名 "${m[1]}" が請求書PDFに見つかりません`;
+
+  m = issue.match(/^AMOUNT_MISMATCH:\s*Form\s*"(.+?)"\s*vs PDF total\s*"(.+?)"$/i);
+  if (m) return `金額不一致: フォーム "${m[1]}" ↔ PDF合計 "${m[2]}"`;
+
+  if (/^Drive check skipped:/i.test(issue)) {
+    return issue.replace(/^Drive check skipped:\s*(.+)$/i, "ドライブ確認をスキップ: $1");
+  }
+
+  if (/^Drive file found:/i.test(issue)) {
+    return issue
+      .replace(/^Drive file found:\s*(.+)$/im, "ドライブでファイルを発見: $1")
+      .replace(/Name:\s*"(.+?)"\s*✓ found in Drive/gi, '名前: "$1" ✓ ドライブで確認済み')
+      .replace(
+        /Amount differs\s*—\s*Drive:\s*(.+?),\s*this submission:\s*(.+?)\s*—\s*may be a different invoice/i,
+        "金額が一致しません — ドライブ: $1、今回の提出: $2 — 別の請求書の可能性があります"
+      );
+  }
+
+  if (/^Already filed in Drive:/i.test(issue)) {
+    return issue
+      .replace(/^Already filed in Drive:\s*(.+)$/im, "ドライブに既に保管済み: $1")
+      .replace(/Name:\s*"(.+?)"\s*✓ found in Drive/gi, '名前: "$1" ✓ ドライブで確認済み')
+      .replace(/Amount:\s*(.+?)\s*matches\s*✓/gi, "金額: $1 一致 ✓");
+  }
+
+  return issue;
+}
+
+// reviewerRecommendation is built server-side as e.g.
+// "Accounting | Registered member: X (role) | Contract: 500,000 | 2024-01〜2024-12 | scope"
+export function translateRecommendation(rec: string, language: Language): string {
+  if (language !== "ja" || !rec) return rec;
+  return rec
+    .replace(/^Accounting Lead$/, "経理担当")
+    .replace(/^Accounting\b/, "経理")
+    .replace(/Registered member:/g, "登録済みメンバー:")
+    .replace(/Contract:/g, "契約金額:")
+    .replace(/⚠ Claimed amount does not match invoice PDF/g, "⚠ 請求金額が請求書PDFと一致しません");
 }

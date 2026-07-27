@@ -82,7 +82,7 @@ export default function LogsPage() {
             {/* Run list sidebar */}
             <div className="w-72 flex-shrink-0">
               <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
-                {language === "ja" ? "実行履歴" : "Run History"}
+                {t("logs_run_history")}
               </h3>
               <div className="space-y-2">
                 {runs.map((run) => (
@@ -133,9 +133,9 @@ export default function LogsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-stone-100 bg-stone-50">
-                        <Th>{language === "ja" ? "時刻" : "Time"}</Th>
+                        <Th>{t("logs_col_time")}</Th>
                         <Th>{t("logs_step")}</Th>
-                        <Th>{language === "ja" ? "対象ID" : "Submission"}</Th>
+                        <Th>{t("logs_col_submission")}</Th>
                         <Th>{t("logs_result")}</Th>
                         <Th>{t("logs_message")}</Th>
                       </tr>
@@ -160,7 +160,7 @@ export default function LogsPage() {
                   </table>
                   <div className="px-4 py-2.5 border-t border-stone-100 bg-stone-50">
                     <p className="text-xs text-stone-400">
-                      {logs.length} {language === "ja" ? "エントリ" : "entries"}
+                      {logs.length} {t("logs_entries")}
                     </p>
                   </div>
                 </div>

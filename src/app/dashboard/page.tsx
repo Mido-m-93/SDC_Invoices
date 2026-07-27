@@ -1,7 +1,7 @@
 "use client";
 // src/app/dashboard/page.tsx
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
@@ -26,7 +26,18 @@ import {
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Lead } from "@/types";
+import type { TranslationKey } from "@/translations";
 import clsx from "clsx";
+
+const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
+  missing_invoice: "reminder_missing_invoice",
+  stale_review: "reminder_stale_review",
+  due_date_approaching: "reminder_due_approaching",
+  due_date_overdue: "reminder_due_overdue",
+  missing_expense_receipt: "reminder_missing_expense_receipt",
+  stale_expense_review: "reminder_stale_expense_review",
+  escalation: "reminder_escalation",
+};
 
 export default function DashboardPage() {
   const { t, language } = useLanguage();
@@ -73,7 +84,7 @@ export default function DashboardPage() {
     setInvoicesLoading(true);
     try {
       const { submissions, sheetsWarning: sw } = await fetchInvoices(month);
-      if (sw) setError(`Forms sync warning: ${sw}`);
+      if (sw) setError(t("dashboard_forms_sync_warning").replace("{warning}", sw));
       const ids = submissions.map((s) => s.id);
       const [validations, filedDocs] = await Promise.all([
         fetchValidationResults(ids),
@@ -106,6 +117,8 @@ export default function DashboardPage() {
     ]);
     if (months.length > 0) setAvailableMonths(months);
   }, [loadStats, loadInvoiceList]);
+
+  const drawerRef = useRef<HTMLDivElement | null>(null);
 
   const handleCardClick = (filter: string) => {
     if (activeFilter === filter) {
@@ -179,6 +192,14 @@ export default function DashboardPage() {
       .then(setReminderSummary)
       .catch(() => {}); // silently fail — reminder section is non-critical
   }, [month]);
+
+  // The drawer renders below the ExpenseStrip/Reminder sections, so on a
+  // shorter viewport a click can look like it did nothing unless we scroll it into view.
+  useEffect(() => {
+    if (activeFilter) {
+      drawerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeFilter]);
 
   const handleSendReminders = async (type: ReminderType | "all") => {
     setSendingReminder(true);
@@ -295,43 +316,43 @@ export default function DashboardPage() {
         {/* ── Module summary cards ──────────────────────────────────── */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <ModuleCard
-            href="/invoices" label="Invoices" icon={<InvoiceModIcon />}
+            href="/invoices" label={t("nav_invoices")} icon={<InvoiceModIcon />}
             primary={stats?.totalRows ?? "—"}
             subs={[
-              { label: "Ready",  value: stats?.ready ?? 0,          color: (stats?.ready ?? 0) > 0 ? "green" : "neutral" },
-              { label: "Review", value: stats?.reviewRequired ?? 0, color: (stats?.reviewRequired ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("ready"),          value: stats?.ready ?? 0,          color: (stats?.ready ?? 0) > 0 ? "green" : "neutral" },
+              { label: t("review_required"), value: stats?.reviewRequired ?? 0, color: (stats?.reviewRequired ?? 0) > 0 ? "amber" : "neutral" },
             ]}
           />
           <ModuleCard
-            href="/expenses" label="Expenses" icon={<ExpenseModIcon />}
+            href="/expenses" label={t("nav_expenses")} icon={<ExpenseModIcon />}
             primary={moduleData.expenses ? `¥${moduleData.expenses.pendingAmount.toLocaleString()}` : "—"}
             subs={[
-              { label: "Pending",    value: (moduleData.expenses?.submitted ?? 0) + (moduleData.expenses?.underReview ?? 0), color: (moduleData.expenses?.submitted ?? 0) > 0 ? "amber" : "neutral" },
-              { label: "Violations", value: moduleData.expenses?.violations ?? 0, color: (moduleData.expenses?.violations ?? 0) > 0 ? "red" : "neutral" },
+              { label: t("dashboard_stat_pending"),    value: (moduleData.expenses?.submitted ?? 0) + (moduleData.expenses?.underReview ?? 0), color: (moduleData.expenses?.submitted ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_violations"), value: moduleData.expenses?.violations ?? 0, color: (moduleData.expenses?.violations ?? 0) > 0 ? "red" : "neutral" },
             ]}
           />
           <ModuleCard
-            href="/clients" label="Clients" icon={<ClientModIcon />}
+            href="/clients" label={t("nav_clients")} icon={<ClientModIcon />}
             primary={moduleData.clients?.total ?? "—"}
             subs={[
-              { label: "Active",    value: moduleData.clients?.active ?? 0,    color: "green" },
-              { label: "Prospects", value: moduleData.clients?.prospects ?? 0, color: "neutral" },
+              { label: t("dashboard_stat_active"),    value: moduleData.clients?.active ?? 0,    color: "green" },
+              { label: t("dashboard_stat_prospects"), value: moduleData.clients?.prospects ?? 0, color: "neutral" },
             ]}
           />
           <ModuleCard
-            href="/proposals" label="Proposals" icon={<ProposalModIcon />}
+            href="/proposals" label={t("nav_proposals")} icon={<ProposalModIcon />}
             primary={moduleData.proposals?.total ?? "—"}
             subs={[
-              { label: "Open",     value: moduleData.proposals?.open ?? 0,     color: (moduleData.proposals?.open ?? 0) > 0 ? "amber" : "neutral" },
-              { label: "Accepted", value: moduleData.proposals?.accepted ?? 0, color: "green" },
+              { label: t("dashboard_stat_open"),     value: moduleData.proposals?.open ?? 0,     color: (moduleData.proposals?.open ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_accepted"), value: moduleData.proposals?.accepted ?? 0, color: "green" },
             ]}
           />
           <ModuleCard
-            href="/leads" label="Leads" icon={<LeadModIcon />}
+            href="/leads" label={t("nav_leads")} icon={<LeadModIcon />}
             primary={moduleData.leads?.total ?? "—"}
             subs={[
-              { label: "New",      value: moduleData.leads?.newCount ?? 0, color: (moduleData.leads?.newCount ?? 0) > 0 ? "amber" : "neutral" },
-              { label: "Pipeline", value: moduleData.leads ? `¥${(moduleData.leads.pipelineValue / 1_000_000).toFixed(1)}M` : "—", color: "neutral" },
+              { label: t("dashboard_stat_new"),      value: moduleData.leads?.newCount ?? 0, color: (moduleData.leads?.newCount ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_pipeline"), value: moduleData.leads ? `¥${(moduleData.leads.pipelineValue / 1_000_000).toFixed(1)}M` : "—", color: "neutral" },
             ]}
           />
         </div>
@@ -339,7 +360,7 @@ export default function DashboardPage() {
         {/* ── Invoice processing section header ─────────────────────── */}
         <div className="flex items-center gap-2 mb-4">
           <InvoiceModIcon size={14} />
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Invoice Processing</p>
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">{t("dashboard_invoice_processing")}</p>
           <span className="text-xs text-stone-300 ml-1">— {month}</span>
         </div>
 
@@ -389,7 +410,7 @@ export default function DashboardPage() {
         {/* Save success banner */}
         {savedCount !== null && (
           <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 text-sm text-emerald-700 flex items-center justify-between">
-            <span>✓ {savedCount} file{savedCount !== 1 ? "s" : ""} saved successfully</span>
+            <span>{t("dashboard_save_success").replace("{count}", String(savedCount))}</span>
             <button onClick={() => setSavedCount(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">×</button>
           </div>
         )}
@@ -454,17 +475,18 @@ export default function DashboardPage() {
 
             {/* Invoice drawer — shown when a card is active */}
             {activeFilter && (
+              <div ref={drawerRef}>
               <InvoiceDrawer
                 filter={activeFilter}
                 items={invoiceItems}
                 loading={invoicesLoading}
-                language={language}
                 t={t}
                 onView={setSelectedItem}
                 onApprove={handleApprove}
                 approvingId={approvingId}
                 onClose={() => setActiveFilter(null)}
               />
+              </div>
             )}
 
             {lastUpdated && (
@@ -772,7 +794,7 @@ function ReminderStatusSection({
                           {log.status === "sent" ? "✓" : log.status === "failed" ? "✗" : "–"}
                         </span>
                         <span className="font-mono text-stone-400">{new Date(log.sentAt).toLocaleDateString()}</span>
-                        <span>{log.reminderType.replace(/_/g, " ")}</span>
+                        <span>{t(REMINDER_TYPE_KEY[log.reminderType] ?? "unknown")}</span>
                         <span className="text-stone-300">{log.message}</span>
                       </div>
                     ))}
@@ -803,6 +825,15 @@ const ERROR_FILTER_CODES = new Set([
   "AMOUNT_MISMATCH", "PROJECT_INFO_MISSING", "SAVE_ERROR",
 ]);
 
+const FILTER_LABEL_KEY: Record<string, TranslationKey> = {
+  READY: "status_READY",
+  REVIEW_REQUIRED: "status_REVIEW_REQUIRED",
+  SAVED: "saved",
+  MISSING_ATTACHMENT: "status_MISSING_ATTACHMENT",
+  ERRORS: "errors",
+  ALREADY_PROCESSED: "status_ALREADY_PROCESSED",
+};
+
 function filterItems(items: InvoiceListItem[], filter: string): InvoiceListItem[] {
   if (filter === "ALL") return items;
   if (filter === "READY") return items.filter((i) => i.validation?.statusCode === "READY");
@@ -821,12 +852,11 @@ function filterItems(items: InvoiceListItem[], filter: string): InvoiceListItem[
 }
 
 function InvoiceDrawer({
-  filter, items, loading, language, t, onView, onApprove, approvingId, onClose,
+  filter, items, loading, t, onView, onApprove, approvingId, onClose,
 }: {
   filter: string;
   items: InvoiceListItem[];
   loading: boolean;
-  language: string;
   t: (k: Parameters<ReturnType<typeof useLanguage>["t"]>[0]) => string;
   onView: (item: InvoiceListItem) => void;
   onApprove: (item: InvoiceListItem) => void;
@@ -839,7 +869,7 @@ function InvoiceDrawer({
     <div className="mt-2 mb-6 bg-white rounded-xl border border-stone-200 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
       <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100 bg-stone-50">
         <p className="text-sm font-semibold text-stone-700">
-          {filter === "ALL" ? (language === "ja" ? "すべての請求書" : "All Invoices") : filter.replace(/_/g, " ")}
+          {filter === "ALL" ? t("dashboard_all_invoices") : t(FILTER_LABEL_KEY[filter] ?? "unknown")}
           <span className="ml-2 text-xs font-normal text-stone-400">({filtered.length})</span>
         </p>
         <button onClick={onClose} className="text-stone-400 hover:text-stone-600 text-lg leading-none">×</button>
@@ -847,11 +877,11 @@ function InvoiceDrawer({
 
       {loading ? (
         <div className="flex items-center justify-center h-24 text-stone-400 text-sm">
-          {language === "ja" ? "読み込み中..." : "Loading..."}
+          {t("loading")}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex items-center justify-center h-24 text-stone-400 text-sm">
-          {language === "ja" ? "該当する請求書がありません" : "No invoices match this filter"}
+          {t("dashboard_no_invoices_match")}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -876,19 +906,19 @@ function InvoiceDrawer({
                       <span className="text-xs text-stone-400 font-mono mr-1.5">#{s.submissionRowNumber}</span>
                       {s.payerName}
                     </td>
-                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.closingMonth || "—"}</td>
-                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.projectType || "—"}</td>
+                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.closingMonth || t("none")}</td>
+                    <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.projectType || t("none")}</td>
                     <td className="px-4 py-2.5 text-stone-700 font-mono text-xs whitespace-nowrap">{formatCurrency(s.claimedAmountTaxIncluded, s.currency)}</td>
                     <td className="px-4 py-2.5 text-xs">
                       {s.invoiceAttachment
                         ? <span className="text-stone-500 font-mono truncate block max-w-[140px]" title={s.invoiceAttachment}>📎 {s.invoiceAttachment}</span>
-                        : <span className="text-red-400">✗ {language === "ja" ? "なし" : "None"}</span>
+                        : <span className="text-red-400">✗ {t("no_file")}</span>
                       }
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       {item.validation
                         ? <StatusBadge code={item.validation.statusCode} size="sm" />
-                        : <span className="text-xs text-stone-300">—</span>
+                        : <span className="text-xs text-stone-300">{t("none")}</span>
                       }
                     </td>
                     <td className="px-4 py-2.5">

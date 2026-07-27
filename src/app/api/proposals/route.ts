@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { getProposalService } from "@/lib/services";
+import { getProposalService, getLeadService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
 import type { Proposal } from "@/types";
@@ -24,11 +24,20 @@ export async function POST(req: NextRequest) {
   if (!user) return response!;
   try {
     const body = await req.json() as Partial<Proposal>;
+    if (!body.leadId) {
+      return NextResponse.json({ error: "leadId is required — a proposal must be raised from a pipeline lead" }, { status: 400 });
+    }
+    const lead = await getLeadService().getLead(body.leadId);
+    if (!lead) {
+      return NextResponse.json({ error: `Lead ${body.leadId} not found` }, { status: 400 });
+    }
+
     const now = new Date().toISOString();
     const proposal: Proposal = {
       id: generateId("prop"),
       clientId: body.clientId ?? "",
       clientName: body.clientName,
+      leadId: body.leadId,
       projectName: body.projectName ?? "",
       proposalDate: body.proposalDate ?? "",
       estimatedAmount: body.estimatedAmount ?? 0,
@@ -40,6 +49,11 @@ export async function POST(req: NextRequest) {
       createdAt: now,
     };
     await getProposalService().saveProposal(proposal);
+
+    // Link the lead forward to this proposal, matching the existing Lead.proposalId convention
+    if (!lead.proposalId) {
+      await getLeadService().saveLead({ ...lead, proposalId: proposal.id, updatedAt: now });
+    }
     return NextResponse.json({ success: true, proposal });
   } catch (err) {
     console.error("[API ERROR]", err);

@@ -1,7 +1,7 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI, { toFile } from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
-import { generateId } from "@/lib/utils";
+import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
 import type {
   ExpenseClaim,
@@ -9,39 +9,22 @@ import type {
   ExpenseValidationResult,
 } from "@/types";
 
-const EXPENSE_EXTRACT_PROMPT = `Extract fields from this receipt/invoice image or PDF.
-Return ONLY valid JSON with no extra text:
-{
-  "amount": number or null,
-  "date": "YYYY-MM-DD" or null,
-  "vendor": "store or service name" or null,
-  "currency": "JPY" or "USD" or null,
-  "purpose": "one-line description of what the expense was for" or null
-}
-For Japanese receipts: 合計 or 税込 is the total amount. 日付 or 年月日 is the date.`;
+const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the attached receipt or invoice carefully and extract the following fields.
 
-async function getGraphToken(): Promise<string> {
-  const res = await fetch(
-    `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type:    "client_credentials",
-        client_id:     process.env.AZURE_CLIENT_ID!,
-        client_secret: process.env.AZURE_CLIENT_SECRET!,
-        scope:         "https://graph.microsoft.com/.default",
-      }),
-      cache: "no-store",
-    }
-  );
-  if (!res.ok) throw new Error(`Graph token failed ${res.status}`);
-  const { access_token } = await res.json() as { access_token: string };
-  return access_token;
-}
+Return ONLY a JSON object — no markdown, no explanation, no code fences:
+{"amount":5000,"date":"2026-07-03","vendor":"ヤマダ電機","currency":"JPY","purpose":"USB cable for office laptop"}
 
-function sniffMime(url: string, ct: string): string {
-  if (ct.startsWith("image/") || ct === "application/pdf") return ct;
+Rules:
+- amount: the final total as a plain number (no ¥ or commas). Use 合計 or 税込合計 for Japanese receipts.
+- date: in YYYY-MM-DD format. Use 日付, 年月日, or any date visible on the receipt.
+- vendor: store or service name (店名, 会社名).
+- currency: "JPY" if ¥ symbol or Japanese text, otherwise "USD" or the correct code.
+- purpose: one short English sentence describing what was purchased.
+- If a field is truly not present, use null.
+
+This receipt may be in Japanese. Read all text carefully including headers, footers, and stamps.`;
+
+function sniffMimeFromUrl(url: string): string {
   if (/\.pdf$/i.test(url))  return "application/pdf";
   if (/\.png$/i.test(url))  return "image/png";
   if (/\.gif$/i.test(url))  return "image/gif";
@@ -49,128 +32,12 @@ function sniffMime(url: string, ct: string): string {
   return "image/jpeg";
 }
 
-function isHtmlBuffer(buf: Buffer): boolean {
-  const head = buf.slice(0, 512).toString("utf8").trimStart().toLowerCase();
-  return head.startsWith("<!doctype") || head.startsWith("<html") || head.includes("<head");
-}
-
-// Fetch a receipt file. For SharePoint URLs:
-// 1. Try direct fetch with Graph bearer token.
-// 2. If response is HTML (viewer page), resolve via Graph /shares API instead.
-// 3. If /shares fails, walk the owner's OneDrive Microsoft Forms folder by filename.
-async function fetchReceiptFile(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  const isSharePoint = /sharepoint\.com|onedrive\.live\.com/i.test(url);
-  const isUrl = url.startsWith("http");
-
-  console.log(`[fetchReceiptFile] url=${url.slice(0, 120)} isSharePoint=${isSharePoint} isUrl=${isUrl}`);
-
-  if (!isUrl) {
-    // receiptUrl is a bare filename — search for it in the owner's OneDrive Forms folder
-    return fetchByFilename(url);
-  }
-
-  if (isSharePoint) {
-    let token: string;
-    try { token = await getGraphToken(); }
-    catch (e) {
-      console.error("[fetchReceiptFile] getGraphToken failed:", e);
-      return null;
-    }
-
-    // Attempt 1: direct fetch with auth
-    const direct = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    console.log(`[fetchReceiptFile] direct status=${direct.status} ct=${direct.headers.get("content-type")}`);
-    if (direct.ok) {
-      const ct     = direct.headers.get("content-type")?.split(";")[0].trim() ?? "";
-      const buffer = Buffer.from(await direct.arrayBuffer());
-      console.log(`[fetchReceiptFile] direct ok bytes=${buffer.length} ct=${ct} isHtml=${isHtmlBuffer(buffer)}`);
-      if (!ct.startsWith("text/html") && !ct.startsWith("text/xml") && !isHtmlBuffer(buffer)) {
-        return { buffer, mimeType: sniffMime(url, ct) };
-      }
-    }
-
-    // Attempt 2: Graph API via drive path — most reliable for personal OneDrive URLs.
-    // SharePoint personal URLs follow: /personal/{upn_encoded}/Documents/{drive-relative-path}
-    // We convert that to: GET /users/{ownerUpn}/drive/root:/{drive-relative-path}:/content
-    const spPathMatch = url.match(/\/personal\/[^/?#]+\/(.+?)(?:\?|#|$)/);
-    if (spPathMatch) {
-      const drivePath   = decodeURIComponent(spPathMatch[1]); // e.g. "Documents/アプリ/Microsoft Forms/.../file.pdf"
-      const ownerUpn    = process.env.MICROSOFT_OWNER_UPN!;
-      const encodedPath = drivePath.split("/").map(encodeURIComponent).join("/");
-      const graphPath   = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive/root:/${encodedPath}:/content`;
-      console.log(`[fetchReceiptFile] graph-path ${graphPath.slice(0, 140)}`);
-      const pathRes = await fetch(graphPath, {
-        headers: { Authorization: `Bearer ${token}` }, redirect: "follow", cache: "no-store",
-      });
-      console.log(`[fetchReceiptFile] graph-path status=${pathRes.status} ct=${pathRes.headers.get("content-type")}`);
-      if (pathRes.ok) {
-        const ct  = pathRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-        const buf = Buffer.from(await pathRes.arrayBuffer());
-        console.log(`[fetchReceiptFile] graph-path ok bytes=${buf.length} isHtml=${isHtmlBuffer(buf)}`);
-        if (!isHtmlBuffer(buf)) return { buffer: buf, mimeType: sniffMime(url, ct) };
-      }
-    }
-
-    // Attempt 3: filename search in owner's OneDrive (last resort)
-    const filename = decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? "");
-    if (filename) {
-      console.log(`[fetchReceiptFile] falling back to filename search: ${filename}`);
-      return fetchByFilename(filename, token);
-    }
-    return null;
-  }
-
-  // Non-SharePoint: plain fetch
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return null;
-  const ct = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
-  const buf = Buffer.from(await res.arrayBuffer());
-  return { buffer: buf, mimeType: sniffMime(url, ct) };
-}
-
-// Search the owner's OneDrive for a receipt file by name (fallback when URL is bare filename)
-async function fetchByFilename(filename: string, token?: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  try {
-    const tok      = token ?? await getGraphToken();
-    const ownerUpn = process.env.MICROSOFT_OWNER_UPN!;
-    const driveRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(ownerUpn)}/drive`,
-      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
-    );
-    const { id: driveId } = await driveRes.json() as { id: string };
-
-    const searchRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/root/search(q='${encodeURIComponent(filename)}')?$select=id,name,file&$top=5`,
-      { headers: { Authorization: `Bearer ${tok}` }, cache: "no-store" }
-    );
-    const { value: items } = await searchRes.json() as { value: Array<{ id: string; name: string }> };
-    const match = items?.find((i) => i.name === filename || i.name.startsWith(filename.replace(/\.[^.]+$/, "")));
-    if (!match) { console.log(`[fetchByFilename] no match for "${filename}"`); return null; }
-
-    const dlRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${match.id}/content`,
-      { headers: { Authorization: `Bearer ${tok}` }, redirect: "follow", cache: "no-store" }
-    );
-    if (!dlRes.ok) return null;
-    const ct  = dlRes.headers.get("content-type")?.split(";")[0].trim() ?? "";
-    const buf = Buffer.from(await dlRes.arrayBuffer());
-    console.log(`[fetchByFilename] found "${match.name}" bytes=${buf.length} ct=${ct}`);
-    return { buffer: buf, mimeType: sniffMime(filename, ct) };
-  } catch (e) {
-    console.error("[fetchByFilename] error:", e);
-    return null;
-  }
-}
-
 function toRow(c: ExpenseClaim): Record<string, unknown> {
   return {
     id: c.id,
     submitted_by: c.submittedBy,
     submitted_by_email: c.submittedByEmail,
-    submitted_at: c.submittedAt,
+    submitted_at: c.submittedAt ? new Date(c.submittedAt).toISOString() : new Date().toISOString(),
     category: c.category,
     description: c.description,
     amount: c.amount,
@@ -180,7 +47,7 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     receipt_filename: c.receiptFilename,
     project_name: c.projectName,
     internal_department: c.internalDepartment,
-    expense_date: c.expenseDate,
+    expense_date: c.expenseDate ? new Date(c.expenseDate).toISOString().slice(0, 10) : null,
     status: c.status,
     reviewer_comment: c.reviewerComment,
     reviewed_by: c.reviewedBy,
@@ -191,10 +58,14 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     extracted_amount: c.extractedAmount,
     extracted_date: c.extractedDate,
     extracted_vendor: c.extractedVendor,
+    extracted_purpose: c.extractedPurpose ?? null,
     policy_violations: c.policyViolations,
     bank_account: c.bankAccount,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
+    mf_billing_id: c.mfBillingId ?? null,
+    mf_billing_url: c.mfBillingUrl ?? null,
+    mf_sent_at: c.mfSentAt ?? null,
   };
 }
 
@@ -228,6 +99,9 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     bankAccount: (row.bank_account as string) ?? "",
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    mfBillingId: (row.mf_billing_id as string) || undefined,
+    mfBillingUrl: (row.mf_billing_url as string) || undefined,
+    mfSentAt: (row.mf_sent_at as string) || undefined,
   };
 }
 
@@ -312,43 +186,91 @@ export class SupabaseExpenseService implements IExpenseService {
     let extractedPurpose: string | null = null;
     let receiptAccessible = false;
     let amountMatchesReceipt = false;
+    let receiptFetchError: string | null = null;
 
     if (claim.receiptUrl) {
+      // Phase 1: download — controls receiptAccessible
+      let fileBuffer: Buffer | null = null;
+      let mimeType = "application/pdf";
       try {
-        const fetched = await fetchReceiptFile(claim.receiptUrl);
-        receiptAccessible = fetched !== null;
-        if (fetched) {
-          const b64    = fetched.buffer.toString("base64");
-          const isPdf  = fetched.mimeType === "application/pdf";
-          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const content: any[] = [
-            isPdf
-              ? { type: "document", source: { type: "base64", media_type: "application/pdf",      data: b64 } }
-              : { type: "image",    source: { type: "base64", media_type: fetched.mimeType,        data: b64 } },
-            { type: "text", text: EXPENSE_EXTRACT_PROMPT },
-          ];
-          const msg = await client.messages.create({
-            model:     "claude-haiku-4-5-20251001",
-            max_tokens: 512,
-            messages: [{ role: "user", content }],
+        const bytes = await downloadSharePointFile(claim.receiptUrl);
+        fileBuffer = Buffer.from(bytes);
+        receiptAccessible = true;
+        const fileRef = claim.receiptFilename ?? claim.receiptUrl;
+        mimeType = sniffMimeFromUrl(fileRef);
+      } catch (err) {
+        console.error("[validateClaim] download failed:", err);
+        receiptFetchError = String(err);
+      }
+
+      // Phase 2: upload receipt to OpenAI then extract with GPT-4o via Responses API
+      if (fileBuffer) {
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const isImage = mimeType.startsWith("image/");
+        const extension = mimeType.split("/")[1] ?? "pdf";
+        let uploadedId: string | null = null;
+        try {
+          // Upload the file — filename extension must match the actual mime type
+          const uploaded = await client.files.create({
+            file:    await toFile(fileBuffer, `receipt.${extension}`, { type: mimeType }),
+            purpose: "user_data",
           });
-          const text = (msg.content[0] as { type: string; text?: string }).text ?? "";
-          const m = text.match(/\{[\s\S]*\}/);
+          uploadedId = uploaded.id;
+
+          // Call Responses API with the uploaded file
+          // Images require "input_image"; documents (PDFs) require "input_file"
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const resp: any = await (client.responses.create as any)({
+            model: "gpt-4o",
+            input: [{
+              role: "user",
+              content: [
+                isImage
+                  ? { type: "input_image", file_id: uploadedId }
+                  : { type: "input_file", file_id: uploadedId },
+                { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
+              ],
+            }],
+          });
+
+          // Extract text — check output_text first, then walk output array
+          let rawText = "";
+          if (typeof resp.output_text === "string" && resp.output_text) {
+            rawText = resp.output_text;
+          } else if (Array.isArray(resp.output)) {
+            for (const item of resp.output) {
+              for (const part of (item.content ?? [])) {
+                if (typeof part.text === "string") rawText += part.text;
+              }
+            }
+          }
+
+          const cleaned = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+          const m = cleaned.match(/\{[\s\S]*\}/);
           if (m) {
-            const parsed = JSON.parse(m[0]) as { amount?: number; date?: string; vendor?: string; purpose?: string };
-            extractedAmount  = typeof parsed.amount === "number" ? parsed.amount : null;
-            extractedDate    = parsed.date    ?? null;
-            extractedVendor  = parsed.vendor  ?? null;
-            extractedPurpose = parsed.purpose ?? null;
+            const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+            const rawAmt = result.amount;
+            if (typeof rawAmt === "number") {
+              extractedAmount = rawAmt;
+            } else if (typeof rawAmt === "string") {
+              const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
+              extractedAmount = isNaN(n) ? null : n;
+            }
+            extractedDate    = result.date    ?? null;
+            extractedVendor  = result.vendor  ?? null;
+            extractedPurpose = result.purpose ?? null;
             if (extractedAmount !== null) {
               amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
           }
+        } catch (err) {
+          console.error("[validateClaim] GPT extraction failed:", err);
+          receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
+        } finally {
+          if (uploadedId) {
+            client.files.delete(uploadedId).catch(() => { /* cleanup */ });
+          }
         }
-      } catch (err) {
-        console.error("[validateClaim] receipt fetch/extract failed:", err);
-        receiptAccessible = false;
       }
     }
 
@@ -372,8 +294,9 @@ export class SupabaseExpenseService implements IExpenseService {
       extractedDate,
       extractedVendor,
       extractedPurpose,
-      memberMatched:    false,
-      contractFileName: null,
+      memberMatched:      false,
+      contractFileName:   null,
+      receiptFetchError:  receiptFetchError ?? undefined,
     };
   }
 }

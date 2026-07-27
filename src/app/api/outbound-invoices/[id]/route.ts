@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOutboundInvoiceService } from "@/lib/services";
+import { getOutboundInvoiceService, getContractService } from "@/lib/services";
 import type { OutboundInvoiceStatus } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const svc = getOutboundInvoiceService();
     const existing = await svc.getInvoice(params.id);
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    await svc.saveInvoice({ ...existing, ...body, id: params.id, updatedAt: new Date().toISOString() } as typeof existing);
+
+    // The contract link is set at creation and not meant to change afterward (mirrors
+    // Proposal.leadId) — reject attempts to clear or repoint it to a missing contract.
+    if (body.contractId && body.contractId !== existing.contractId) {
+      const contract = await getContractService().listContracts().then(cs => cs.find(c => c.id === body.contractId));
+      if (!contract) return NextResponse.json({ error: `Contract ${body.contractId} not found` }, { status: 400 });
+    }
+    const contractId = body.contractId || existing.contractId;
+    if (!contractId) return NextResponse.json({ error: "contractId is required" }, { status: 400 });
+
+    await svc.saveInvoice({ ...existing, ...body, contractId, id: params.id, updatedAt: new Date().toISOString() } as typeof existing);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

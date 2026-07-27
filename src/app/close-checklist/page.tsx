@@ -4,29 +4,31 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import { useLanguage, type TranslationKey } from "@/translations";
 import type { MonthlyCloseChecklist, CloseChecklistItem, CloseChecklistItemStatus } from "@/types";
 
-const STATUS_CONFIG: Record<CloseChecklistItemStatus, { label: string; labelJa: string; color: string; bg: string }> = {
-  pending:     { label: "Pending",     labelJa: "未着手",   color: "text-stone-500",  bg: "bg-stone-100" },
-  in_progress: { label: "In Progress", labelJa: "進行中",   color: "text-blue-700",   bg: "bg-blue-100" },
-  done:        { label: "Done",        labelJa: "完了",     color: "text-green-700",  bg: "bg-green-100" },
-  blocked:     { label: "Blocked",     labelJa: "ブロック", color: "text-red-700",    bg: "bg-red-100" },
-  na:          { label: "N/A",         labelJa: "対象外",   color: "text-stone-400",  bg: "bg-stone-50" },
-  skipped:     { label: "Skipped",     labelJa: "スキップ", color: "text-stone-400",  bg: "bg-stone-50" },
+const STATUS_CONFIG: Record<CloseChecklistItemStatus, { color: string; bg: string }> = {
+  pending:     { color: "text-stone-500",  bg: "bg-stone-100" },
+  in_progress: { color: "text-blue-700",   bg: "bg-blue-100" },
+  done:        { color: "text-green-700",  bg: "bg-green-100" },
+  blocked:     { color: "text-red-700",    bg: "bg-red-100" },
+  na:          { color: "text-stone-400",  bg: "bg-stone-50" },
+  skipped:     { color: "text-stone-400",  bg: "bg-stone-50" },
 };
 
 const CATEGORIES = ["bank", "invoices", "expenses", "vendors", "mf", "tax", "report"];
-const CATEGORY_LABELS: Record<string, string> = {
-  bank: "🏦 Bank",
-  invoices: "📄 Invoices",
-  expenses: "🧾 Expenses",
-  vendors: "👥 Vendors",
-  mf: "💼 Money Forward",
-  tax: "📊 Tax & Payroll",
-  report: "📈 Reporting",
+const CATEGORY_LABEL_KEYS: Record<string, TranslationKey> = {
+  bank: "close_checklist_category_bank",
+  invoices: "close_checklist_category_invoices",
+  expenses: "close_checklist_category_expenses",
+  vendors: "close_checklist_category_vendors",
+  mf: "close_checklist_category_mf",
+  tax: "close_checklist_category_tax",
+  report: "close_checklist_category_report",
 };
 
 export default function CloseChecklistPage() {
+  const { t, language } = useLanguage();
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [checklist, setChecklist] = useState<MonthlyCloseChecklist | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,9 +44,9 @@ export default function CloseChecklistPage() {
       const res = await fetch(`/api/close-checklist?month=${month}`);
       const data = await res.json() as { checklist: MonthlyCloseChecklist };
       setChecklist(data.checklist ?? null);
-    } catch { setError("Failed to load checklist"); }
+    } catch { setError(t("close_checklist_load_failed")); }
     finally { setLoading(false); }
-  }, [month]);
+  }, [month, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,7 +59,7 @@ export default function CloseChecklistPage() {
         body: JSON.stringify({ status, completedBy: actorName || undefined }),
       });
       load();
-    } catch { setError("Failed to update item"); }
+    } catch { setError(t("close_checklist_update_failed")); }
     finally { setUpdatingId(null); }
   }
 
@@ -70,11 +72,11 @@ export default function CloseChecklistPage() {
       });
       setNotesEditing(null);
       load();
-    } catch { setError("Failed to save notes"); }
+    } catch { setError(t("close_checklist_notes_failed")); }
   }
 
   async function handleReset() {
-    if (!confirm(`Reset checklist for ${month}? All progress will be lost.`)) return;
+    if (!confirm(t("close_checklist_reset_confirm").replace("{month}", month))) return;
     await fetch(`/api/close-checklist?month=${month}`, { method: "DELETE" });
     load();
   }
@@ -91,8 +93,8 @@ export default function CloseChecklistPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Monthly Close Checklist"
-        subtitle="Track monthly accounting close tasks"
+        title={t("close_checklist_title")}
+        subtitle={t("close_checklist_subtitle")}
         actions={
           <div className="flex gap-2 items-center">
             <input
@@ -101,7 +103,7 @@ export default function CloseChecklistPage() {
               onChange={(e) => setMonth(e.target.value)}
               className="rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
             />
-            <Button variant="secondary" size="sm" onClick={handleReset}>Reset</Button>
+            <Button variant="secondary" size="sm" onClick={handleReset}>{t("close_checklist_reset_button")}</Button>
           </div>
         }
       />
@@ -114,23 +116,23 @@ export default function CloseChecklistPage() {
 
       {/* Actor name field */}
       <div className="mb-5 flex items-center gap-3">
-        <label className="text-xs text-stone-500 shrink-0">Your name for completion log:</label>
+        <label className="text-xs text-stone-500 shrink-0">{t("close_checklist_actor_label")}</label>
         <input
           value={actorName}
           onChange={(e) => setActorName(e.target.value)}
-          placeholder="e.g. Itsuki"
+          placeholder={t("close_checklist_actor_placeholder")}
           className="rounded-lg border border-stone-200 px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30"
         />
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("loading")}</p>
       ) : checklist ? (
         <div className="space-y-5">
           {/* Progress bar */}
           <div className="bg-white rounded-xl border border-stone-200 p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-stone-700">{checklist.doneItems} / {checklist.totalItems} items complete</span>
+              <span className="text-sm font-medium text-stone-700">{t("close_checklist_items_complete").replace("{done}", String(checklist.doneItems)).replace("{total}", String(checklist.totalItems))}</span>
               <span className="text-sm font-bold text-[#1a3d2b]">{progress}%</span>
             </div>
             <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
@@ -140,10 +142,10 @@ export default function CloseChecklistPage() {
               />
             </div>
             {checklist.blockedItems > 0 && (
-              <p className="mt-2 text-xs text-red-600">{checklist.blockedItems} item(s) blocked — resolve before closing</p>
+              <p className="mt-2 text-xs text-red-600">{t("close_checklist_blocked_items").replace("{count}", String(checklist.blockedItems))}</p>
             )}
             {checklist.completedAt && (
-              <p className="mt-2 text-xs text-green-600">✓ Checklist completed</p>
+              <p className="mt-2 text-xs text-green-600">{t("close_checklist_completed_label")}</p>
             )}
           </div>
 
@@ -154,11 +156,13 @@ export default function CloseChecklistPage() {
             return (
               <div key={cat} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
                 <div className="px-5 py-3 bg-stone-50 border-b border-stone-100">
-                  <h3 className="text-sm font-semibold text-stone-700">{CATEGORY_LABELS[cat] ?? cat}</h3>
+                  <h3 className="text-sm font-semibold text-stone-700">{CATEGORY_LABEL_KEYS[cat] ? t(CATEGORY_LABEL_KEYS[cat]) : cat}</h3>
                 </div>
                 <div className="divide-y divide-stone-50">
                   {items.map((item) => {
                     const sc = STATUS_CONFIG[item.status];
+                    const statusLabel = t(`close_checklist_status_${item.status}` as TranslationKey);
+                    const displayTitle = language === "ja" ? (item.titleJa || item.title) : item.title;
                     return (
                       <div key={item.id} className={`px-5 py-4 ${item.status === "done" || item.status === "na" ? "opacity-60" : ""}`}>
                         <div className="flex items-start gap-3">
@@ -189,15 +193,15 @@ export default function CloseChecklistPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`text-sm font-medium ${item.status === "done" || item.status === "na" ? "line-through text-stone-400" : "text-stone-800"}`}>
-                                {item.titleJa || item.title}
+                                {displayTitle}
                               </span>
                               <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sc.bg} ${sc.color}`}>
-                                {sc.labelJa}
+                                {statusLabel}
                               </span>
                             </div>
                             <p className="text-xs text-stone-400 mt-0.5">{item.description}</p>
                             {item.completedBy && (
-                              <p className="text-xs text-stone-400 mt-0.5">完了: {item.completedBy}{item.completedAt ? ` (${item.completedAt.slice(0, 10)})` : ""}</p>
+                              <p className="text-xs text-stone-400 mt-0.5">{t("close_checklist_completed_by").replace("{name}", item.completedBy)}{item.completedAt ? ` (${item.completedAt.slice(0, 10)})` : ""}</p>
                             )}
                             {/* Notes */}
                             {notesEditing === item.id ? (
@@ -207,10 +211,10 @@ export default function CloseChecklistPage() {
                                   value={notesValue}
                                   onChange={(e) => setNotesValue(e.target.value)}
                                   className="flex-1 rounded border border-stone-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#2d6a4f]/30"
-                                  placeholder="Notes..."
+                                  placeholder={t("close_checklist_notes_placeholder")}
                                 />
-                                <button onClick={() => saveNotes(item.id)} className="text-xs text-[#2d6a4f] font-medium hover:underline">Save</button>
-                                <button onClick={() => setNotesEditing(null)} className="text-xs text-stone-400 hover:text-stone-600">Cancel</button>
+                                <button onClick={() => saveNotes(item.id)} className="text-xs text-[#2d6a4f] font-medium hover:underline">{t("close_checklist_save_button")}</button>
+                                <button onClick={() => setNotesEditing(null)} className="text-xs text-stone-400 hover:text-stone-600">{t("cancel")}</button>
                               </div>
                             ) : (
                               <div className="mt-1 flex items-center gap-2">
@@ -219,7 +223,7 @@ export default function CloseChecklistPage() {
                                   onClick={() => { setNotesEditing(item.id); setNotesValue(item.notes); }}
                                   className="text-xs text-stone-400 hover:text-stone-600 underline"
                                 >
-                                  {item.notes ? "Edit note" : "+ Add note"}
+                                  {item.notes ? t("close_checklist_edit_note_button") : t("close_checklist_add_note_button")}
                                 </button>
                               </div>
                             )}
@@ -231,18 +235,18 @@ export default function CloseChecklistPage() {
                               <button
                                 onClick={() => updateStatus(item, "blocked")}
                                 className="text-xs text-red-400 hover:text-red-600 px-1"
-                                title="Mark as blocked"
+                                title={t("close_checklist_mark_blocked_tooltip")}
                               >
-                                Block
+                                {t("close_checklist_block_button")}
                               </button>
                             )}
                             {item.status !== "na" && (
                               <button
                                 onClick={() => updateStatus(item, "na")}
                                 className="text-xs text-stone-400 hover:text-stone-600 px-1"
-                                title="Mark as not applicable"
+                                title={t("close_checklist_mark_na_tooltip")}
                               >
-                                N/A
+                                {t("close_checklist_na_button")}
                               </button>
                             )}
                           </div>
@@ -257,7 +261,7 @@ export default function CloseChecklistPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">No checklist found.</p>
+          <p className="text-stone-400 text-sm">{t("close_checklist_empty_label")}</p>
         </div>
       )}
     </AppShell>

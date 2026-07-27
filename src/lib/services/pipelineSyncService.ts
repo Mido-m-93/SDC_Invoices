@@ -2,16 +2,14 @@
 // lib/services/pipelineSyncService.ts — Notion + SharePoint pipeline sync
 //
 // Orchestrates: extract → map → stage → match → score → review → commit → log.
-// Mock-only for now — sources are fixture data (no live Notion/SharePoint
-// pipeline connection yet), AND commits deliberately go through
-// MockClientService/MockLeadService directly rather than the getClientService()
-// / getLeadService() factory. Those factory getters follow the app-wide
-// NEXT_PUBLIC_USE_MOCK_STORAGE flag, which is "false" (real Supabase) in this
-// project's .env.local — going through them here would write real client/lead
-// rows while this feature is still being proven out. Once verified end-to-end,
-// swap getMockNotionRawText()/getMockSharePointPipelineRecords() for real API
-// calls and swap these two imports for the getClientService()/getLeadService()
-// factory getters to start writing to whichever store the app is configured for.
+// SharePoint source is live (real Graph API via pipelineSharePointSource.ts)
+// once Azure creds are configured, falling back to fixture data otherwise.
+// Notion source is still fixture-only (getMockNotionRawText) pending a real
+// Notion API connection. Commits (approveStagedRecord) go through the
+// getClientService()/getLeadService() factory, so approved records land
+// wherever the app is actually configured to store Client/Lead data
+// (Supabase in production) — nothing commits to real data without a human
+// approving it first via the staged-record review queue.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
@@ -24,19 +22,20 @@ import type {
   Lead,
 } from "@/types";
 import { generateId } from "@/lib/utils";
-import { MockClientService, MockLeadService } from "@/lib/services/mock";
+import { getClientService, getLeadService } from "@/lib/services";
 import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/lib/services/ai/pipelineExtraction";
 import { rankClientCandidates, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
+import { fetchRealSharePointPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
 import {
   loadStagedPipelineRecords,
   saveStagedPipelineRecord,
   appendPipelineAuditEntry,
   loadPipelineAuditLog,
-} from "@/lib/services/mock/fileStore";
+} from "@/lib/services/pipelineSyncStore";
 
-function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): void {
-  appendPipelineAuditEntry({
+async function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): Promise<void> {
+  await appendPipelineAuditEntry({
     id: generateId("padt"),
     timestamp: new Date().toISOString(),
     ...entry,
@@ -46,8 +45,11 @@ function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): void {
 async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipelineItem[]> {
   if (source === "notion") {
     const rawText = getMockNotionRawText();
-    const items = await extractPipelineRecordsFromText(rawText);
-    audit({
+    const items = await extractPipelineRecordsFromText(rawText).catch((err) => {
+      console.warn("[pipelineSyncService] Notion extraction failed:", err);
+      return [];
+    });
+    await audit({
       actor: "system",
       action: "extract",
       recordId: null,
@@ -56,8 +58,30 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
     });
     return items;
   }
-  // SharePoint source is already tabular — no extraction pass needed.
-  return getMockSharePointPipelineRecords();
+  // SharePoint: use the real site once Azure creds are configured, falling
+  // back to fixture data otherwise (e.g. local dev without Graph credentials).
+  const hasAzureCreds = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
+  if (!hasAzureCreds) {
+    await audit({
+      actor: "system",
+      action: "extract",
+      recordId: null,
+      source,
+      detail: "AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET not configured — using fixture SharePoint data.",
+    });
+    return getMockSharePointPipelineRecords();
+  }
+
+  const { items, scan } = await fetchRealSharePointPipelineItems();
+  await audit({
+    actor: "system",
+    action: "extract",
+    recordId: null,
+    source,
+    detail: `Scanned ${scan.length} file(s) in real SharePoint, extracted ${items.length} record(s). ` +
+      scan.filter((s) => s.skipped).map((s) => `[${s.file}: ${s.skipped}]`).join(" "),
+  });
+  return items;
 }
 
 export interface RunSyncResult {
@@ -72,13 +96,13 @@ export async function runPipelineSync(
   actorName: string
 ): Promise<RunSyncResult> {
   const items = await getSourceItems(source);
-  const clients = await new MockClientService().listClients();
+  const clients = await getClientService().listClients();
 
   let autoLinked = 0;
   let needsReview = 0;
   const now = new Date().toISOString();
 
-  items.forEach((item, index) => {
+  for (const [index, item] of items.entries()) {
     const candidates = rankClientCandidates(item.rawClientName, clients);
     const top = candidates[0];
     const status: PipelineRecordStatus =
@@ -109,9 +133,9 @@ export async function runPipelineSync(
       createdAt: now,
       updatedAt: now,
     };
-    saveStagedPipelineRecord(record);
+    await saveStagedPipelineRecord(record);
 
-    audit({
+    await audit({
       actor: "system",
       action: "match",
       recordId: record.id,
@@ -120,9 +144,9 @@ export async function runPipelineSync(
         ? `Matched "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
         : `No candidate match for "${item.rawClientName}" → needs_review`,
     });
-  });
+  }
 
-  audit({
+  await audit({
     actor: actorName,
     action: "sync",
     recordId: null,
@@ -137,7 +161,7 @@ export async function listStagedRecords(filters?: {
   status?: PipelineRecordStatus;
   source?: PipelineSourceType;
 }): Promise<StagedPipelineRecord[]> {
-  let all = loadStagedPipelineRecords();
+  let all = await loadStagedPipelineRecords();
   if (filters?.status) all = all.filter((r) => r.status === filters.status);
   if (filters?.source) all = all.filter((r) => r.source === filters.source);
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -163,14 +187,14 @@ export async function approveStagedRecord(
   actorName: string,
   overrideClientId?: string
 ): Promise<StagedPipelineRecord> {
-  const record = loadStagedPipelineRecords().find((r) => r.id === id);
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
   if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
   if (record.status === "approved" || record.status === "rejected") {
     throw new Error(`Record "${id}" already ${record.status}`);
   }
 
-  const clientService = new MockClientService();
-  const leadService = new MockLeadService();
+  const clientService = getClientService();
+  const leadService = getLeadService();
   const now = new Date().toISOString();
 
   let client: Client | null = null;
@@ -200,7 +224,7 @@ export async function approveStagedRecord(
       updatedAt: now,
     };
     await clientService.saveClient(client);
-    audit({
+    await audit({
       actor: actorName,
       action: "approve",
       recordId: record.id,
@@ -214,7 +238,7 @@ export async function approveStagedRecord(
     if (!knownNames.has(record.rawClientName)) {
       client = { ...client, aliases: [...(client.aliases ?? []), record.rawClientName], updatedAt: now };
       await clientService.saveClient(client);
-      audit({
+      await audit({
         actor: actorName,
         action: "approve",
         recordId: record.id,
@@ -254,9 +278,9 @@ export async function approveStagedRecord(
     createdLeadId: lead.id,
     updatedAt: now,
   };
-  saveStagedPipelineRecord(updated);
+  await saveStagedPipelineRecord(updated);
 
-  audit({
+  await audit({
     actor: actorName,
     action: "approve",
     recordId: record.id,
@@ -272,7 +296,7 @@ export async function rejectStagedRecord(
   actorName: string,
   reason: string
 ): Promise<StagedPipelineRecord> {
-  const record = loadStagedPipelineRecords().find((r) => r.id === id);
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
   if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
 
   const updated: StagedPipelineRecord = {
@@ -281,9 +305,9 @@ export async function rejectStagedRecord(
     reviewerComment: reason,
     updatedAt: new Date().toISOString(),
   };
-  saveStagedPipelineRecord(updated);
+  await saveStagedPipelineRecord(updated);
 
-  audit({
+  await audit({
     actor: actorName,
     action: "reject",
     recordId: record.id,
@@ -295,5 +319,6 @@ export async function rejectStagedRecord(
 }
 
 export async function getAuditLog(recordId?: string): Promise<PipelineSyncAuditEntry[]> {
-  return loadPipelineAuditLog(recordId).sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+  const all = await loadPipelineAuditLog(recordId);
+  return all.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
 }

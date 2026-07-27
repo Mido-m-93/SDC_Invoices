@@ -1,7 +1,7 @@
 "use client";
 import type { InvoiceValidationResult, InvoiceSubmission } from "@/types";
 import { useLanguage } from "@/translations";
-import { formatAmount, detectCurrency } from "@/lib/utils";
+import { formatAmount, detectCurrency, translateIssue, translateRecommendation } from "@/lib/utils";
 
 type StageStatus = "pass" | "warn" | "fail";
 
@@ -134,7 +134,11 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
     !v.pdfAccessible ? t("stage1_no_pdf") :
     pdfParseError ? t("stage1_parse_error") :
     pdfIssues.length > 0
-      ? [...pdfIssues.filter((i) => !i.startsWith("PDF_PARSE_ERROR")), amountLine, nameLine].filter(Boolean).join("\n")
+      ? [
+          ...pdfIssues.filter((i) => !i.startsWith("PDF_PARSE_ERROR")).map((i) => translateIssue(i, language)),
+          amountLine,
+          nameLine,
+        ].filter(Boolean).join("\n")
       : [amountLine, nameLine, unverifiedLine].filter(Boolean).join("\n") || t("stage1_ok");
 
   // ── Stage 2: Within-store duplicate check ─────────────────────────────────
@@ -142,15 +146,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
 
   const stage2Status: StageStatus = !dupIssue ? "pass" : "warn";
 
-  const stage2Detail = (() => {
-    if (!dupIssue) return t("stage2_ok");
-    const m = dupIssue.match(/Duplicate:\s*(\d+)\s*other submission\(s\)\s*for\s+(.+?)\s*this month/i);
-    if (!m) return dupIssue;
-    const [, count, name] = m;
-    return language === "ja"
-      ? `重複: ${name} の今月の提出が他に ${count} 件あります`
-      : `Duplicate: ${count} other submission(s) for ${name} this month`;
-  })();
+  const stage2Detail = dupIssue ? translateIssue(dupIssue, language) : t("stage2_ok");
 
   // ── Stage 3: Google Drive filing check ────────────────────────────────────
   // "Already filed in Drive:" → matched, amounts agree
@@ -179,24 +175,25 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         ? `${base}\n${language === "ja" ? `照合した金額: ${pdfAmountStr}` : `Checked amount: ${pdfAmountStr}`}`
         : base;
     }
-    if (language !== "ja") return driveIssue;
-    // Translate the Drive filing message line by line
-    return driveIssue
-      .replace(/^Already filed in Drive:/i, "ドライブに既に保管済み:")
-      .replace(/Name:\s*"(.+?)"\s*✓ found in Drive/g, '名前: "$1" ✓ ドライブで確認済み')
-      .replace(/Amount:\s*(.+?)\s*matches\s*✓/g, '金額: $1 一致 ✓');
+    return translateIssue(driveIssue, language);
   })();
 
   // ── Stage 4: SharePoint contractor check ──────────────────────────────────
+  const contractExpired = !!v.contractEndDate && new Date(v.contractEndDate) < new Date();
+
   const stage4Status: StageStatus =
-    v.vendorMatched ? "pass" :
-    "warn";
+    !v.vendorMatched ? "warn" :
+    contractExpired  ? "warn" :
+    "pass";
 
   const stage4Detail =
     v.vendorMatched
-      ? (v.reviewerRecommendation
-          ? `${t("stage4_registered")} ${v.reviewerRecommendation}`
-          : t("stage4_found"))
+      ? [
+          v.reviewerRecommendation
+            ? `${t("stage4_registered")} ${translateRecommendation(v.reviewerRecommendation, language)}`
+            : t("stage4_found"),
+          contractExpired ? t("stage4_contract_expired").replace("{date}", v.contractEndDate!) : "",
+        ].filter(Boolean).join("\n")
       : t("stage4_not_found");
 
   return (

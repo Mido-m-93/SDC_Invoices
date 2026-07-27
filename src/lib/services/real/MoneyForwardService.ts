@@ -19,7 +19,8 @@ import "server-only";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MF_API_BASE = "https://invoice.moneyforward.com/api/v3";
-const MF_TOKEN_URL = "https://sso.moneyforward.com/oauth/token";
+const MF_AUTHORIZE_URL = "https://api.biz.moneyforward.com/authorize";
+const MF_TOKEN_URL = "https://api.biz.moneyforward.com/token";
 
 export interface MFSendPayload {
   partnerName: string;
@@ -203,9 +204,9 @@ export function buildMFAuthUrl(): string {
     response_type: "code",
     client_id:     clientId,
     redirect_uri:  redirectUri,
-    scope:         "invoice.write",
+    scope:         "mfc/invoice/data.write",
   });
-  return `https://sso.moneyforward.com/oauth/authorize?${params.toString()}`;
+  return `${MF_AUTHORIZE_URL}?${params.toString()}`;
 }
 
 export async function exchangeMFCode(code: string): Promise<{

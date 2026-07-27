@@ -12,10 +12,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
+import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+// Each contract extraction is a Graph download + AI call — too slow to do for
+// every member in one invocation without risking a Vercel function timeout.
+// Cap it per run; members left over just get picked up on the next sync.
+// Worst case (every extraction hits the timeout below) must stay comfortably
+// under maxDuration: 3 * 12s = 36s, leaving headroom for token/list/DB overhead.
+const MAX_CONTRACT_EXTRACTIONS_PER_RUN = 3;
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -108,28 +116,109 @@ function normalise(s: string): string {
   return s.toLowerCase().replace(/\s+/g, "");
 }
 
-async function runSync(): Promise<{ added: number; skipped: number; total: number; names: string[] }> {
+// Reads and AI-extracts the contract PDF once — non-fatal on failure, since a
+// missing/unreadable contract shouldn't block the member record itself from syncing.
+// Hard-timed out: a single hung Graph/AI call must not be able to consume the
+// whole function's time budget and take the entire sync down with it.
+const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
+
+interface FetchContractFieldsResult {
+  fields: {
+    contractStart: string | null;
+    contractEnd: string | null;
+    contractedAmount: number | null;
+    contractScope: string | null;
+  } | null;
+}
+
+async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
+  try {
+    const { contractInfo } = await Promise.race([
+      checkMemberBySharePointContracts(displayName),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
+      ),
+    ]);
+    if (!contractInfo) return { fields: null };
+    return {
+      fields: {
+        contractStart:    contractInfo.contractStart,
+        contractEnd:      contractInfo.contractEnd,
+        contractedAmount: contractInfo.contractedAmount,
+        contractScope:    contractInfo.scope,
+      },
+    };
+  } catch (err) {
+    console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
+    return { fields: null };
+  }
+}
+
+async function runSync(retryFailed = false): Promise<{
+  added: number; skipped: number; total: number; names: string[]; contractsBackfilled: number; stillMissing: number;
+}> {
   const token   = await getAccessToken();
   const items   = await listFolderChildren(token);
   const service = getMemberService();
   const existing = await service.listMembers();
 
-  const existingNames = new Set(existing.map((m) => normalise(m.displayName)));
+  const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
+  const stillMissing = existing.filter((m) => m.contractStart == null).length;
 
-  let added   = 0;
-  let skipped = 0;
+  let added               = 0;
+  let skipped             = 0;
+  let contractsBackfilled = 0;
   const addedNames: string[] = [];
 
-  for (const item of items) {
+  // In retry mode the contractSyncAttemptedAt gate is ignored, so without this
+  // every run would just re-hit whichever ~3 members happen to sit first in
+  // the folder's fixed listing order forever, never rotating to anyone else.
+  // Process oldest-attempted-first instead so each run advances the queue.
+  const orderedItems = retryFailed
+    ? [...items].sort((a, b) => {
+        const ta = existingByName.get(normalise(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
+        const tb = existingByName.get(normalise(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
+        return ta.localeCompare(tb);
+      })
+    : items;
+
+  for (const item of orderedItems) {
     const displayName = extractMemberName(item.name);
     if (!displayName) { skipped++; continue; }
 
-    if (existingNames.has(normalise(displayName))) {
+    const existingMember = existingByName.get(normalise(displayName));
+
+    if (existingMember) {
       skipped++;
+      // Backfill contract fields for members synced before this was tracked —
+      // capped per run so this route can't time out; leftovers pick up next sync.
+      // Gate on contractSyncAttemptedAt (not contractStart) so a member whose
+      // extraction genuinely fails isn't retried on every single future run —
+      // since folder-listing order never changes, that would permanently jam
+      // the front of the queue in front of everyone who hasn't been tried yet.
+      if (existingMember.contractStart == null && (retryFailed || existingMember.contractSyncAttemptedAt == null)
+          && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+        contractsBackfilled++;
+        const result = await fetchContractFields(displayName);
+        await service.saveMember({
+          ...existingMember,
+          ...(result.fields ?? {}),
+          contractSyncAttemptedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
       continue;
     }
 
     const now: string = new Date().toISOString();
+    let fields: FetchContractFieldsResult["fields"] = null;
+    let attemptedExtraction = false;
+    if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      contractsBackfilled++;
+      attemptedExtraction = true;
+      const result = await fetchContractFields(displayName);
+      fields = result.fields;
+    }
     const newMember: Member = {
       id:           generateId("mbr"),
       displayName,
@@ -144,20 +233,23 @@ async function runSync(): Promise<{ added: number; skipped: number; total: numbe
       notes:        `Auto-synced from SharePoint (${item.name})`,
       createdAt:    now,
       updatedAt:    now,
+      ...fields,
+      ...(attemptedExtraction ? { contractSyncAttemptedAt: now } : {}),
     };
 
     await service.saveMember(newMember);
-    existingNames.add(normalise(displayName));
+    existingByName.set(normalise(displayName), newMember);
     added++;
     addedNames.push(displayName);
   }
 
-  return { added, skipped, total: items.length, names: addedNames };
+  return { added, skipped, total: items.length, names: addedNames, contractsBackfilled, stillMissing };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const result = await runSync();
+    const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
+    const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[GET /api/members/sync]", err);
@@ -165,9 +257,10 @@ export async function GET() {
   }
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const result = await runSync();
+    const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
+    const result = await runSync(retryFailed);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error("[POST /api/members/sync]", err);
