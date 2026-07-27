@@ -28,14 +28,19 @@ export async function GET(req: NextRequest) {
 
     // Persist tokens to Supabase so they survive serverless restarts
     let savedToDb = false;
+    let dbError = "";
     try {
       const db = getSupabaseClient();
-      await db.from("app_config").update({
+      const { error, count } = await db.from("app_config").upsert({
+        id: "main",
         mf_access_token:  tokens.accessToken,
         mf_refresh_token: tokens.refreshToken,
-      }).eq("id", "main");
+      }, { onConflict: "id", count: "exact" });
+      if (error) throw error;
       savedToDb = true;
+      console.log("[MF callback] Tokens saved to Supabase, rows affected:", count);
     } catch (dbErr) {
+      dbError = String(dbErr);
       console.error("[MF callback] Failed to save tokens to Supabase:", dbErr);
     }
 
@@ -44,7 +49,7 @@ export async function GET(req: NextRequest) {
         <h2>Money Forward connected! &check;</h2>
         <p>${savedToDb
           ? "Tokens saved to Supabase automatically &mdash; no manual step needed."
-          : "&#9888; Could not save to Supabase. Copy these values into your <code>.env.local</code> manually."
+          : `&#9888; Could not save to Supabase: <code>${dbError}</code>`
         }</p>
         ${!savedToDb ? `<table>
           <tr>
