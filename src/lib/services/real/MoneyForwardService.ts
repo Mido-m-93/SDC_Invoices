@@ -120,6 +120,7 @@ export class MoneyForwardService {
     payload: MFSendPayload
   ): Promise<MFSendResult> {
     const body = {
+      partner_id:   partnerId,
       title:        payload.title,
       billing_date: payload.billingDate,
       due_date:     payload.dueDate ?? null,
@@ -135,14 +136,14 @@ export class MoneyForwardService {
       ],
     };
 
-    const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/partners/${partnerId}/billings`, body);
-    console.log("[MF] POST /billings response:", JSON.stringify(res).slice(0, 400));
+    const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/received_invoices`, body);
+    console.log("[MF] POST /received_invoices response:", JSON.stringify(res).slice(0, 400));
 
     const record = (res.data ?? res) as { id?: string; pdf_url?: string; web_url?: string };
     const id  = String(record.id ?? "");
     const url = record.web_url
       ?? record.pdf_url
-      ?? `https://invoice.moneyforward.com/billings/${id}`;
+      ?? `https://invoice.moneyforward.com/received_invoices/${id}`;
 
     return { billingId: id, billingUrl: url, partnerId };
   }
