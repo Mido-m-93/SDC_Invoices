@@ -43,13 +43,15 @@ export class MoneyForwardService {
     if (this.tokensLoaded) return;
     try {
       const db = getSupabaseClient();
-      const { data } = await db
-        .from("app_config")
-        .select("mf_access_token, mf_refresh_token")
-        .eq("id", "main")
-        .single();
-      this.accessToken  = (data as Record<string, string> | null)?.mf_access_token  || process.env.MF_ACCESS_TOKEN  || "";
-      this.refreshToken = (data as Record<string, string> | null)?.mf_refresh_token || process.env.MF_REFRESH_TOKEN || "";
+      const { data, error } = await db.rpc("get_mf_tokens");
+      if (!error && data) {
+        const row = data as { mf_access_token?: string; mf_refresh_token?: string };
+        this.accessToken  = row.mf_access_token  || process.env.MF_ACCESS_TOKEN  || "";
+        this.refreshToken = row.mf_refresh_token || process.env.MF_REFRESH_TOKEN || "";
+      } else {
+        this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
+        this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
+      }
     } catch {
       this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
       this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
@@ -63,10 +65,7 @@ export class MoneyForwardService {
   private async persistTokens(): Promise<void> {
     try {
       const db = getSupabaseClient();
-      await db.from("app_config").update({
-        mf_access_token:  this.accessToken,
-        mf_refresh_token: this.refreshToken,
-      }).eq("id", "main");
+      await db.rpc("set_mf_tokens", { p_access: this.accessToken, p_refresh: this.refreshToken });
     } catch (err) {
       console.warn("[MoneyForwardService] Could not persist tokens to Supabase:", err);
     }
