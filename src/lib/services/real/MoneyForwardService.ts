@@ -115,11 +115,20 @@ export class MoneyForwardService {
 
   // ── Billing (受取請求書) creation ───────────────────────────────────────────
 
+  private async getDefaultDepartmentId(): Promise<string> {
+    const res = await this.apiFetch<{ data: Array<{ id: string }> }>(`GET`, `/departments`);
+    const id = res.data?.[0]?.id;
+    if (!id) throw new Error("[MoneyForwardService] No departments found in MF account");
+    return id;
+  }
+
   private async createBilling(
     partnerId: string,
     payload: MFSendPayload
   ): Promise<MFSendResult> {
+    const departmentId = await this.getDefaultDepartmentId();
     const body = {
+      department_id: departmentId,
       title:        payload.title,
       billing_date: payload.billingDate,
       due_date:     payload.dueDate ?? null,
