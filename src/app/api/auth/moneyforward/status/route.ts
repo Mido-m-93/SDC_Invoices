@@ -10,7 +10,11 @@ export async function GET() {
     const { data, error } = await db.storage.from("mf-config").download("tokens.json");
 
     if (error) {
-      return NextResponse.json({ storageError: JSON.stringify(error), env_MF_ACCESS_TOKEN: process.env.MF_ACCESS_TOKEN ? "set" : "EMPTY" }, { status: 200 });
+      return NextResponse.json({
+        storageError: JSON.stringify(error),
+        supabase_url: process.env.SUPABASE_URL ?? "NOT SET",
+        env_MF_ACCESS_TOKEN: process.env.MF_ACCESS_TOKEN ? "set" : "EMPTY",
+      }, { status: 200 });
     }
 
     const tokens = JSON.parse(await data.text()) as { access?: string; refresh?: string };
