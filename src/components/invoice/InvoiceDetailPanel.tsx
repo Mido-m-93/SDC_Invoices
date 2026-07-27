@@ -176,7 +176,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
               <ValidationStages v={v} submission={s} />
               {onSendToMF && (
                 <div className="mt-3">
-                  {!v.mfBillingUrl && (v.statusCode === "READY" || v.humanApproved === true) && (
+                  {!v.mfBillingUrl && (
                     <Button
                       variant="ghost"
                       size="sm"
