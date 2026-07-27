@@ -41,24 +41,33 @@ export class MoneyForwardService {
 
   private async ensureTokens(): Promise<void> {
     if (this.tokensLoaded) return;
+    let source = "none";
     try {
       const db = getSupabaseClient();
       const { data, error } = await db.storage.from("mf-config").download("tokens.json");
-      if (!error && data) {
-        const tokens = JSON.parse(await data.text()) as { access?: string; refresh?: string };
+      if (error) {
+        source = `storage-error:${JSON.stringify(error)}`;
+        this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
+        this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
+      } else if (data) {
+        const text = Buffer.from(await data.arrayBuffer()).toString("utf-8");
+        const tokens = JSON.parse(text) as { access?: string; refresh?: string };
         this.accessToken  = tokens.access  || process.env.MF_ACCESS_TOKEN  || "";
         this.refreshToken = tokens.refresh || process.env.MF_REFRESH_TOKEN || "";
+        source = tokens.access ? "storage" : "env-fallback";
       } else {
+        source = "no-data";
         this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
         this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
       }
-    } catch {
+    } catch (e) {
+      source = `exception:${String(e)}`;
       this.accessToken  = process.env.MF_ACCESS_TOKEN  || "";
       this.refreshToken = process.env.MF_REFRESH_TOKEN || "";
     }
     this.tokensLoaded = true;
     if (!this.accessToken) {
-      throw new Error("[MoneyForwardService] MF_ACCESS_TOKEN not set. Complete the OAuth flow at /api/auth/moneyforward");
+      throw new Error(`[MoneyForwardService] MF_ACCESS_TOKEN not set (source=${source})`);
     }
   }
 
