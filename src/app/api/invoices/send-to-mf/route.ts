@@ -103,7 +103,15 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Failed to send to Money Forward", detail: message },
+      {
+        error: "Failed to send to Money Forward",
+        detail: message,
+        debug: {
+          payerName: submission.payerName,
+          externalProject: submission.externalProjectName,
+          department: submission.internalDepartment,
+        },
+      },
       { status: 500 }
     );
   }
