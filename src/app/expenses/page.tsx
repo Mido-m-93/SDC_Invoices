@@ -62,6 +62,8 @@ export default function ExpensesPage() {
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
   const [sendingToMF, setSendingToMF] = useState<string | null>(null);
+  const [confirmCleanAll, setConfirmCleanAll] = useState(false);
+  const [cleaningAll, setCleaningAll] = useState(false);
 
   const statusLabel = (s: ExpenseStatus | "all") => t(`expenses_status_${s}` as TranslationKey);
   const categoryLabel = (c: ExpenseCategory) => t(`expenses_category_${c}` as TranslationKey);
@@ -217,6 +219,25 @@ export default function ExpensesPage() {
     }
   }
 
+  async function handleCleanAll() {
+    setCleaningAll(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/expenses", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? t("expenses_sync_failed"));
+      } else {
+        setClaims([]);
+        setConfirmCleanAll(false);
+      }
+    } catch {
+      setError(t("expenses_sync_failed_logs"));
+    } finally {
+      setCleaningAll(false);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -237,6 +258,13 @@ export default function ExpensesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               {syncing ? t("expenses_syncing") : t("expenses_sync_from_forms")}
+            </button>
+            <button
+              onClick={() => setConfirmCleanAll(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
+            >
+              <TrashIcon />
+              {t("expenses_clean_all")}
             </button>
             <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
               uploading
@@ -604,8 +632,37 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+
+      {confirmCleanAll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-semibold text-stone-900">{t("expenses_clean_all_confirm_title")}</h2>
+            <p className="mb-6 text-sm text-stone-500">{t("expenses_clean_all_confirm_body")}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmCleanAll(false)}
+                disabled={cleaningAll}
+                className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                onClick={handleCleanAll}
+                disabled={cleaningAll}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cleaningAll ? t("expenses_clean_all_deleting") : t("expenses_clean_all_confirm_action")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
+}
+
+function TrashIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 }
 
 const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";

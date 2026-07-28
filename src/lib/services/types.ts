@@ -212,6 +212,7 @@ export interface IExpenseService {
   getClaim(id: string): Promise<ExpenseClaim | null>;
   saveClaim(claim: ExpenseClaim): Promise<void>;
   deleteClaim(id: string): Promise<void>;
+  deleteAllClaims(): Promise<void>;
   updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void>;
   validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
   // Aliases used by some routes / services

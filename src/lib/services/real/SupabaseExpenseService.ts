@@ -179,6 +179,11 @@ export class SupabaseExpenseService implements IExpenseService {
     if (error) throw new Error(`deleteClaim: ${error.message}`);
   }
 
+  async deleteAllClaims(): Promise<void> {
+    const { error } = await this.db.from("expense_claims").delete().neq("id", "");
+    if (error) throw new Error(`deleteAllClaims: ${error.message}`);
+  }
+
   async updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void> {
     const updates: Record<string, unknown> = {
       status,

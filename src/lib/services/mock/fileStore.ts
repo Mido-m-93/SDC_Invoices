@@ -398,6 +398,12 @@ export function deleteExpenseClaim(id: string): void {
   writeStore(store);
 }
 
+export function deleteAllExpenseClaims(): void {
+  const store = readStore();
+  store.expenseClaims = [];
+  writeStore(store);
+}
+
 export function updateExpenseClaimStatus(
   id: string,
   status: ExpenseClaim["status"],

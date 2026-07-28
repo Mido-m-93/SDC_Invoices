@@ -4,6 +4,7 @@ import {
   loadExpenseClaims,
   saveExpenseClaim,
   deleteExpenseClaim,
+  deleteAllExpenseClaims,
   updateExpenseClaimStatus,
 } from "./fileStore";
 
@@ -25,6 +26,10 @@ export class MockExpenseService implements IExpenseService {
 
   async deleteClaim(id: string): Promise<void> {
     deleteExpenseClaim(id);
+  }
+
+  async deleteAllClaims(): Promise<void> {
+    deleteAllExpenseClaims();
   }
 
   async updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void> {
