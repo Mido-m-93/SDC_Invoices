@@ -59,6 +59,21 @@ export async function POST(req: NextRequest) {
     const partnerName = (submission.payerName || submission.externalProjectName || submission.internalDepartment || "Unknown").trim() || "Unknown";
     const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
 
+    // MoneyForward's Invoice API has no currency field at all (verified
+    // against their full v3 spec) — it's a JPY-only Japanese tax-invoicing
+    // platform. Sending a USD amount as a bare number would silently create
+    // a JPY billing for the same numeric value (e.g. $500 -> 500 yen).
+    // Refuse rather than guess an exchange rate on a real financial system.
+    if (currency !== "JPY") {
+      return NextResponse.json(
+        {
+          error: "Money Forward only supports JPY invoices",
+          detail: `This submission is in ${currency}. Convert the amount to JPY manually before sending to Money Forward.`,
+        },
+        { status: 422 }
+      );
+    }
+
     // MF requires due_date unless the partner has a payment-deadline setting
     // configured on their MF profile — most partners created via this API
     // won't have one, so always derive it ourselves (same rule the Reminders

@@ -4,6 +4,12 @@ import { getExpenseService } from "@/lib/services";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -17,6 +23,19 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       {
         error: "Cannot send to Money Forward",
         reason: `Status is ${claim.status}. Only approved (or paid) claims can be sent.`,
+      },
+      { status: 422 }
+    );
+  }
+
+  // MoneyForward's Invoice API has no currency field at all — it's a
+  // JPY-only Japanese tax-invoicing platform. Sending a USD amount as a bare
+  // number would silently create a JPY billing for the same numeric value.
+  if (claim.currency === "USD") {
+    return NextResponse.json(
+      {
+        error: "Money Forward only supports JPY invoices",
+        detail: "This claim is in USD. Convert the amount to JPY manually before sending to Money Forward.",
       },
       { status: 422 }
     );
@@ -36,13 +55,19 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       }
     }
 
+    // MF requires due_date unless the partner has a payment-deadline setting
+    // configured — fresh partners never do, so always supply one.
+    const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
+    const dueDate = addDays(claim.expenseDate, paymentTermsDays);
+
     const mfService = new MoneyForwardService();
     const result = await mfService.sendInvoice({
       partnerName: claim.submittedBy,
       title: buildTitle(claim),
       billingDate: claim.expenseDate,
+      dueDate,
       amount: claim.amount,
-      currency: claim.currency === "USD" ? "USD" : "JPY",
+      currency: "JPY",
       memo: claim.description,
       pdfData,
       pdfFilename,
