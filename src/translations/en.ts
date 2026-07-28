@@ -26,6 +26,7 @@ const en = {
   missing_attachment: "Missing Attachment",
   already_processed: "Already Processed",
   load_invoices: "Load Invoices",
+  btn_sync: "Sync",
   run_validation: "Run Validation",
   save_ready_files: "Save Ready Files",
   loading: "Loading...",

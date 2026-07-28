@@ -26,6 +26,7 @@ const ja = {
   missing_attachment: "添付ファイルなし",
   already_processed: "処理済み",
   load_invoices: "請求書を読み込む",
+  btn_sync: "同期",
   run_validation: "バリデーション実行",
   save_ready_files: "保存可能ファイルを保存",
   loading: "読み込み中...",

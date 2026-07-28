@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
+import type { InvoiceSubmission } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
@@ -19,22 +20,25 @@ export async function GET(req: NextRequest) {
   try {
     console.log(`[GET /api/invoices] month=${month} mock_sheets=${process.env.NEXT_PUBLIC_USE_MOCK_SHEETS} mock_storage=${process.env.NEXT_PUBLIC_USE_MOCK_STORAGE} azure_tenant=${!!process.env.AZURE_TENANT_ID}`);
 
-    console.log("[GET /api/invoices] loading from storage...");
-    const stored = await getStorageService().loadSubmissionsFromStore(month);
-    console.log(`[GET /api/invoices] storage returned ${stored.length} rows`);
+    // Storage and Sheets are independent data sources — fetch concurrently
+    // instead of sequentially. Sheets is the slow one (Microsoft Graph round
+    // trip), so this halves wall-clock time instead of adding the two waits.
+    console.log("[GET /api/invoices] loading from storage + sheets concurrently...");
+    const [stored, sheetsOutcome] = await Promise.all([
+      getStorageService().loadSubmissionsFromStore(month),
+      getSheetsService().loadSubmissions(month)
+        .then((rows) => ({ rows, error: undefined as string | undefined }))
+        .catch((sheetsErr) => {
+          console.warn("[GET /api/invoices] sheets service failed (returning stored data only):", sheetsErr);
+          return { rows: [] as InvoiceSubmission[], error: String(sheetsErr) };
+        }),
+    ]);
+    console.log(`[GET /api/invoices] storage returned ${stored.length} rows, sheets returned ${sheetsOutcome.rows.length} rows`);
+
     const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
     const storedIdByRow = new Map(stored.map((s) => [s.submissionRowNumber, s.id]));
-
-    console.log("[GET /api/invoices] loading from sheets service...");
-    let allFresh: typeof stored = [];
-    let sheetsWarning: string | undefined;
-    try {
-      allFresh = await getSheetsService().loadSubmissions(month);
-      console.log(`[GET /api/invoices] sheets returned ${allFresh.length} rows`);
-    } catch (sheetsErr) {
-      sheetsWarning = String(sheetsErr);
-      console.warn("[GET /api/invoices] sheets service failed (returning stored data only):", sheetsErr);
-    }
+    const allFresh = sheetsOutcome.rows;
+    const sheetsWarning = sheetsOutcome.error;
     const freshForMonth = allFresh.filter(
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
