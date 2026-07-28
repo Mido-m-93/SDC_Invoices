@@ -156,14 +156,28 @@ export class MicrosoftSheetsService implements ISheetsService {
     );
     const driveId = driveInfo.id;
 
-    // Download the raw file to bypass Graph API Excel caching
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/content`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Failed to download Excel file (${res.status}): ${body}`);
+    // Download the raw file to bypass Graph API Excel caching. SharePoint
+    // Online occasionally returns a transient 502/503/504 ("something went
+    // wrong, try again in a few minutes") — retry those a few times before
+    // giving up, since a client-error (4xx) retrying won't help.
+    const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/content`;
+    const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+    const MAX_ATTEMPTS = 3;
+
+    let res: Response | undefined;
+    let lastErrorBody = "";
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+      if (res.ok) break;
+      if (!RETRYABLE_STATUSES.has(res.status) || attempt === MAX_ATTEMPTS) {
+        lastErrorBody = await res.text();
+        break;
+      }
+      console.warn(`[MicrosoftSheetsService] Excel download got ${res.status}, retrying (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+    }
+    if (!res || !res.ok) {
+      throw new Error(`Failed to download Excel file (${res?.status}): ${lastErrorBody}`);
     }
 
     const buffer = await res.arrayBuffer();
