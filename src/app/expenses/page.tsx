@@ -17,6 +17,13 @@ function fmtDate(iso: string | null | undefined): string {
   return iso.slice(0, 10);
 }
 
+function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 const STATUS_COLORS: Record<ExpenseStatus, string> = {
   draft: "bg-stone-100 text-stone-500",
   submitted: "bg-blue-100 text-blue-700",
@@ -357,7 +364,10 @@ export default function ExpensesPage() {
                       <span className="ml-1 text-xs text-amber-600">({t("expenses_receipt_amount")}: {c.extractedAmount.toLocaleString()})</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-stone-500">{fmtDate(c.submittedAt)}</td>
+                  <td className="px-4 py-3 text-stone-500">
+                    {fmtDate(c.submittedAt)}
+                    {fmtTime(c.submittedAt) && <span className="text-stone-400"> {fmtTime(c.submittedAt)}</span>}
+                  </td>
                   <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-start rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
