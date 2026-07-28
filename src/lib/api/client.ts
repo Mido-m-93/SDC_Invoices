@@ -38,10 +38,12 @@ async function apiFetch<T>(
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
+      const { error, detail, reason, action } = body as {
+        error?: string; detail?: string; reason?: string; action?: string;
+      };
+      const parts = [error ?? res.statusText, detail, reason, action].filter(Boolean);
       throw new Error(
-        `API ${options?.method ?? "GET"} ${path} failed (${res.status}): ${
-          (body as { error?: string }).error ?? res.statusText
-        }`
+        `API ${options?.method ?? "GET"} ${path} failed (${res.status}): ${parts.join(" — ")}`
       );
     }
     return res.json() as Promise<T>;
