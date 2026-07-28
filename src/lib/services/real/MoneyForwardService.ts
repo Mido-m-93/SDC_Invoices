@@ -171,9 +171,13 @@ export class MoneyForwardService {
     const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/invoice_template_billings`, body);
     console.log("[MF] POST /invoice_template_billings response:", JSON.stringify(res).slice(0, 400));
 
-    const record = res as { id?: string; pdf_url?: string; web_url?: string };
-    const id  = String(record.id ?? "");
-    const url = (record.pdf_url ?? `https://invoice.moneyforward.com/billings/${id}`);
+    const record = res as { id?: string };
+    const id = String(record.id ?? "");
+    // record.pdf_url points at the API's own PDF endpoint, which requires an
+    // OAuth Bearer token — it 401s ("token_missing") when opened directly in
+    // a browser. The MF web app URL below is what users can actually click
+    // through to (requires being logged into MF in that browser session).
+    const url = `https://invoice.moneyforward.com/billings/${id}`;
 
     return { billingId: id, billingUrl: url, partnerId };
   }
