@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
 import { convertUsdToJpy } from "@/lib/services/real/ExchangeRateService";
 import { deriveDueDate } from "@/lib/services/real/SupabaseReminderService";
-import { getDriveService, getStorageService } from "@/lib/services";
+import { getStorageService } from "@/lib/services";
 import { detectCurrency } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
@@ -38,24 +38,6 @@ export async function POST(req: NextRequest) {
 
     // Parse amount â€” strip currency symbols, commas, spaces
     const amount = parseAmount(submission.claimedAmountTaxIncluded);
-
-    // Fetch the PDF from Drive (optional â€” attach if available)
-    let pdfData: Uint8Array | undefined;
-    let pdfFilename: string | undefined;
-
-    if (submission.invoiceAttachment) {
-      try {
-        const driveSvc    = getDriveService();
-        const attachment  = await driveSvc.fetchAttachment(submission.invoiceAttachment);
-        if (attachment) {
-          pdfData     = attachment.data;
-          pdfFilename = attachment.filename;
-        }
-      } catch (driveErr) {
-        // PDF fetch failure is non-fatal â€” we still register the invoice in MF
-        console.warn("[send-to-mf] Could not fetch PDF from Drive:", driveErr);
-      }
-    }
 
     const partnerName = (submission.payerName || submission.externalProjectName || submission.internalDepartment || "Unknown").trim() || "Unknown";
     const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
@@ -101,8 +83,7 @@ export async function POST(req: NextRequest) {
       ]
         .filter(Boolean)
         .join(" / "),
-      pdfData,
-      pdfFilename,
+      sourceUrl: submission.invoiceAttachment || undefined,
     });
 
     // Store MF billing info back to Supabase

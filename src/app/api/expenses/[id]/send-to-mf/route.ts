@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
 import { convertUsdToJpy } from "@/lib/services/real/ExchangeRateService";
-import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -30,19 +29,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   try {
-    let pdfData: Uint8Array | undefined;
-    let pdfFilename: string | undefined;
-
-    if (claim.receiptUrl) {
-      try {
-        pdfData = await downloadSharePointFile(claim.receiptUrl);
-        pdfFilename = claim.receiptFilename || "receipt.pdf";
-      } catch (fetchErr) {
-        // Receipt fetch failure is non-fatal — still register the expense in MF
-        console.warn("[send-to-mf] Could not fetch receipt:", fetchErr);
-      }
-    }
-
     // MF requires due_date unless the partner has a payment-deadline setting
     // configured — fresh partners never do, so always supply one.
     const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
@@ -68,8 +54,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       amount: mfAmount,
       currency: "JPY",
       memo: [claim.description, fxNote].filter(Boolean).join(" / "),
-      pdfData,
-      pdfFilename,
+      sourceUrl: claim.receiptUrl || undefined,
     });
 
     const updated = {
