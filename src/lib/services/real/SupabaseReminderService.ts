@@ -29,7 +29,7 @@ function getSupabase() {
 }
 
 /** Derive due date: end of closingMonth + paymentTermsDays */
-function deriveDueDate(closingMonth: string, paymentTermsDays: number): string | null {
+export function deriveDueDate(closingMonth: string, paymentTermsDays: number): string | null {
   const m = closingMonth.match(/(\d{4})[^\d](\d{1,2})/);
   if (!m) return null;
   const year = parseInt(m[1]);

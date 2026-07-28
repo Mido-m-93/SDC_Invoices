@@ -2,6 +2,7 @@
 // POST /api/invoices/send-to-mf
 import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
+import { deriveDueDate } from "@/lib/services/real/SupabaseReminderService";
 import { getDriveService, getStorageService } from "@/lib/services";
 import { detectCurrency } from "@/lib/utils";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
@@ -57,11 +58,20 @@ export async function POST(req: NextRequest) {
 
     const partnerName = (submission.payerName || submission.externalProjectName || submission.internalDepartment || "Unknown").trim() || "Unknown";
     const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
+
+    // MF requires due_date unless the partner has a payment-deadline setting
+    // configured on their MF profile — most partners created via this API
+    // won't have one, so always derive it ourselves (same rule the Reminders
+    // feature uses: end of closingMonth + paymentTermsDays).
+    const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
+    const dueDate = deriveDueDate(submission.closingMonth, paymentTermsDays) ?? billingDate;
+
     const mfService = new MoneyForwardService();
     const result    = await mfService.sendInvoice({
       partnerName,
       title:       buildTitle(submission),
       billingDate,
+      dueDate,
       amount,
       currency,
       memo: [
