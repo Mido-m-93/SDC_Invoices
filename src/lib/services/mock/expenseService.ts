@@ -4,6 +4,7 @@ import {
   loadExpenseClaims,
   saveExpenseClaim,
   deleteExpenseClaim,
+  deleteAllExpenseClaims,
   updateExpenseClaimStatus,
 } from "./fileStore";
 
@@ -25,6 +26,10 @@ export class MockExpenseService implements IExpenseService {
 
   async deleteClaim(id: string): Promise<void> {
     deleteExpenseClaim(id);
+  }
+
+  async deleteAllClaims(): Promise<void> {
+    deleteAllExpenseClaims();
   }
 
   async updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void> {
@@ -60,6 +65,8 @@ export class MockExpenseService implements IExpenseService {
       claimId:              claim.id,
       receiptAccessible:    !!claim.receiptUrl,
       amountMatchesReceipt: claim.extractedAmount === null || Math.abs((claim.extractedAmount ?? 0) - claim.amount) <= 1,
+      dateMatchesReceipt:   claim.extractedDate === null || claim.extractedDate === claim.expenseDate,
+      purposeMatchesReceipt: false,
       dateFound:            !!claim.expenseDate,
       categoryValid:        true,
       receiptMissing,

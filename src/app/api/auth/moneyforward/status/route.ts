@@ -12,7 +12,7 @@ export async function GET() {
     if (error) {
       return NextResponse.json({
         storageError: JSON.stringify(error),
-        supabase_url: process.env.SUPABASE_URL ?? "NOT SET",
+        supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "NOT SET",
         env_MF_ACCESS_TOKEN: process.env.MF_ACCESS_TOKEN ? "set" : "EMPTY",
       }, { status: 200 });
     }

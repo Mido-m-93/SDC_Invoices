@@ -109,6 +109,28 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
 // the RC経費精算 form explicitly tells submitters not to attach one in that case.
 const TRANSPORT_NO_RECEIPT = /[→↔]|電車|バス|train|bus|subway|公共交通|metro|路線/i;
 
+function normalizeDate(d: string | null): string | null {
+  if (!d) return null;
+  const m = d.match(/\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : null;
+}
+
+// Free-text purpose comparison: the submitter's description and the AI's
+// paraphrase of the receipt rarely match verbatim, so this checks for
+// meaningful word overlap rather than exact equality.
+function purposeOverlaps(submitted: string, extracted: string): boolean {
+  const words = (s: string) =>
+    new Set(
+      s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").split(/\s+/).filter((w) => w.length > 2)
+    );
+  const a = words(submitted);
+  const b = words(extracted);
+  if (a.size === 0 || b.size === 0) return false;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / Math.min(a.size, b.size) >= 0.3;
+}
+
 function checkPolicyViolations(claim: ExpenseClaim): string[] {
   const violations: string[] = [];
 
@@ -155,6 +177,11 @@ export class SupabaseExpenseService implements IExpenseService {
   async deleteClaim(id: string): Promise<void> {
     const { error } = await this.db.from("expense_claims").delete().eq("id", id);
     if (error) throw new Error(`deleteClaim: ${error.message}`);
+  }
+
+  async deleteAllClaims(): Promise<void> {
+    const { error } = await this.db.from("expense_claims").delete().neq("id", "");
+    if (error) throw new Error(`deleteAllClaims: ${error.message}`);
   }
 
   async updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void> {
@@ -280,10 +307,17 @@ export class SupabaseExpenseService implements IExpenseService {
       ? "NEEDS_REVIEW"
       : "OK";
 
+    const dateMatchesReceipt =
+      extractedDate !== null && normalizeDate(extractedDate) === normalizeDate(claim.expenseDate);
+    const purposeMatchesReceipt =
+      extractedPurpose !== null && purposeOverlaps(claim.description ?? "", extractedPurpose);
+
     return {
       claimId: claim.id,
       receiptAccessible,
       amountMatchesReceipt,
+      dateMatchesReceipt,
+      purposeMatchesReceipt,
       dateFound: extractedDate !== null,
       categoryValid: true,
       receiptMissing: !claim.receiptUrl,
