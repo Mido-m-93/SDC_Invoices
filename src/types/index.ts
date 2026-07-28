@@ -417,6 +417,8 @@ export interface ExpenseValidationResult {
   claimId: string;
   receiptAccessible: boolean;
   amountMatchesReceipt: boolean;
+  dateMatchesReceipt: boolean;
+  purposeMatchesReceipt: boolean;
   dateFound: boolean;
   categoryValid: boolean;
   receiptMissing: boolean;

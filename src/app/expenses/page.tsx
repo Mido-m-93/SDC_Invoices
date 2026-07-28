@@ -513,9 +513,13 @@ export default function ExpensesPage() {
             <div className="flex-1 px-6 py-5 space-y-5">
               {/* Risk badge */}
               {(() => {
-                const { memberMatched, amountMatchesReceipt, receiptMissing, receiptAccessible, extractedAmount } = validationPanel.result;
+                const {
+                  memberMatched, amountMatchesReceipt, receiptMissing, receiptAccessible, extractedAmount,
+                  extractedDate, dateMatchesReceipt, extractedPurpose, purposeMatchesReceipt,
+                } = validationPanel.result;
                 const extractionFailed = !receiptMissing && receiptAccessible && extractedAmount === null;
-                const fullyVerified    = memberMatched && amountMatchesReceipt;
+                const softMismatch     = (extractedDate !== null && !dateMatchesReceipt) || (extractedPurpose !== null && !purposeMatchesReceipt);
+                const fullyVerified    = memberMatched && amountMatchesReceipt && !softMismatch;
                 const hardFail         = !memberMatched || (!receiptMissing && receiptAccessible && extractedAmount !== null && !amountMatchesReceipt);
                 return (
                   <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${
@@ -549,18 +553,24 @@ export default function ExpensesPage() {
               />
 
               {/* Stage 2: Receipt match
-                  pass = receipt accessible + amount extracted + matches
-                  warn = no receipt, inaccessible, OR accessible but extraction failed (needs human review)
+                  pass = receipt accessible + amount extracted + matches + date/purpose (if extracted) match
+                  warn = no receipt, inaccessible, extraction failed, OR date/purpose mismatch (needs human review)
                   fail = extracted amount clearly mismatches submitted amount */}
               <ValidationStageBlock
                 number={2}
                 title={t("expenses_stage2_title")}
                 subtitle={t("expenses_stage2_subtitle")}
-                pass={validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt && validationPanel.result.extractedAmount !== null}
+                pass={
+                  validationPanel.result.receiptAccessible && validationPanel.result.amountMatchesReceipt && validationPanel.result.extractedAmount !== null &&
+                  (validationPanel.result.extractedDate === null || validationPanel.result.dateMatchesReceipt) &&
+                  (validationPanel.result.extractedPurpose === null || validationPanel.result.purposeMatchesReceipt)
+                }
                 warn={
                   validationPanel.result.receiptMissing ||
                   !validationPanel.result.receiptAccessible ||
-                  (validationPanel.result.receiptAccessible && validationPanel.result.extractedAmount === null)
+                  (validationPanel.result.receiptAccessible && validationPanel.result.extractedAmount === null) ||
+                  (validationPanel.result.extractedDate !== null && !validationPanel.result.dateMatchesReceipt) ||
+                  (validationPanel.result.extractedPurpose !== null && !validationPanel.result.purposeMatchesReceipt)
                 }
                 lines={[
                   validationPanel.result.receiptMissing
@@ -572,13 +582,13 @@ export default function ExpensesPage() {
                     ? `${t("expenses_receipt_amount")}: JPY ${validationPanel.result.extractedAmount.toLocaleString()} ${validationPanel.result.amountMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} JPY ${validationPanel.claim.amount.toLocaleString()}`}`
                     : t("expenses_amount_extract_failed"),
                   validationPanel.result.extractedDate
-                    ? `${t("expenses_receipt_date")}: ${validationPanel.result.extractedDate} ✓`
+                    ? `${t("expenses_receipt_date")}: ${validationPanel.result.extractedDate} ${validationPanel.result.dateMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} ${validationPanel.claim.expenseDate}`}`
                     : t("expenses_date_not_found"),
                   validationPanel.result.extractedVendor
                     ? `${t("expenses_vendor")}: ${validationPanel.result.extractedVendor}`
                     : "",
                   validationPanel.result.extractedPurpose
-                    ? `${t("expenses_purpose")}: ${validationPanel.result.extractedPurpose}`
+                    ? `${t("expenses_purpose")}: ${validationPanel.result.extractedPurpose} ${validationPanel.result.purposeMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} "${validationPanel.claim.description}"`}`
                     : "",
                   (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
                     ? `${t("expenses_error_label")}: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
