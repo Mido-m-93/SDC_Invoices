@@ -62,9 +62,15 @@ export async function POST(req: NextRequest) {
     // MF requires due_date unless the partner has a payment-deadline setting
     // configured on their MF profile — most partners created via this API
     // won't have one, so always derive it ourselves (same rule the Reminders
-    // feature uses: end of closingMonth + paymentTermsDays).
+    // feature uses: end of closingMonth + paymentTermsDays). MF also rejects
+    // due_date <= billing_date, so when closingMonth can't be parsed, fall
+    // back to billingDate + paymentTermsDays rather than billingDate itself
+    // (which would submit an equal date and fail the same validation).
     const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
-    const dueDate = deriveDueDate(submission.closingMonth, paymentTermsDays) ?? billingDate;
+    const derivedDueDate   = deriveDueDate(submission.closingMonth, paymentTermsDays);
+    const dueDate = derivedDueDate && derivedDueDate > billingDate
+      ? derivedDueDate
+      : addDays(billingDate, paymentTermsDays);
 
     const mfService = new MoneyForwardService();
     const result    = await mfService.sendInvoice({
@@ -125,6 +131,12 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function buildTitle(s: InvoiceSubmission): string {
