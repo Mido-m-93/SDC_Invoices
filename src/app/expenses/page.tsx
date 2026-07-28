@@ -289,10 +289,6 @@ export default function ExpensesPage() {
         }
       />
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800">
-        {t("expenses_receipt_notice")}
-      </div>
-
       {uploadMsg && (
         <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
           {uploadMsg}
