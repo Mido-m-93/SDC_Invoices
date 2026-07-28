@@ -423,7 +423,6 @@ const ja = {
   nav_expenses: "経費申請",
   expenses_title: "経費精算",
   expenses_subtitle: "経費の提出・審査",
-  expenses_receipt_notice: "⚠ 経費申請には領収書が必要です。支払処理は別途行われます。このツールは検証と承認記録のみを行います。",
   expenses_sync_from_forms: "フォームから同期",
   expenses_syncing: "同期中…",
   expenses_clean_all: "すべてクリア",

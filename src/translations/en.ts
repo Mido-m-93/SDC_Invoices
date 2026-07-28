@@ -423,7 +423,6 @@ const en = {
   nav_expenses: "Expenses",
   expenses_title: "Expense Claims",
   expenses_subtitle: "Submit and review expense reimbursement requests",
-  expenses_receipt_notice: "⚠ Expense claims require receipt documentation. Reimbursements are processed separately — this tool only validates and records approvals.",
   expenses_sync_from_forms: "Sync from Forms",
   expenses_syncing: "Syncing…",
   expenses_clean_all: "Clean All",
