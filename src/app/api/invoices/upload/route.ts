@@ -10,6 +10,7 @@ import iconv from "iconv-lite";
 import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 import { getStorageService } from "@/lib/services";
+import { type FieldName, buildFieldMap } from "@/lib/services/formFieldMapping";
 
 export const dynamic = 'force-dynamic';
 
@@ -76,48 +77,6 @@ function parseCSVText(text: string): Record<string, string>[] {
     headers.forEach((h, i) => { record[h.trim()] = (vals[i] ?? "").trim(); });
     return record;
   });
-}
-
-// ── Column keyword matching ───────────────────────────────────────────────────
-type FieldName = keyof InvoiceSubmission | "email";
-
-// Matches your exact Microsoft Forms column headers (bilingual Japanese/English).
-// Most-specific rules first to avoid false matches.
-const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
-  { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
-  { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
-  { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
-  { keywords: ["Currency", "通貨", "currency"],                                              field: "currency" },
-  { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
-  { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                 field: "projectType" },
-  { keywords: ["For Internal Projects Only", "内部案件の場合のみ"],                           field: "internalDepartment" },
-  { keywords: ["For External Projects Only", "select the project name", "外部案件の場合のみ"],field: "externalProjectName" },
-  { keywords: ["upload only one invoice", "supported files (PDF)", "Invoice Attachment", "請求書の添付", "請求書ファイル"], field: "invoiceAttachment" },
-  { keywords: ["Additional Notes", "特記事項", "備考"],                                      field: "notes" },
-  { keywords: ["Name", "名前"],                                                              field: "payerName" },
-];
-
-function buildFieldMap(headers: string[]): Map<string, FieldName> {
-  const map = new Map<string, FieldName>();
-  const bestLength = new Map<FieldName, number>();
-  for (const header of headers) {
-    const lower = header.toLowerCase();
-    for (const rule of KEYWORD_RULES) {
-      if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-        const prev = bestLength.get(rule.field) ?? 0;
-        if (header.length > prev) {
-          // Remove the shorter previous mapping for this field
-          for (const [h, f] of Array.from(map.entries())) {
-            if (f === rule.field) { map.delete(h); break; }
-          }
-          map.set(header, rule.field);
-          bestLength.set(rule.field, header.length);
-        }
-        break;
-      }
-    }
-  }
-  return map;
 }
 
 // ── Date conversion ───────────────────────────────────────────────────────────
