@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
+import { convertUsdToJpy } from "@/lib/services/real/ExchangeRateService";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
 
 function addDays(dateStr: string, days: number): string {
@@ -28,19 +29,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     );
   }
 
-  // MoneyForward's Invoice API has no currency field at all — it's a
-  // JPY-only Japanese tax-invoicing platform. Sending a USD amount as a bare
-  // number would silently create a JPY billing for the same numeric value.
-  if (claim.currency === "USD") {
-    return NextResponse.json(
-      {
-        error: "Money Forward only supports JPY invoices",
-        detail: "This claim is in USD. Convert the amount to JPY manually before sending to Money Forward.",
-      },
-      { status: 422 }
-    );
-  }
-
   try {
     let pdfData: Uint8Array | undefined;
     let pdfFilename: string | undefined;
@@ -60,15 +48,26 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
     const dueDate = addDays(claim.expenseDate, paymentTermsDays);
 
+    // MoneyForward has no currency field at all — convert USD to JPY
+    // ourselves using the day's ECB reference rate, noting the original
+    // amount + rate in the memo for audit trail.
+    let mfAmount = claim.amount;
+    let fxNote: string | null = null;
+    if (claim.currency === "USD") {
+      const { amountJpy, rate, asOf } = await convertUsdToJpy(claim.amount, claim.expenseDate);
+      mfAmount = amountJpy;
+      fxNote = `Converted from $${claim.amount.toFixed(2)} @ ¥${rate}/$ (rate as of ${asOf})`;
+    }
+
     const mfService = new MoneyForwardService();
     const result = await mfService.sendInvoice({
       partnerName: claim.submittedBy,
       title: buildTitle(claim),
       billingDate: claim.expenseDate,
       dueDate,
-      amount: claim.amount,
+      amount: mfAmount,
       currency: "JPY",
-      memo: claim.description,
+      memo: [claim.description, fxNote].filter(Boolean).join(" / "),
       pdfData,
       pdfFilename,
     });
