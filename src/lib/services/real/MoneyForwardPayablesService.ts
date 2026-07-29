@@ -134,6 +134,38 @@ export class MoneyForwardPayablesService {
     return res.transaction_items ?? [];
   }
 
+  // ── Invoice transaction (支払明細) line items ────────────────────────────────
+  // NOTE: only creatable inside an EXISTING invoice_report (支払依頼) — there is
+  // no endpoint in this API to create the report itself, only GET.
+
+  async createInvoiceTransaction(
+    invoiceReportId: string,
+    input: { name: string; exItemId: string; crItemId: string; totalValue: number; dealDate: string }
+  ): Promise<Record<string, unknown>> {
+    const officeId = await this.getOfficeId();
+    return this.apiFetch<Record<string, unknown>>(
+      "POST",
+      `/offices/${officeId}/invoice_reports/${invoiceReportId}/invoice_transactions`,
+      {
+        ap_invoice_transaction: {
+          name: input.name,
+          ex_item_id: input.exItemId,
+          cr_item_id: input.crItemId,
+          total_value: input.totalValue,
+          deal_date: input.dealDate,
+        },
+      }
+    );
+  }
+
+  async deleteInvoiceTransaction(invoiceReportId: string, transactionId: string): Promise<void> {
+    const officeId = await this.getOfficeId();
+    await this.apiFetch<void>(
+      "DELETE",
+      `/offices/${officeId}/invoice_reports/${invoiceReportId}/invoice_transactions/${transactionId}`
+    );
+  }
+
   async listTransactionItemOptions(transactionItemId: string): Promise<unknown[]> {
     const officeId = await this.getOfficeId();
     const res = await this.apiFetch<{ options: unknown[] }>(
@@ -295,6 +327,7 @@ export class MoneyForwardPayablesService {
       throw new Error(`MF Payables API ${method} ${path} → ${res.status}: ${detail}`);
     }
 
+    if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   }
 
