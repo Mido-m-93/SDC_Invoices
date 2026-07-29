@@ -306,8 +306,8 @@ export class MoneyForwardPayablesService {
           is_active: true,
           payee_withholding_tax_setting_is_active: false,
           payee_invoice_transaction_default_value_is_tax_included: true,
-          withholding_tax_setting: {},
-          invoice_transaction_default_value: {},
+          withholding_tax_setting: { is_active: false },
+          invoice_transaction_default_value: { is_tax_included: true },
         },
       }
     );
