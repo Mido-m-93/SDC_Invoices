@@ -111,13 +111,18 @@ export class MoneyForwardPayablesService {
   // Every other endpoint is nested under /offices/{office_id} — this account
   // has exactly one office (Robo Co-op), so we cache the first one returned.
 
-  private async getOfficeId(): Promise<string> {
-    if (this.officeId) return this.officeId;
+  async listOffices(): Promise<Array<{ id: string; name: string }>> {
     const list = await this.apiFetch<{ data: Array<{ id: string; name: string }> }>(
       "GET",
       "/offices"
     );
-    const office = list.data?.[0];
+    return list.data ?? [];
+  }
+
+  private async getOfficeId(): Promise<string> {
+    if (this.officeId) return this.officeId;
+    const offices = await this.listOffices();
+    const office = offices[0];
     if (!office) throw new Error("[MoneyForwardPayablesService] No offices returned for this account");
     this.officeId = office.id;
     return office.id;
