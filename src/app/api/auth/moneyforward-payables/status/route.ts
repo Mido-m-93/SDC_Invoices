@@ -9,7 +9,8 @@ export async function GET() {
   try {
     const service = new MoneyForwardPayablesService();
     const offices = await service.listOffices();
-    return NextResponse.json({ connected: true, offices });
+    const invoiceReports = await service.listInvoiceReports();
+    return NextResponse.json({ connected: true, offices, invoiceReports });
   } catch (err) {
     return NextResponse.json({ connected: false, error: String(err) }, { status: 200 });
   }

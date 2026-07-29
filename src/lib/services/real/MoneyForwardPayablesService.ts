@@ -119,6 +119,15 @@ export class MoneyForwardPayablesService {
     return list.offices ?? [];
   }
 
+  async listInvoiceReports(): Promise<Array<{ id: string; title: string; status: string }>> {
+    const officeId = await this.getOfficeId();
+    const list = await this.apiFetch<{ invoice_reports: Array<{ id: string; title: string; status: string }> }>(
+      "GET",
+      `/offices/${officeId}/invoice_reports`
+    );
+    return list.invoice_reports ?? [];
+  }
+
   private async getOfficeId(): Promise<string> {
     if (this.officeId) return this.officeId;
     const offices = await this.listOffices();
