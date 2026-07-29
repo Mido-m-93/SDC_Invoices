@@ -175,6 +175,16 @@ export class MoneyForwardPayablesService {
     return res.options ?? [];
   }
 
+  async listFlatInvoiceTransactions(number?: string): Promise<unknown[]> {
+    const officeId = await this.getOfficeId();
+    const qs = number ? `?query_object[number]=${encodeURIComponent(number)}` : "";
+    const res = await this.apiFetch<{ invoice_transactions: unknown[] }>(
+      "GET",
+      `/offices/${officeId}/invoice_transactions${qs}`
+    );
+    return res.invoice_transactions ?? [];
+  }
+
   async getPayee(counterpartyId: string, payeeId: string): Promise<Record<string, unknown>> {
     const officeId = await this.getOfficeId();
     return this.apiFetch<Record<string, unknown>>(

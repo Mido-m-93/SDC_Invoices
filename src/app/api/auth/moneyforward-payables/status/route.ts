@@ -25,8 +25,13 @@ export async function GET(req: NextRequest) {
       if (match) payees = await service.listPayees(match.id);
     }
 
+    const txnNumber = req.nextUrl.searchParams.get("txnNumber");
+    const flatTransactions = txnNumber
+      ? await service.listFlatInvoiceTransactions(txnNumber)
+      : undefined;
+
     return NextResponse.json({
-      connected: true, offices, invoiceReports, exItems, transactionItems, options, counterparties, payees,
+      connected: true, offices, invoiceReports, exItems, transactionItems, options, counterparties, payees, flatTransactions,
     });
   } catch (err) {
     return NextResponse.json({ connected: false, error: String(err) }, { status: 200 });
