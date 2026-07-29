@@ -26,8 +26,9 @@ export async function GET(req: NextRequest) {
     }
 
     const txnNumber = req.nextUrl.searchParams.get("txnNumber");
-    const flatTransactions = txnNumber
-      ? await service.listFlatInvoiceTransactions(txnNumber)
+    const allTxns = req.nextUrl.searchParams.get("allTxns");
+    const flatTransactions = (txnNumber || allTxns)
+      ? await service.listFlatInvoiceTransactions(txnNumber || undefined)
       : undefined;
 
     return NextResponse.json({
