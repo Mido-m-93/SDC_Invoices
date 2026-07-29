@@ -112,11 +112,11 @@ export class MoneyForwardPayablesService {
   // has exactly one office (Robo Co-op), so we cache the first one returned.
 
   async listOffices(): Promise<Array<{ id: string; name: string }>> {
-    const list = await this.apiFetch<{ data: Array<{ id: string; name: string }> }>(
+    const list = await this.apiFetch<{ offices: Array<{ id: string; name: string }> }>(
       "GET",
       "/offices"
     );
-    return list.data ?? [];
+    return list.offices ?? [];
   }
 
   private async getOfficeId(): Promise<string> {
@@ -136,12 +136,12 @@ export class MoneyForwardPayablesService {
 
   private async findOrCreateCounterparty(name: string): Promise<string> {
     const officeId = await this.getOfficeId();
-    const list = await this.apiFetch<{ data: Array<{ id: string; name: string }> }>(
+    const list = await this.apiFetch<{ counterparties: Array<{ id: string; name: string }> }>(
       "GET",
       `/offices/${officeId}/counterparties`
     );
 
-    const match = list.data?.find(
+    const match = list.counterparties?.find(
       (c) => c.name.trim().toLowerCase() === name.trim().toLowerCase()
     );
     if (match) return match.id;
