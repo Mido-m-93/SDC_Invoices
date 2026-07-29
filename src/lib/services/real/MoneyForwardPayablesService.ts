@@ -175,6 +175,14 @@ export class MoneyForwardPayablesService {
     return res.options ?? [];
   }
 
+  async getPayee(counterpartyId: string, payeeId: string): Promise<Record<string, unknown>> {
+    const officeId = await this.getOfficeId();
+    return this.apiFetch<Record<string, unknown>>(
+      "GET",
+      `/offices/${officeId}/counterparties/${counterpartyId}/payees/${payeeId}`
+    );
+  }
+
   async listCounterparties(): Promise<Array<{ id: string; name: string; code: string }>> {
     const officeId = await this.getOfficeId();
     const res = await this.apiFetch<{ counterparties: Array<{ id: string; name: string; code: string }> }>(
