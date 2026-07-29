@@ -185,6 +185,28 @@ export class MoneyForwardPayablesService {
     return res.invoice_transactions ?? [];
   }
 
+  async listCounterpartyAccounts(counterpartyId: string): Promise<Array<{ id: string }>> {
+    const officeId = await this.getOfficeId();
+    const res = await this.apiFetch<{ counterparty_accounts: Array<{ id: string }> }>(
+      "GET",
+      `/offices/${officeId}/counterparties/${counterpartyId}/counterparty_accounts`
+    );
+    return res.counterparty_accounts ?? [];
+  }
+
+  async deleteCounterpartyAccount(counterpartyId: string, accountId: string): Promise<void> {
+    const officeId = await this.getOfficeId();
+    await this.apiFetch<void>(
+      "DELETE",
+      `/offices/${officeId}/counterparties/${counterpartyId}/counterparty_accounts/${accountId}`
+    );
+  }
+
+  async deleteCounterparty(counterpartyId: string): Promise<void> {
+    const officeId = await this.getOfficeId();
+    await this.apiFetch<void>("DELETE", `/offices/${officeId}/counterparties/${counterpartyId}`);
+  }
+
   async getPayee(counterpartyId: string, payeeId: string): Promise<Record<string, unknown>> {
     const officeId = await this.getOfficeId();
     return this.apiFetch<Record<string, unknown>>(
