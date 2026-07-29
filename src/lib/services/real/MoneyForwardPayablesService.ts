@@ -119,6 +119,21 @@ export class MoneyForwardPayablesService {
     return list.offices ?? [];
   }
 
+  async listExItems(): Promise<unknown[]> {
+    const officeId = await this.getOfficeId();
+    const res = await this.apiFetch<{ ex_items: unknown[] }>("GET", `/offices/${officeId}/ex_items`);
+    return res.ex_items ?? [];
+  }
+
+  async listInvoiceReportTransactionItems(): Promise<unknown[]> {
+    const officeId = await this.getOfficeId();
+    const res = await this.apiFetch<{ transaction_items: unknown[] }>(
+      "GET",
+      `/offices/${officeId}/invoice_report_transaction_items`
+    );
+    return res.transaction_items ?? [];
+  }
+
   async listInvoiceReports(): Promise<Array<{ id: string; title: string; status: string }>> {
     const officeId = await this.getOfficeId();
     const list = await this.apiFetch<{ invoice_reports: Array<{ id: string; title: string; status: string }> }>(
