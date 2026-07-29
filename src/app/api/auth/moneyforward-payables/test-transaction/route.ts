@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 const DRAFT_INVOICE_REPORT_ID = "zVqRnlxckHjfWv0zq_1QDw"; // "2026年04月支払依頼" (unsubmitted)
 const EX_ITEM_ID = "2kZEehoQlT5ykabIPHp-nQ"; // 旅費交通費
-const CR_ITEM_ID = "Jzzn1Jgl88YbK5Eq1o9kog";  // 旅費交通費 (linked chart-of-accounts item)
+const CR_ITEM_ID = "100"; // trying account CODE (現金/cash) instead of an opaque item id
 
 export async function POST() {
   const service = new MoneyForwardPayablesService();
