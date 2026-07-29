@@ -175,6 +175,24 @@ export class MoneyForwardPayablesService {
     return res.options ?? [];
   }
 
+  async listCounterparties(): Promise<Array<{ id: string; name: string; code: string }>> {
+    const officeId = await this.getOfficeId();
+    const res = await this.apiFetch<{ counterparties: Array<{ id: string; name: string; code: string }> }>(
+      "GET",
+      `/offices/${officeId}/counterparties`
+    );
+    return res.counterparties ?? [];
+  }
+
+  async listPayees(counterpartyId: string): Promise<unknown[]> {
+    const officeId = await this.getOfficeId();
+    const res = await this.apiFetch<{ payees: unknown[] }>(
+      "GET",
+      `/offices/${officeId}/counterparties/${counterpartyId}/payees`
+    );
+    return res.payees ?? [];
+  }
+
   async listInvoiceReports(): Promise<Array<{ id: string; title: string; status: string }>> {
     const officeId = await this.getOfficeId();
     const list = await this.apiFetch<{ invoice_reports: Array<{ id: string; title: string; status: string }> }>(
