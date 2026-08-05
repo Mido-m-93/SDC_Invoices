@@ -6,7 +6,10 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import { useLanguage } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry } from "@/types";
+
+const SOURCE_LABEL: Record<PipelineSourceType, string> = { notion: "Notion", sharepoint: "SharePoint" };
 
 const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
   auto_linked: "bg-emerald-50 text-emerald-700",
@@ -19,6 +22,7 @@ type Override = { clientId: string; clientName: string };
 
 export default function PipelineSyncPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const STATUS_LABELS: Record<PipelineRecordStatus, string> = {
     auto_linked: t("pipeline_sync_status_auto_linked"),
     needs_review: t("pipeline_sync_status_needs_review"),
@@ -62,18 +66,34 @@ export default function PipelineSyncPage() {
     setSyncing(source);
     setError(null);
     setSyncDetail(null);
+    notify("info", t("pipeline_sync_notify_syncing").replace("{source}", SOURCE_LABEL[source]));
     try {
       const res = await fetch("/api/pipeline-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source }),
       });
-      const data = (await res.json()) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number };
-      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_sync_failed")); return; }
+      const data = (await res.json().catch(() => ({}))) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number };
+      if (!res.ok) {
+        const message = data.error ?? t("pipeline_sync_error_sync_failed");
+        setError(message);
+        notify("error", message);
+        return;
+      }
       await load();
       await loadLastExtractDetail(source);
+      notify(
+        "success",
+        t("pipeline_sync_notify_synced")
+          .replace("{source}", SOURCE_LABEL[source])
+          .replace("{staged}", String(data.staged ?? 0))
+          .replace("{autoLinked}", String(data.autoLinked ?? 0))
+          .replace("{needsReview}", String(data.needsReview ?? 0))
+      );
     } catch {
-      setError(t("pipeline_sync_error_sync_failed"));
+      const message = t("pipeline_sync_error_sync_failed");
+      setError(message);
+      notify("error", message);
     } finally {
       setSyncing(null);
     }
@@ -103,10 +123,18 @@ export default function PipelineSyncPage() {
         body: JSON.stringify({ overrideClientId: override.clientId || undefined }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_approve_failed")); return; }
+      if (!res.ok) {
+        const message = data.error ?? t("pipeline_sync_error_approve_failed");
+        setError(message);
+        notify("error", message);
+        return;
+      }
       await load();
+      notify("success", t("pipeline_sync_notify_approved").replace("{name}", r.rawClientName));
     } catch {
-      setError(t("pipeline_sync_error_approve_failed"));
+      const message = t("pipeline_sync_error_approve_failed");
+      setError(message);
+      notify("error", message);
     } finally {
       setBusyId(null);
     }
@@ -124,10 +152,18 @@ export default function PipelineSyncPage() {
         body: JSON.stringify({ reason }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok) { setError(data.error ?? t("pipeline_sync_error_reject_failed")); return; }
+      if (!res.ok) {
+        const message = data.error ?? t("pipeline_sync_error_reject_failed");
+        setError(message);
+        notify("error", message);
+        return;
+      }
       await load();
+      notify("info", t("pipeline_sync_notify_rejected").replace("{name}", r.rawClientName));
     } catch {
-      setError(t("pipeline_sync_error_reject_failed"));
+      const message = t("pipeline_sync_error_reject_failed");
+      setError(message);
+      notify("error", message);
     } finally {
       setBusyId(null);
     }
