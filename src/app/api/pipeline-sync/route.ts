@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
-import { runPipelineSync, listStagedRecords } from "@/lib/services/pipelineSyncService";
+import { runPipelineSync, listStagedRecords, getSourceConnectionStatus } from "@/lib/services/pipelineSyncService";
 import type { PipelineSourceType, PipelineRecordStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       status: status && VALID_STATUSES.includes(status) ? status : undefined,
       source: source && VALID_SOURCES.includes(source) ? source : undefined,
     });
-    return NextResponse.json({ count: records.length, records });
+    return NextResponse.json({ count: records.length, records, sourceStatus: getSourceConnectionStatus() });
   } catch (err) {
     console.error("[API ERROR]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -2,10 +2,11 @@
 // lib/services/pipelineSyncService.ts — Notion + SharePoint pipeline sync
 //
 // Orchestrates: extract → map → stage → match → score → review → commit → log.
-// SharePoint source is live (real Graph API via pipelineSharePointSource.ts)
-// once Azure creds are configured, falling back to fixture data otherwise.
-// Notion source is still fixture-only (getMockNotionRawText) pending a real
-// Notion API connection. Commits (approveStagedRecord) go through the
+// Both sources are live once their credentials are configured, falling back
+// to fixture data otherwise: SharePoint via real Graph API
+// (pipelineSharePointSource.ts, needs AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET)
+// and Notion via the real Notion API (pipelineNotionSource.ts, needs
+// NOTION_TOKEN/NOTION_PIPELINE_DATABASE_ID). Commits (approveStagedRecord) go through the
 // getClientService()/getLeadService() factory, so approved records land
 // wherever the app is actually configured to store Client/Lead data
 // (Supabase in production) — nothing commits to real data without a human
@@ -27,6 +28,7 @@ import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/li
 import { rankClientCandidates, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
 import { fetchRealSharePointPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
+import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
 import {
   loadStagedPipelineRecords,
   saveStagedPipelineRecord,
@@ -42,19 +44,40 @@ async function audit(entry: Omit<PipelineSyncAuditEntry, "id" | "timestamp">): P
   });
 }
 
+/** Whether each source currently has live credentials configured, for UI display. */
+export function getSourceConnectionStatus(): Record<PipelineSourceType, "real" | "mock"> {
+  const hasNotion = !!(process.env.NOTION_TOKEN && process.env.NOTION_PIPELINE_DATABASE_ID);
+  const hasAzure = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
+  return { notion: hasNotion ? "real" : "mock", sharepoint: hasAzure ? "real" : "mock" };
+}
+
 async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipelineItem[]> {
   if (source === "notion") {
-    const rawText = getMockNotionRawText();
-    const items = await extractPipelineRecordsFromText(rawText).catch((err) => {
-      console.warn("[pipelineSyncService] Notion extraction failed:", err);
-      return [];
-    });
+    // Notion: use the real database once its credentials are configured,
+    // falling back to fixture page text otherwise (e.g. local dev without a token).
+    const hasNotionCreds = !!(process.env.NOTION_TOKEN && process.env.NOTION_PIPELINE_DATABASE_ID);
+    if (!hasNotionCreds) {
+      await audit({
+        actor: "system",
+        action: "extract",
+        recordId: null,
+        source,
+        detail: "NOTION_TOKEN/NOTION_PIPELINE_DATABASE_ID not configured — using fixture Notion data.",
+      });
+      const rawText = getMockNotionRawText();
+      return extractPipelineRecordsFromText(rawText).catch((err) => {
+        console.warn("[pipelineSyncService] Notion extraction failed:", err);
+        return [];
+      });
+    }
+
+    const { items, scan } = await fetchRealNotionPipelineItems();
     await audit({
       actor: "system",
       action: "extract",
       recordId: null,
       source,
-      detail: `Extracted ${items.length} record(s) from Notion page text via AI.`,
+      detail: `Queried ${scan.pagesFound} page(s) from real Notion database (${scan.batches} extraction batch(es)), extracted ${items.length} record(s).`,
     });
     return items;
   }
