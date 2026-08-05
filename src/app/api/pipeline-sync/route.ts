@@ -4,6 +4,10 @@ import { runPipelineSync, listStagedRecords, getSourceConnectionStatus } from "@
 import type { PipelineSourceType, PipelineRecordStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
+// Notion/SharePoint sync runs a Graph/Notion fetch plus AI extraction per
+// batch — matches the timeout headroom used elsewhere for AI-heavy syncs
+// (see src/app/api/members/sync/route.ts).
+export const maxDuration = 60;
 
 const VALID_SOURCES: PipelineSourceType[] = ["notion", "sharepoint"];
 const VALID_STATUSES: PipelineRecordStatus[] = ["auto_linked", "needs_review", "approved", "rejected"];

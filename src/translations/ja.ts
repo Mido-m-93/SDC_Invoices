@@ -186,7 +186,7 @@ const ja = {
   pipeline_sync_linked_to: "{client} にリンク済み・リード {leadId}",
   pipeline_sync_reject: "却下",
   pipeline_sync_approve: "承認してリード作成",
-  pipeline_sync_empty: "保留中のレコードがありません。上のボタンから同期を実行してモックデータを取得してください。",
+  pipeline_sync_empty: "保留中のレコードがありません。上のボタンから同期を実行してデータを取得してください。",
   pipeline_sync_reject_prompt: "「{name}」を却下 — 理由は？",
   pipeline_sync_error_load: "パイプライン同期データの読み込みに失敗しました",
   pipeline_sync_error_sync_failed: "同期に失敗しました",
