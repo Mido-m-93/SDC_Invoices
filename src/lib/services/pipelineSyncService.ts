@@ -78,7 +78,7 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
       recordId: null,
       source,
       detail: `Queried ${scan.pagesFound} page(s) from real Notion database (${scan.batches} extraction batch(es)), extracted ${items.length} record(s).` +
-        (scan.skippedBatches > 0 ? ` WARNING: ${scan.skippedBatches} batch(es) of pages were NOT processed this run (database too large for one invocation) — the same batches will be skipped again on every run until MAX_BATCHES_PER_RUN in pipelineNotionSource.ts is raised.` : ""),
+        (scan.timedOutBatches > 0 ? ` WARNING: ${scan.timedOutBatches} batch(es) did not respond within the per-batch timeout and were skipped this run — re-running the sync may pick them up if they're just momentarily slow.` : ""),
     });
     return items;
   }
