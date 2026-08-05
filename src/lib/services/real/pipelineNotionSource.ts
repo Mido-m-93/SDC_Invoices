@@ -18,6 +18,11 @@ const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2025-09-03";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 500; // safety cap against runaway pagination
+// Per-batch deadline so one slow/rate-limited OpenAI call can't block the
+// whole invocation past the API route's maxDuration (60s) — leaves headroom
+// for the Notion query + audit logging + response overhead around it.
+const PER_BATCH_TIMEOUT_MS = 40_000;
+const TIMED_OUT = Symbol("pipeline-batch-timed-out");
 // Kept comfortably under extractPipelineRecordsFromText's internal 12000-char
 // slice so a large database doesn't silently lose later pages to truncation.
 const MAX_CHARS_PER_BATCH = 10000;
@@ -199,30 +204,31 @@ function batchPageTexts(blocks: string[]): string[] {
   return batches;
 }
 
-// Each batch is one sequential-looking OpenAI call from this function's point
-// of view, but running them in parallel (not a for-loop) keeps total wall-clock
-// close to a single call's latency instead of summing every batch — needed to
-// stay comfortably under the API route's maxDuration regardless of database size.
-// A hard cap on top of that guards the case where even parallel calls would
-// blow past the timeout (e.g. a very large database, or OpenAI running slow).
-// NOTE: queryDatabase() always fetches every page fresh each run and batches
-// them in the same order, so if the cap is ever hit, the SAME trailing batches
-// are skipped on every subsequent run too — this is not a rotating/resumable
-// cap. The skip is surfaced loudly in the audit log rather than silently
-// dropped; raise this constant if the real database grows past what it covers.
-const MAX_BATCHES_PER_RUN = 8;
+// Races a promise against a fixed deadline. On timeout, resolves to the
+// TIMED_OUT sentinel instead of rejecting — the underlying call is NOT
+// cancelled (fetch/OpenAI SDK calls aren't abortable here), it just stops
+// being waited on so one slow batch can't block every other batch's result.
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  return Promise.race([
+    promise,
+    new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), ms)),
+  ]);
+}
 
 export interface NotionSourceScanDetail {
   pagesFound: number;
   batches: number;
-  skippedBatches: number;
+  timedOutBatches: number;
 }
 
 /**
  * Query the configured Notion pipeline database, serialize every page's
  * properties to text (schema-agnostic — same approach as the SharePoint real
- * source), and run each batch through the same AI extraction used for the
- * mock Notion source. Never writes anything back to Notion.
+ * source), and run every batch through the same AI extraction used for the
+ * mock Notion source, all concurrently — total wall-clock stays close to one
+ * batch's latency (bounded by PER_BATCH_TIMEOUT_MS) rather than summing every
+ * batch, regardless of database size. No batch is positionally skipped —
+ * every page gets a genuine attempt on every run. Never writes to Notion.
  */
 export async function fetchRealNotionPipelineItems(): Promise<{
   items: ExtractedPipelineItem[];
@@ -230,19 +236,21 @@ export async function fetchRealNotionPipelineItems(): Promise<{
 }> {
   const { token, databaseId } = getConfig();
   const pages = await queryDatabase(token, databaseId);
-  const allBatches = batchPageTexts(pages.map(pageToTextBlock));
-  const batches = allBatches.slice(0, MAX_BATCHES_PER_RUN);
-  const skippedBatches = allBatches.length - batches.length;
+  const batches = batchPageTexts(pages.map(pageToTextBlock));
 
-  const results = await Promise.all(
+  const settled = await Promise.all(
     batches.map((batch) =>
-      extractPipelineRecordsFromText(batch).catch((err) => {
-        console.warn("[pipelineNotionSource] Extraction failed for a batch:", err);
-        return [];
-      })
+      withTimeout(
+        extractPipelineRecordsFromText(batch).catch((err) => {
+          console.warn("[pipelineNotionSource] Extraction failed for a batch:", err);
+          return [] as ExtractedPipelineItem[];
+        }),
+        PER_BATCH_TIMEOUT_MS
+      )
     )
   );
-  const items = results.flat();
+  const timedOutBatches = settled.filter((r) => r === TIMED_OUT).length;
+  const items = settled.flatMap((r) => (r === TIMED_OUT ? [] : r));
 
-  return { items, scan: { pagesFound: pages.length, batches: batches.length, skippedBatches } };
+  return { items, scan: { pagesFound: pages.length, batches: batches.length, timedOutBatches } };
 }
