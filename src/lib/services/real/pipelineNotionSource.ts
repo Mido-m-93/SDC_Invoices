@@ -38,11 +38,22 @@ interface NotionQueryResponse {
   next_cursor: string | null;
 }
 
+// A valid Notion object ID is 32 hex chars, optionally hyphenated as a UUID.
+const NOTION_ID_PATTERN = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
 function getConfig(): { token: string; databaseId: string } {
-  const token = process.env.NOTION_TOKEN;
-  const databaseId = process.env.NOTION_PIPELINE_DATABASE_ID;
+  // .trim() guards against the single most common cause of Notion's
+  // "invalid_request_url" — a trailing space/newline picked up when the
+  // token or ID was pasted into the env var value.
+  const token = process.env.NOTION_TOKEN?.trim();
+  const databaseId = process.env.NOTION_PIPELINE_DATABASE_ID?.trim();
   if (!token) throw new Error("NOTION_TOKEN is not set");
   if (!databaseId) throw new Error("NOTION_PIPELINE_DATABASE_ID is not set");
+  if (!NOTION_ID_PATTERN.test(databaseId)) {
+    throw new Error(
+      `NOTION_PIPELINE_DATABASE_ID does not look like a valid Notion ID (got ${databaseId.length} chars, expected 32 hex chars optionally hyphenated) — re-copy it from the database's URL, the segment right after the workspace name and before "?v="`
+    );
+  }
   return { token, databaseId };
 }
 
@@ -63,7 +74,10 @@ async function resolveDataSourceId(token: string, databaseId: string): Promise<s
     method: "GET",
     headers: notionHeaders(token),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`GET /databases/${databaseId} → ${res.status}: ${detail}`);
+  }
   const data = (await res.json()) as { data_sources?: Array<{ id: string }> };
   return data.data_sources?.[0]?.id ?? null;
 }
@@ -91,15 +105,12 @@ async function queryPaginated(token: string, url: string): Promise<NotionPage[]>
 }
 
 async function queryDatabase(token: string, databaseId: string): Promise<NotionPage[]> {
-  const dataSourceId = await resolveDataSourceId(token, databaseId).catch(() => null);
+  const dataSourceId = await resolveDataSourceId(token, databaseId);
   if (dataSourceId) {
-    try {
-      return await queryPaginated(token, `${NOTION_API}/data_sources/${dataSourceId}/query`);
-    } catch (err) {
-      console.warn("[pipelineNotionSource] data_sources query failed, falling back to legacy /databases/query:", err);
-    }
+    return queryPaginated(token, `${NOTION_API}/data_sources/${dataSourceId}/query`);
   }
-  // Fallback for older-style setups where the data_source lookup itself fails.
+  // Only reached for a pre-2025-09 style database with no data_sources array —
+  // the legacy endpoint is genuinely correct in that case, not a blind guess.
   return queryPaginated(token, `${NOTION_API}/databases/${databaseId}/query`);
 }
 
