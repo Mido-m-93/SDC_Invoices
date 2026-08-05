@@ -34,14 +34,16 @@ export default function PipelineSyncPage() {
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
+  const [sourceStatus, setSourceStatus] = useState<Record<PipelineSourceType, "real" | "mock"> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [rRes, cRes] = await Promise.all([fetch("/api/pipeline-sync"), fetch("/api/pipeline-sync/clients")]);
-      const rData = (await rRes.json()) as { records: StagedPipelineRecord[] };
+      const rData = (await rRes.json()) as { records: StagedPipelineRecord[]; sourceStatus?: Record<PipelineSourceType, "real" | "mock"> };
       const cData = (await cRes.json()) as { clients: Client[] };
       setRecords(rData.records ?? []);
+      setSourceStatus(rData.sourceStatus ?? null);
       setClients(cData.clients ?? []);
     } catch {
       setError(t("pipeline_sync_error_load"));
@@ -131,6 +133,11 @@ export default function PipelineSyncPage() {
     }
   }
 
+  const mockSourceLabels = [
+    sourceStatus?.notion === "mock" ? "Notion" : null,
+    sourceStatus?.sharepoint === "mock" ? "SharePoint" : null,
+  ].filter((label): label is string => label !== null);
+
   const filtered = statusFilter === "all" ? records : records.filter((r) => r.status === statusFilter);
   const counts = {
     all: records.length,
@@ -157,9 +164,11 @@ export default function PipelineSyncPage() {
         }
       />
 
-      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-        <strong>{t("pipeline_sync_mock_mode_label")}</strong> — {t("pipeline_sync_mock_mode_text")}
-      </div>
+      {mockSourceLabels.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          <strong>{t("pipeline_sync_mock_mode_label")}</strong> — {mockSourceLabels.join(" & ")} {t("pipeline_sync_mock_mode_text")}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 flex justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
