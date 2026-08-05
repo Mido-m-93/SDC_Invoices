@@ -121,54 +121,60 @@ export async function runPipelineSync(
 ): Promise<RunSyncResult> {
   const items = await getSourceItems(source);
   const clients = await getClientService().listClients();
-
-  let autoLinked = 0;
-  let needsReview = 0;
   const now = new Date().toISOString();
 
-  for (const [index, item] of items.entries()) {
-    const candidates = rankClientCandidates(item.rawClientName, clients);
-    const top = candidates[0];
-    const status: PipelineRecordStatus =
-      top && top.score >= AUTO_LINK_THRESHOLD ? "auto_linked" : "needs_review";
+  // Each record's match + stage + audit-log write is independent of every
+  // other record — running them concurrently instead of one-at-a-time in a
+  // for-loop is what keeps a sync with 100+ records from summing 150+
+  // sequential DB round-trips into a 504 (see PR history: this was the real
+  // bottleneck even after extraction itself was already fixed).
+  const statuses = await Promise.all(
+    items.map(async (item, index) => {
+      const candidates = rankClientCandidates(item.rawClientName, clients);
+      const top = candidates[0];
+      const status: PipelineRecordStatus =
+        top && top.score >= AUTO_LINK_THRESHOLD ? "auto_linked" : "needs_review";
 
-    if (status === "auto_linked") autoLinked++;
-    else needsReview++;
+      const record: StagedPipelineRecord = {
+        id: generateId("pipe"),
+        source,
+        sourceRef: `${source}-${index}`,
+        rawClientName: item.rawClientName,
+        projectName: item.projectName,
+        stageOrStatus: item.stageOrStatus,
+        estimatedAmount: item.estimatedAmount,
+        currency: item.currency,
+        contactName: item.contactName,
+        contactEmail: item.contactEmail,
+        notes: item.notes,
+        matchedClientId: status === "auto_linked" ? top.clientId : null,
+        matchedClientName: status === "auto_linked" ? top.clientName : null,
+        matchConfidence: top?.score ?? 0,
+        matchCandidates: candidates,
+        status,
+        reviewerComment: null,
+        createdLeadId: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await saveStagedPipelineRecord(record);
 
-    const record: StagedPipelineRecord = {
-      id: generateId("pipe"),
-      source,
-      sourceRef: `${source}-${index}`,
-      rawClientName: item.rawClientName,
-      projectName: item.projectName,
-      stageOrStatus: item.stageOrStatus,
-      estimatedAmount: item.estimatedAmount,
-      currency: item.currency,
-      contactName: item.contactName,
-      contactEmail: item.contactEmail,
-      notes: item.notes,
-      matchedClientId: status === "auto_linked" ? top.clientId : null,
-      matchedClientName: status === "auto_linked" ? top.clientName : null,
-      matchConfidence: top?.score ?? 0,
-      matchCandidates: candidates,
-      status,
-      reviewerComment: null,
-      createdLeadId: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await saveStagedPipelineRecord(record);
+      await audit({
+        actor: "system",
+        action: "match",
+        recordId: record.id,
+        source,
+        detail: top
+          ? `Matched "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
+          : `No candidate match for "${item.rawClientName}" → needs_review`,
+      });
 
-    await audit({
-      actor: "system",
-      action: "match",
-      recordId: record.id,
-      source,
-      detail: top
-        ? `Matched "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
-        : `No candidate match for "${item.rawClientName}" → needs_review`,
-    });
-  }
+      return status;
+    })
+  );
+
+  const autoLinked = statuses.filter((s) => s === "auto_linked").length;
+  const needsReview = statuses.filter((s) => s === "needs_review").length;
 
   await audit({
     actor: actorName,
