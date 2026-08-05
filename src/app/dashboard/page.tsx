@@ -10,8 +10,6 @@ import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import StatusBadge from "@/components/ui/StatusBadge";
 import InvoiceDetailPanel from "@/components/invoice/InvoiceDetailPanel";
-import AddBillModal from "@/components/bills/AddBillModal";
-import { useToasts, ToastStack } from "@/components/ui/Toast";
 import { useLanguage } from "@/translations";
 import {
   fetchDashboardStats,
@@ -44,8 +42,6 @@ const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
 export default function DashboardPage() {
   const { t, language } = useLanguage();
   const { user } = useCurrentUser();
-  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts();
-  const [showAddBill, setShowAddBill] = useState(false);
   const [month, setMonth] = useState(monthOptions(1)[0]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -397,14 +393,6 @@ export default function DashboardPage() {
           >
             {t("save_ready_files")}
           </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setShowAddBill(true)}
-            icon={<BillIcon />}
-          >
-            {language === "ja" ? "請求書を追加" : "Add Bill"}
-          </Button>
         </div>
 
         {/* Error banner */}
@@ -538,17 +526,6 @@ export default function DashboardPage() {
       {selectedItem && (
         <InvoiceDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
-
-      {showAddBill && (
-        <AddBillModal
-          language={language}
-          onClose={() => setShowAddBill(false)}
-          onNotify={pushToast}
-          onCreated={() => {}}
-        />
-      )}
-
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </AppShell>
   );
 }
@@ -1126,15 +1103,6 @@ function UploadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
       <polyline points="17 8 12 3 7 8"/>
       <line x1="12" y1="3" x2="12" y2="15"/>
-    </svg>
-  );
-}
-function BillIcon() {
-  return (
-    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 2v20l3-3 3 3 3-3 3 3 3-3V2z" />
-      <line x1="12" y1="7" x2="12" y2="17" />
-      <path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3" />
     </svg>
   );
 }
