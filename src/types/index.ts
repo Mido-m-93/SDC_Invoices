@@ -444,8 +444,6 @@ export type OutboundInvoiceStatus =
   | "paid"
   | "cancelled";
 
-// OutboundStatus defined below as alias for OutboundInvoiceStatus
-
 export interface OutboundInvoice {
   id: string;
   contractId: string;
@@ -662,7 +660,6 @@ export interface AccountingSummary {
 
 // ── Type aliases for compatibility ───────────────────────────────────────────
 export type ChecklistItemStatus = CloseChecklistItemStatus;
-export type OutboundStatus = OutboundInvoiceStatus;
 
 // Simpler checklist item shape used by SupabaseCloseService / MockCloseService
 export interface MonthlyChecklistItem {
