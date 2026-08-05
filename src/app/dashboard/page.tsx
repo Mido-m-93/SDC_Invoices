@@ -11,6 +11,7 @@ import MonthSelector from "@/components/ui/MonthSelector";
 import StatusBadge from "@/components/ui/StatusBadge";
 import InvoiceDetailPanel from "@/components/invoice/InvoiceDetailPanel";
 import { useLanguage } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import {
   fetchDashboardStats,
   validateInvoiceBatch,
@@ -42,6 +43,7 @@ const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
 export default function DashboardPage() {
   const { t, language } = useLanguage();
   const { user } = useCurrentUser();
+  const { notify } = useNotifications();
   const [month, setMonth] = useState(monthOptions(1)[0]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -108,15 +110,20 @@ export default function DashboardPage() {
 
   const handleLoadInvoices = useCallback(async () => {
     setError(null);
-    // 1. Sync invoices from source (saves to storage)
-    await loadInvoiceList();
-    // 2. Refresh stats from the now-updated storage + available months
-    const [, months] = await Promise.all([
-      loadStats(),
-      fetchAvailableMonths().catch(() => [] as string[]),
-    ]);
-    if (months.length > 0) setAvailableMonths(months);
-  }, [loadStats, loadInvoiceList]);
+    try {
+      // 1. Sync invoices from source (saves to storage)
+      await loadInvoiceList();
+      // 2. Refresh stats from the now-updated storage + available months
+      const [, months] = await Promise.all([
+        loadStats(),
+        fetchAvailableMonths().catch(() => [] as string[]),
+      ]);
+      if (months.length > 0) setAvailableMonths(months);
+      notify("success", language === "ja" ? `${month} の請求書を読み込みました` : `Invoices loaded for ${month}`);
+    } catch (err) {
+      notify("error", language === "ja" ? `請求書の読み込みに失敗しました: ${String(err)}` : `Failed to load invoices: ${String(err)}`);
+    }
+  }, [loadStats, loadInvoiceList, notify, language, month]);
 
   const drawerRef = useRef<HTMLDivElement | null>(null);
 
@@ -209,8 +216,14 @@ export default function DashboardPage() {
       setReminderResult(result);
       // Refresh summary after sending
       fetchReminderSummary(month).then(setReminderSummary).catch(() => {});
-    } catch {
-      // silently ignore
+      notify(
+        "success",
+        language === "ja"
+          ? `リマインダー送信完了: 送信 ${result.sent}件、失敗 ${result.failed}件、スキップ ${result.skipped}件`
+          : `Reminders sent: ${result.sent} sent, ${result.failed} failed, ${result.skipped} skipped`
+      );
+    } catch (err) {
+      notify("error", language === "ja" ? `リマインダー送信に失敗しました: ${String(err)}` : `Failed to send reminders: ${String(err)}`);
     } finally {
       setSendingReminder(false);
     }
@@ -256,8 +269,13 @@ export default function DashboardPage() {
       const result = await fileInvoiceBulk(ready);
       setSavedCount(result.summary.filed);
       await loadStats();
+      notify(
+        "success",
+        language === "ja" ? `${result.summary.filed}件のファイルを保存しました` : `Saved ${result.summary.filed} files`
+      );
     } catch (err) {
       setError(String(err));
+      notify("error", language === "ja" ? `保存に失敗しました: ${String(err)}` : `Failed to save files: ${String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -278,8 +296,13 @@ export default function DashboardPage() {
       }
       await validateInvoiceBatch(submissions, month, user ?? undefined);
       await Promise.all([loadStats(), loadInvoiceList()]);
+      notify(
+        "success",
+        language === "ja" ? `${submissions.length}件の請求書を検証しました` : `Validated ${submissions.length} invoices`
+      );
     } catch (err) {
       setError(String(err));
+      notify("error", language === "ja" ? `検証に失敗しました: ${String(err)}` : `Validation failed: ${String(err)}`);
     } finally {
       setValidating(false);
     }

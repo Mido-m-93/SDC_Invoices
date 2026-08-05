@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/translations";
 import { useCurrentUser, userColor, userInitials } from "@/lib/hooks/useCurrentUser";
+import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
@@ -37,12 +38,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col bg-[#1a3d2b] text-white">
         {/* Header */}
         <div className="shrink-0 border-b border-white/10 px-5 py-5">
-          <p className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-            SDC
-          </p>
-          <p className="text-sm font-semibold leading-snug text-white">
-            {t("app_name_short")}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+                SDC
+              </p>
+              <p className="text-sm font-semibold leading-snug text-white">
+                {t("app_name_short")}
+              </p>
+            </div>
+            <NotificationBell />
+          </div>
         </div>
 
         {/* Nav + footer scroll together; footer pinned to bottom via mt-auto */}
