@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { LanguageProvider } from "@/translations";
+import { NotificationsProvider } from "@/lib/notifications";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +13,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ja">
       <body className="bg-white text-stone-900 antialiased">
-        <LanguageProvider defaultLanguage="ja">{children}</LanguageProvider>
+        <LanguageProvider defaultLanguage="ja">
+          <NotificationsProvider>{children}</NotificationsProvider>
+        </LanguageProvider>
       </body>
     </html>
   );
