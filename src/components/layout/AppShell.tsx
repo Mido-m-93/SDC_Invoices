@@ -39,14 +39,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {/* Header */}
         <div className="shrink-0 border-b border-white/10 px-5 py-5">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="mb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                ACC-SDC
-              </p>
-              <p className="text-sm font-semibold leading-snug text-white">
-                {t("app_name_short")}
-              </p>
-            </div>
+            <p className="text-sm font-semibold leading-snug text-white">
+              ACC-SDC
+            </p>
             <NotificationBell />
           </div>
         </div>
