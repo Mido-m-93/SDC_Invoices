@@ -46,18 +46,36 @@ function getConfig(): { token: string; databaseId: string } {
   return { token, databaseId };
 }
 
-async function queryDatabase(token: string, databaseId: string): Promise<NotionPage[]> {
+function notionHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": NOTION_VERSION,
+    "Content-Type": "application/json",
+  };
+}
+
+// Notion-Version 2025-09-03 restructured databases around "data sources" —
+// a database no longer owns pages directly, and POST /databases/{id}/query
+// returns 400 invalid_request_url under this version. Resolve the database's
+// first data_source_id via GET /databases/{id}, then query that instead.
+async function resolveDataSourceId(token: string, databaseId: string): Promise<string | null> {
+  const res = await fetch(`${NOTION_API}/databases/${databaseId}`, {
+    method: "GET",
+    headers: notionHeaders(token),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { data_sources?: Array<{ id: string }> };
+  return data.data_sources?.[0]?.id ?? null;
+}
+
+async function queryPaginated(token: string, url: string): Promise<NotionPage[]> {
   const pages: NotionPage[] = [];
   let cursor: string | undefined;
 
   do {
-    const res = await fetch(`${NOTION_API}/databases/${databaseId}/query`, {
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-      },
+      headers: notionHeaders(token),
       body: JSON.stringify({ page_size: PAGE_SIZE, ...(cursor ? { start_cursor: cursor } : {}) }),
     });
     if (!res.ok) {
@@ -70,6 +88,19 @@ async function queryDatabase(token: string, databaseId: string): Promise<NotionP
   } while (cursor && pages.length < MAX_PAGES);
 
   return pages;
+}
+
+async function queryDatabase(token: string, databaseId: string): Promise<NotionPage[]> {
+  const dataSourceId = await resolveDataSourceId(token, databaseId).catch(() => null);
+  if (dataSourceId) {
+    try {
+      return await queryPaginated(token, `${NOTION_API}/data_sources/${dataSourceId}/query`);
+    } catch (err) {
+      console.warn("[pipelineNotionSource] data_sources query failed, falling back to legacy /databases/query:", err);
+    }
+  }
+  // Fallback for older-style setups where the data_source lookup itself fails.
+  return queryPaginated(token, `${NOTION_API}/databases/${databaseId}/query`);
 }
 
 // Renders one Notion property value to a plain-text string, or null if empty/unsupported.
