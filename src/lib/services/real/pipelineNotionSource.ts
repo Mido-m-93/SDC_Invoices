@@ -199,9 +199,23 @@ function batchPageTexts(blocks: string[]): string[] {
   return batches;
 }
 
+// Each batch is one sequential-looking OpenAI call from this function's point
+// of view, but running them in parallel (not a for-loop) keeps total wall-clock
+// close to a single call's latency instead of summing every batch — needed to
+// stay comfortably under the API route's maxDuration regardless of database size.
+// A hard cap on top of that guards the case where even parallel calls would
+// blow past the timeout (e.g. a very large database, or OpenAI running slow).
+// NOTE: queryDatabase() always fetches every page fresh each run and batches
+// them in the same order, so if the cap is ever hit, the SAME trailing batches
+// are skipped on every subsequent run too — this is not a rotating/resumable
+// cap. The skip is surfaced loudly in the audit log rather than silently
+// dropped; raise this constant if the real database grows past what it covers.
+const MAX_BATCHES_PER_RUN = 8;
+
 export interface NotionSourceScanDetail {
   pagesFound: number;
   batches: number;
+  skippedBatches: number;
 }
 
 /**
@@ -216,16 +230,19 @@ export async function fetchRealNotionPipelineItems(): Promise<{
 }> {
   const { token, databaseId } = getConfig();
   const pages = await queryDatabase(token, databaseId);
-  const batches = batchPageTexts(pages.map(pageToTextBlock));
+  const allBatches = batchPageTexts(pages.map(pageToTextBlock));
+  const batches = allBatches.slice(0, MAX_BATCHES_PER_RUN);
+  const skippedBatches = allBatches.length - batches.length;
 
-  const items: ExtractedPipelineItem[] = [];
-  for (const batch of batches) {
-    const extracted = await extractPipelineRecordsFromText(batch).catch((err) => {
-      console.warn("[pipelineNotionSource] Extraction failed for a batch:", err);
-      return [];
-    });
-    items.push(...extracted);
-  }
+  const results = await Promise.all(
+    batches.map((batch) =>
+      extractPipelineRecordsFromText(batch).catch((err) => {
+        console.warn("[pipelineNotionSource] Extraction failed for a batch:", err);
+        return [];
+      })
+    )
+  );
+  const items = results.flat();
 
-  return { items, scan: { pagesFound: pages.length, batches: batches.length } };
+  return { items, scan: { pagesFound: pages.length, batches: batches.length, skippedBatches } };
 }

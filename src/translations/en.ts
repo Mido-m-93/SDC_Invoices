@@ -186,7 +186,7 @@ const en = {
   pipeline_sync_linked_to: "Linked to {client} · lead {leadId}",
   pipeline_sync_reject: "Reject",
   pipeline_sync_approve: "Approve & Create Lead",
-  pipeline_sync_empty: "No staged records. Run a sync above to pull mock pipeline data.",
+  pipeline_sync_empty: "No staged records. Run a sync above to pull pipeline data.",
   pipeline_sync_reject_prompt: "Reject \"{name}\" — reason?",
   pipeline_sync_error_load: "Failed to load pipeline sync data",
   pipeline_sync_error_sync_failed: "Sync failed",
