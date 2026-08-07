@@ -57,6 +57,11 @@ function LoginForm() {
       } else if (signUpData.user && signUpData.user.identities?.length === 0) {
         setError("This email is already registered. Please sign in instead.");
         setLoading(false);
+      } else if (signUpData.session) {
+        // Email confirmation isn't required (or is disabled) — Supabase already
+        // returned an active session, so there's nothing to "check email" for.
+        router.push("/dashboard");
+        router.refresh();
       } else {
         setSuccess("Check your email for a confirmation link to activate your account.");
         setLoading(false);
