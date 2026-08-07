@@ -63,8 +63,19 @@ function LoginForm() {
         router.push("/dashboard");
         router.refresh();
       } else {
-        setSuccess("Check your email for a confirmation link to activate your account.");
-        setLoading(false);
+        // signUp() didn't hand back a session — try signing straight in with
+        // the same credentials. If "Confirm email" is actually disabled this
+        // succeeds immediately (some GoTrue versions don't always return a
+        // session inline from signUp), skipping the email step entirely. Only
+        // a genuine "Email not confirmed" failure falls back to the message.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (!signInError) {
+          router.push("/dashboard");
+          router.refresh();
+        } else {
+          setSuccess("Check your email for a confirmation link to activate your account.");
+          setLoading(false);
+        }
       }
     } else {
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
