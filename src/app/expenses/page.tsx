@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { sendExpenseToMoneyForward } from "@/lib/api/client";
-import { SHOW_SEND_TO_MF } from "@/lib/featureFlags";
+import { SHOW_SEND_TO_MF, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
 import { monthOptions } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
@@ -281,18 +281,22 @@ export default function ExpensesPage() {
               <TrashIcon />
               {t("expenses_clean_all")}
             </button>
-            <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
-              uploading
-                ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
-                : "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-            }`}>
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              {uploading ? t("expenses_reading") : t("expenses_upload_excel")}
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
-            </label>
-            <Button variant="primary" onClick={openNew}>{t("expenses_new_claim")}</Button>
+            {SHOW_EXPENSES_UPLOAD_EXCEL && (
+              <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
+                uploading
+                  ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
+                  : "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+              }`}>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {uploading ? t("expenses_reading") : t("expenses_upload_excel")}
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
+              </label>
+            )}
+            {SHOW_EXPENSES_NEW_CLAIM && (
+              <Button variant="primary" onClick={openNew}>{t("expenses_new_claim")}</Button>
+            )}
           </div>
         }
       />
