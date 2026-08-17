@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { sendExpenseToMoneyForward } from "@/lib/api/client";
+import { SHOW_SEND_TO_MF } from "@/lib/featureFlags";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
@@ -399,7 +400,7 @@ export default function ExpensesPage() {
                     {c.status !== "rejected" && c.status !== "paid" && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>{t("expenses_action_reject")}</Button>
                     )}
-                    {(c.status === "approved" || c.status === "paid") && !c.mfBillingUrl && (
+                    {SHOW_SEND_TO_MF && (c.status === "approved" || c.status === "paid") && !c.mfBillingUrl && (
                       <Button variant="ghost" size="sm" loading={sendingToMF === c.id} onClick={() => handleSendToMF(c.id)}>💴 {t("action_send_to_mf")}</Button>
                     )}
                     {c.mfBillingUrl && (

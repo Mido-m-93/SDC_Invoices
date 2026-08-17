@@ -9,6 +9,7 @@ import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
 import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
+import { SHOW_SEND_TO_MF } from "@/lib/featureFlags";
 
 interface Props {
   item: InvoiceListItem;
@@ -176,7 +177,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
               <ValidationStages v={v} submission={s} />
               {onSendToMF && (
                 <div className="mt-3">
-                  {!v.mfBillingUrl && (
+                  {SHOW_SEND_TO_MF && !v.mfBillingUrl && (
                     <Button
                       variant="ghost"
                       size="sm"
