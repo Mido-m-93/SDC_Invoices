@@ -46,8 +46,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   duplicateDetectionMode: "filename",
 
   // Absolute tolerance for amount comparison (in sheet currency unit)
-  // e.g. 1 means ¥1 difference is acceptable
-  amountToleranceAbsolute: 1,
+  // 0 = exact match required
+  amountToleranceAbsolute: 0,
+
+  // ── Phase 7: Reminder / notification defaults ────────────────────────────
+  teamsWebhookUrl: "",
+  staleReviewThresholdDays: 3,
+  dueDateThresholdDays: 5,
+  escalationRecipient: "",
+  paymentTermsDays: 30,
 };
 
 /**

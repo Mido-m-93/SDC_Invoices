@@ -1,6 +1,7 @@
 "use client";
 
 import { userColor, userInitials, type AppUser } from "@/lib/hooks/useCurrentUser";
+import { useLanguage } from "@/translations";
 
 const USERS: AppUser[] = ["Naing", "Atsuki", "Aya"];
 
@@ -10,13 +11,14 @@ interface Props {
 }
 
 export default function UserPickerModal({ onSelect, current }: Props) {
+  const { t } = useLanguage();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl">
         <div className="mb-6 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-stone-400 mb-1">SDC Invoice Tool</p>
-          <h2 className="text-xl font-bold text-stone-900">Who are you?</h2>
-          <p className="mt-1 text-sm text-stone-500">Select your name to get started</p>
+          <h2 className="text-xl font-bold text-stone-900">{t("user_picker_title")}</h2>
+          <p className="mt-1 text-sm text-stone-500">{t("user_picker_subtitle")}</p>
         </div>
 
         <div className="space-y-3">
@@ -34,7 +36,7 @@ export default function UserPickerModal({ onSelect, current }: Props) {
               </span>
               <span className="font-semibold text-stone-800">{name}</span>
               {current === name && (
-                <span className="ml-auto text-xs font-medium text-[#2d6a4f]">Current</span>
+                <span className="ml-auto text-xs font-medium text-[#2d6a4f]">{t("user_picker_current")}</span>
               )}
             </button>
           ))}

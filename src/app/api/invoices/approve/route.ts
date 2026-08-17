@@ -1,10 +1,13 @@
+
 // src/app/api/invoices/approve/route.ts
 // POST /api/invoices/approve
-// Manually approves a REVIEW_REQUIRED invoice, setting statusCode → READY
+// Manually approves a REVIEW_REQUIRED invoice, setting statusCode â†’ READY
 // and recording humanApproved + approvedBy on the validation result.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   let body: unknown;

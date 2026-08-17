@@ -15,6 +15,11 @@ import type {
   ProcessingLog,
   DashboardStats,
   AppConfig,
+  ReminderSummary,
+  ReminderGap,
+  StaleReview,
+  DueDateAlert,
+  ReminderType,
 } from "@/types";
 
 // ── Base fetch helper ─────────────────────────────────────────────────────────
@@ -23,19 +28,33 @@ async function apiFetch<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      `API ${options?.method ?? "GET"} ${path} failed (${res.status}): ${
-        (body as { error?: string }).error ?? res.statusText
-      }`
-    );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...options,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const { error, detail, reason, action } = body as {
+        error?: string; detail?: string; reason?: string; action?: string;
+      };
+      const parts = [error ?? res.statusText, detail, reason, action].filter(Boolean);
+      throw new Error(
+        `API ${options?.method ?? "GET"} ${path} failed (${res.status}): ${parts.join(" — ")}`
+      );
+    }
+    return res.json() as Promise<T>;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Request timed out after 30s: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json() as Promise<T>;
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
@@ -45,22 +64,34 @@ export async function fetchAvailableMonths(): Promise<string[]> {
   return data.months;
 }
 
-export async function fetchInvoices(month: string): Promise<InvoiceSubmission[]> {
-  const data = await apiFetch<{ submissions: InvoiceSubmission[] }>(
+export async function clearAllInvoices(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices", { method: "DELETE" });
+}
+
+export async function deleteInvoices(ids: string[]): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export async function fetchInvoices(month: string): Promise<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }> {
+  return apiFetch<{ submissions: InvoiceSubmission[]; sheetsWarning?: string }>(
     `/api/invoices?month=${encodeURIComponent(month)}`
   );
-  return data.submissions;
 }
 
 export async function validateInvoice(
   submission: InvoiceSubmission,
-  validatedBy?: string
+  validatedBy?: string,
+  allMonthSubmissions?: InvoiceSubmission[]
 ): Promise<InvoiceValidationResult> {
   const data = await apiFetch<{ results: InvoiceValidationResult[] }>(
     "/api/invoices/validate",
     {
       method: "POST",
-      body: JSON.stringify({ submission, validatedBy }),
+      body: JSON.stringify({ submission, validatedBy, allMonthSubmissions }),
     }
   );
   return data.results[0];
@@ -95,6 +126,17 @@ export async function approveInvoice(
   return data.result;
 }
 
+export async function patchSubmissionCurrency(
+  submissionId: string,
+  month: string,
+  currency: string
+): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/api/invoices/currency", {
+    method: "PATCH",
+    body: JSON.stringify({ submissionId, month, currency }),
+  });
+}
+
 export async function fileInvoice(
   validation: InvoiceValidationResult
 ): Promise<FiledDocument> {
@@ -119,6 +161,24 @@ export async function fileInvoiceBulk(
   return apiFetch("/api/invoices/file/bulk", {
     method: "POST",
     body: JSON.stringify({ validations }),
+  });
+}
+
+export async function sendInvoiceToMoneyForward(
+  submission: InvoiceSubmission,
+  validation: InvoiceValidationResult
+): Promise<{ billingId: string; billingUrl: string }> {
+  return apiFetch("/api/invoices/send-to-mf", {
+    method: "POST",
+    body: JSON.stringify({ submission, validation }),
+  });
+}
+
+export async function sendExpenseToMoneyForward(
+  claimId: string
+): Promise<{ billingId: string; billingUrl: string }> {
+  return apiFetch(`/api/expenses/${claimId}/send-to-mf`, {
+    method: "POST",
   });
 }
 
@@ -199,4 +259,33 @@ export async function saveConfig(config: AppConfig): Promise<void> {
     method: "POST",
     body: JSON.stringify(config),
   });
+}
+
+// ── Phase 7: Reminders & Notifications ───────────────────────────────────────
+
+export async function fetchReminderSummary(month: string): Promise<ReminderSummary> {
+  return apiFetch<ReminderSummary>(`/api/reminders/summary?month=${encodeURIComponent(month)}`);
+}
+
+export async function sendReminders(
+  month: string,
+  type: ReminderType | "all"
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  return apiFetch<{ sent: number; failed: number; skipped: number }>(
+    "/api/reminders/trigger",
+    { method: "POST", body: JSON.stringify({ month, type }) }
+  );
+}
+
+export async function testNotification(): Promise<{ ok: boolean; message: string }> {
+  return apiFetch<{ ok: boolean; message: string }>("/api/notifications/test", {
+    method: "POST",
+  });
+}
+
+async function fetchReminderGaps(
+  month: string,
+  type: "missing_invoice" | "stale_review" | "due_date" = "missing_invoice"
+): Promise<{ data: ReminderGap[] | StaleReview[] | DueDateAlert[] }> {
+  return apiFetch(`/api/reminders/gaps?month=${encodeURIComponent(month)}&type=${type}`);
 }

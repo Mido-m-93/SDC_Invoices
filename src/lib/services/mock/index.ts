@@ -13,6 +13,13 @@ import type {
   IDashboardService,
   IVendorService,
   IContractService,
+  IProposalService,
+  IPaymentRecordService,
+  IClientService,
+  ILeadService,
+  IMemberService,
+  IAccountingService,
+  IReportingService,
 } from "../types";
 import type {
   InvoiceSubmission,
@@ -24,9 +31,25 @@ import type {
   AppConfig,
   Vendor,
   Contract,
+  Proposal,
+  PaymentRecord,
+  Client,
+  Lead,
+  Member,
+  AccountingEntry,
+  AccountingEntryType,
+  AccountingEntryStatus,
+  ProfitAndLoss,
+  AccountingSummary,
+  ReportingKPIs,
+  LeadStage,
+  LeadSummary,
+  MemberStatus,
 } from "@/types";
 import { safeValidationResult, parseCurrencyString } from "@/lib/validation/invoiceValidator";
 import {
+  readStore,
+  writeStore,
   loadUploadedSubmissions,
   saveUploadedSubmissions,
   saveValidationResult,
@@ -43,6 +66,21 @@ import {
   loadContracts,
   saveContract,
   deleteContract,
+  loadProposals,
+  saveProposal,
+  deleteProposal,
+  loadPaymentRecords,
+  savePaymentRecord,
+  deletePaymentRecord,
+  loadClients,
+  saveClient,
+  deleteClient,
+  loadLeads,
+  saveLead,
+  deleteLead,
+  loadMembers,
+  saveMember,
+  deleteMember,
 } from "./fileStore";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 
@@ -100,6 +138,21 @@ export class MockDriveService implements IDriveService {
     // Simulate: the filed document for sub-005 already exists
     return params.filename.startsWith("中村 美咲_");
   }
+
+  async listMonthFolders(_rootFolderId: string) {
+    await delay(100);
+    return [];
+  }
+
+  async listFilesInFolder(_folderId: string) {
+    await delay(100);
+    return [];
+  }
+
+  async downloadById(_fileId: string): Promise<Uint8Array> {
+    await delay(200);
+    return new Uint8Array([37, 80, 68, 70]); // "%PDF" magic bytes stub
+  }
 }
 
 // ── Mock Validation Service ───────────────────────────────────────────────────
@@ -124,7 +177,7 @@ export class MockValidationService implements IValidationService {
       taxAmount,
       total: claimedTotal,
       taxRate: 0.1,
-      payeeName: submission.payerName,
+      memberName: submission.payerName,
       payerNameOnDoc: null,
       rawText: "消費税",
     };
@@ -146,66 +199,34 @@ function enrichWithRisk(
   result: InvoiceValidationResult,
   submission: InvoiceSubmission
 ): InvoiceValidationResult {
-  const vendors = loadVendors();
-  const contracts = loadContracts();
+  const members = loadMembers();
   const payerNorm = normalizeForMatch(submission.payerName);
+  const emailNorm = (submission.email ?? "").toLowerCase().trim();
 
-  const vendor = vendors.find(
-    (v) =>
-      v.status === "active" &&
-      [v.name, ...v.aliases].some((n) => normalizeForMatch(n) === payerNorm)
+  const member = members.find(
+    (m) =>
+      normalizeForMatch(m.displayName) === payerNorm ||
+      (emailNorm && m.email.toLowerCase() === emailNorm)
   );
 
-  const vendorMatched = !!vendor;
-  let contractMatched = false;
-  let contractId: string | undefined;
-  let activeContract: Contract | undefined;
+  const vendorMatched   = !!member;
+  const contractMatched = member?.status === "active";
 
-  if (vendor) {
-    const today = new Date().toISOString().slice(0, 10);
-    activeContract = contracts.find(
-      (c) =>
-        c.vendorId === vendor.id &&
-        c.status === "active" &&
-        c.startDate <= today &&
-        c.endDate >= today
-    );
-    contractMatched = !!activeContract;
-    contractId = activeContract?.id;
-  }
-
-  // Risk scoring
   let riskLevel: import("@/types").RiskLevel;
   let reviewerRecommendation: string;
 
-  if (vendorMatched && !contractMatched) {
-    // Known vendor but no active contract — blocked
-    riskLevel = "BLOCKED";
-    reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-  } else if (!vendorMatched) {
-    // Unknown vendor — needs review
+  if (!vendorMatched) {
     riskLevel = "NEEDS_REVIEW";
     reviewerRecommendation = "Accounting Lead";
-  } else if (
-    activeContract &&
-    submission.claimedAmountTaxIncluded &&
-    activeContract.expectedMonthlyAmount > 0
-  ) {
-    const claimed = parseCurrencyString(submission.claimedAmountTaxIncluded) ?? 0;
-    const tolerance = activeContract.expectedMonthlyAmount * 0.1; // 10% tolerance
-    if (Math.abs(claimed - activeContract.expectedMonthlyAmount) > tolerance) {
-      riskLevel = "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting Lead";
-    } else {
-      riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-      reviewerRecommendation = vendor!.defaultReviewer || "Accounting";
-    }
+  } else if (!contractMatched) {
+    riskLevel = "BLOCKED";
+    reviewerRecommendation = "Accounting Lead";
   } else {
     riskLevel = result.statusCode === "READY" ? "OK" : "NEEDS_REVIEW";
-    reviewerRecommendation = vendor?.defaultReviewer || "Accounting";
+    reviewerRecommendation = member!.department || "Accounting";
   }
 
-  return { ...result, vendorMatched, contractMatched, contractId, riskLevel, reviewerRecommendation };
+  return { ...result, vendorMatched, contractMatched, riskLevel, reviewerRecommendation };
 }
 
 // ── Mock Storage Service ──────────────────────────────────────────────────────
@@ -214,6 +235,21 @@ export class MockStorageService implements IStorageService {
 
   async saveSubmissions(submissions: InvoiceSubmission[], month: string): Promise<void> {
     saveUploadedSubmissions(submissions, month);
+  }
+
+  async patchSubmissionCurrency(submissionId: string, month: string, currency: string): Promise<void> {
+    const all = loadUploadedSubmissions(month);
+    const updated = all.map((s) => s.id === submissionId ? { ...s, currency } : s);
+    saveUploadedSubmissions(updated, month);
+  }
+
+  async clearAllSubmissions(): Promise<void> {
+    if (typeof window !== "undefined") localStorage.removeItem("sdc_invoice_submissions");
+    const store = readStore();
+    store.submissions = [];
+    store.validationResults = {};
+    store.filedDocuments = {};
+    writeStore(store);
   }
 
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {
@@ -314,5 +350,113 @@ export class MockContractService implements IContractService {
   }
   async deleteContract(id: string): Promise<void> {
     deleteContract(id);
+  }
+}
+
+// ── Mock Proposal Service ─────────────────────────────────────────────────────
+export class MockProposalService implements IProposalService {
+  async listProposals(): Promise<Proposal[]> {
+    return loadProposals();
+  }
+  async saveProposal(proposal: Proposal): Promise<void> {
+    saveProposal(proposal);
+  }
+  async deleteProposal(id: string): Promise<void> {
+    deleteProposal(id);
+  }
+}
+
+// ── Mock Payment Record Service ───────────────────────────────────────────────
+export class MockPaymentRecordService implements IPaymentRecordService {
+  async listPaymentRecords(): Promise<PaymentRecord[]> {
+    return loadPaymentRecords();
+  }
+  async savePaymentRecord(record: PaymentRecord): Promise<void> {
+    savePaymentRecord(record);
+  }
+  async deletePaymentRecord(id: string): Promise<void> {
+    deletePaymentRecord(id);
+  }
+}
+
+export class MockClientService implements IClientService {
+  async listClients(): Promise<Client[]> { return loadClients(); }
+  async getClient(id: string): Promise<Client | null> { return loadClients().find(c => c.id === id) ?? null; }
+  async saveClient(client: Client): Promise<void> { saveClient(client); }
+  async deleteClient(id: string): Promise<void> { deleteClient(id); }
+}
+
+export class MockLeadService implements ILeadService {
+  async listLeads(filters?: { stage?: LeadStage; assignedTo?: string; clientId?: string }): Promise<Lead[]> {
+    let all = loadLeads();
+    if (filters?.stage) all = all.filter(l => l.stage === filters.stage);
+    if (filters?.assignedTo) all = all.filter(l => l.assignedTo === filters.assignedTo);
+    if (filters?.clientId) all = all.filter(l => l.clientId === filters.clientId);
+    return all;
+  }
+  async getLead(id: string): Promise<Lead | null> { return loadLeads().find(l => l.id === id) ?? null; }
+  async saveLead(lead: Lead): Promise<void> { saveLead(lead); }
+  async deleteLead(id: string): Promise<void> { deleteLead(id); }
+  async updateStage(id: string, stage: LeadStage): Promise<void> {
+    const all = loadLeads();
+    const l = all.find(l => l.id === id);
+    if (l) { l.stage = stage; saveLead(l); }
+  }
+  async getSummary(): Promise<LeadSummary> {
+    const all = loadLeads();
+    const byStage = {} as Record<LeadStage, number>;
+    const stages: LeadStage[] = ["new","contacted","qualified","proposal_sent","negotiation","won","lost","on_hold"];
+    for (const s of stages) byStage[s] = 0;
+    for (const l of all) byStage[l.stage] = (byStage[l.stage] ?? 0) + 1;
+    return { total: all.length, byStage, totalPipelineValue: 0, currency: "JPY", wonThisMonth: byStage.won, lostThisMonth: byStage.lost };
+  }
+}
+
+export class MockMemberService implements IMemberService {
+  async listMembers(): Promise<Member[]> { return loadMembers(); }
+  async getMember(id: string): Promise<Member | null> { return loadMembers().find(m => m.id === id) ?? null; }
+  async saveMember(member: Member): Promise<void> { saveMember(member); }
+  async deleteMember(id: string): Promise<void> { deleteMember(id); }
+}
+
+export class MockAccountingService implements IAccountingService {
+  private store = new Map<string, AccountingEntry>();
+  async listEntries(filters?: { month?: string; type?: AccountingEntryType; status?: AccountingEntryStatus }): Promise<AccountingEntry[]> {
+    let all = Array.from(this.store.values());
+    if (filters?.month) all = all.filter(e => e.month === filters.month);
+    if (filters?.type) all = all.filter(e => e.type === filters.type);
+    if (filters?.status) all = all.filter(e => e.status === filters.status);
+    return all;
+  }
+  async getEntry(id: string): Promise<AccountingEntry | null> { return this.store.get(id) ?? null; }
+  async saveEntry(entry: AccountingEntry): Promise<void> { this.store.set(entry.id, entry); }
+  async deleteEntry(id: string): Promise<void> { this.store.delete(id); }
+  async postEntry(id: string, actorName: string): Promise<void> {
+    const e = this.store.get(id);
+    if (!e) return;
+    if (e.status !== "draft") {
+      throw new Error(`Cannot post entry "${id}": status is "${e.status}", expected "draft".`);
+    }
+    this.store.set(id, { ...e, status: "posted", postedBy: actorName, postedAt: new Date().toISOString() });
+  }
+  async voidEntry(id: string, actorName: string): Promise<void> {
+    const e = this.store.get(id);
+    if (!e) return;
+    if (e.status !== "posted") {
+      throw new Error(`Cannot void entry "${id}": status is "${e.status}", expected "posted".`);
+    }
+    this.store.set(id, { ...e, status: "voided", postedBy: actorName });
+  }
+  async getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
+    return { month, totalRevenue: 0, totalExpenses: 0, grossProfit: 0, grossMarginPct: 0, byCategory: [], currency: "JPY" };
+  }
+  async getSummary(month: string): Promise<AccountingSummary> {
+    return { month, revenue: 0, expenses: 0, profit: 0, entryCount: 0, draftCount: 0, currency: "JPY" };
+  }
+}
+
+export class MockReportingService implements IReportingService {
+  async getKPIs(month: string): Promise<ReportingKPIs> {
+    return { month, leadsTotal: 0, leadsWon: 0, leadsLost: 0, leadConversionRate: 0, proposalsTotal: 0, proposalsAccepted: 0, proposalWinRate: 0, outboundInvoicesTotal: 0, outboundInvoicesPaid: 0, outboundInvoicesOverdue: 0, invoiceCollectionRate: 0, totalOutstandingJpy: 0, totalRevenueJpy: 0, totalExpensesJpy: 0, netProfitJpy: 0, grossMarginPct: 0, expensesTotal: 0, expensesApproved: 0, expensesRejected: 0, activeVendors: 0, activeContracts: 0, vendorsWithMissingInvoice: 0 };
   }
 }

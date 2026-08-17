@@ -19,12 +19,17 @@ const DEFAULT_CONFIG: AppConfig = {
   defaultLanguage: "ja",
   duplicateDetectionMode: "filename",
   amountToleranceAbsolute: 1,
+  teamsWebhookUrl: "",
+  staleReviewThresholdDays: 3,
+  dueDateThresholdDays: 5,
+  escalationRecipient: "",
+  paymentTermsDays: 30,
 };
 
 // ── Row mappers ───────────────────────────────────────────────────────────────
 
 function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     id: s.id,
     snapshot_month: month,
     submission_row_number: s.submissionRowNumber,
@@ -42,6 +47,10 @@ function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, un
     payment_amount: s.paymentAmount,
     payment_processing_status: s.paymentProcessingStatus,
   };
+  // Only include currency if it has a value — omitting it is safe before the
+  // migration runs, whereas passing null for a non-existent column breaks inserts.
+  if (s.currency) row.currency = s.currency;
+  return row;
 }
 
 function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
@@ -56,7 +65,8 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     internalDepartment: row.internal_department as string,
     externalProjectName: row.external_project_name as string,
     projectType: row.project_type as string,
-    claimedAmountTaxIncluded: row.claimed_amount_tax_included as string,
+    claimedAmountTaxIncluded: (row.claimed_amount_tax_included as string) || "",
+    currency: (row.currency as string) || undefined,
     invoiceProjectStatus: row.invoice_project_status as string,
     paymentStatus: row.payment_status as string,
     paymentAmount: row.payment_amount as string,
@@ -86,8 +96,13 @@ function toValidationRow(r: InvoiceValidationResult): Record<string, unknown> {
     vendor_matched: r.vendorMatched ?? null,
     contract_matched: r.contractMatched ?? null,
     contract_id: r.contractId ?? null,
+    contract_end_date: r.contractEndDate ?? null,
+    contract_verification: r.contractVerification ?? null,
     validated_by: r.validatedBy ?? null,
     approved_by: r.approvedBy ?? null,
+    mf_billing_id: r.mfBillingId ?? null,
+    mf_billing_url: r.mfBillingUrl ?? null,
+    mf_sent_at: r.mfSentAt ?? null,
   };
 }
 
@@ -113,8 +128,13 @@ function fromValidationRow(row: Record<string, unknown>): InvoiceValidationResul
     vendorMatched: row.vendor_matched as boolean | undefined,
     contractMatched: row.contract_matched as boolean | undefined,
     contractId: row.contract_id as string | undefined,
+    contractEndDate: (row.contract_end_date as string) ?? null,
+    contractVerification: (row.contract_verification as InvoiceValidationResult["contractVerification"]) ?? undefined,
     validatedBy: (row.validated_by as string) || undefined,
     approvedBy: (row.approved_by as string) || undefined,
+    mfBillingId: (row.mf_billing_id as string) || undefined,
+    mfBillingUrl: (row.mf_billing_url as string) || undefined,
+    mfSentAt: (row.mf_sent_at as string) || undefined,
   };
 }
 
@@ -206,6 +226,11 @@ function fromConfigRow(row: Record<string, unknown>): AppConfig {
     defaultLanguage: (row.default_language as AppConfig["defaultLanguage"]) ?? "ja",
     duplicateDetectionMode: (row.duplicate_detection_mode as AppConfig["duplicateDetectionMode"]) ?? "filename",
     amountToleranceAbsolute: (row.amount_tolerance_absolute as number) ?? 1,
+    teamsWebhookUrl: (row.teams_webhook_url as string) ?? "",
+    staleReviewThresholdDays: (row.stale_review_threshold_days as number) ?? 3,
+    dueDateThresholdDays: (row.due_date_threshold_days as number) ?? 5,
+    escalationRecipient: (row.escalation_recipient as string) ?? "",
+    paymentTermsDays: (row.payment_terms_days as number) ?? 30,
   };
 }
 
@@ -228,6 +253,19 @@ export class SupabaseStorageService implements IStorageService {
     const rows = submissions.map((s) => toSubmissionRow(s, month));
     const { error } = await this.db.from("invoice_submissions").insert(rows);
     if (error) throw new Error(`saveSubmissions (insert): ${error.message}`);
+  }
+
+  async patchSubmissionCurrency(submissionId: string, _month: string, currency: string): Promise<void> {
+    const { error } = await this.db
+      .from("invoice_submissions")
+      .update({ currency })
+      .eq("id", submissionId);
+    if (error) throw new Error(`patchSubmissionCurrency: ${error.message}`);
+  }
+
+  async clearAllSubmissions(): Promise<void> {
+    const { error } = await this.db.from("invoice_submissions").delete().neq("id", "");
+    if (error) throw new Error(`clearAllSubmissions: ${error.message}`);
   }
 
   async listAvailableMonths(): Promise<string[]> {

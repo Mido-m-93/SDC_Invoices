@@ -1,0 +1,567 @@
+<title>Member Guide | メンバーガイド</title>
+<style>
+:root {
+  --green:       #2d6a4f;
+  --green-mid:   #40916c;
+  --green-light: #52b788;
+  --green-pale:  rgba(82,183,136,0.08);
+  --bg:        #f5f4ef;
+  --surface:   #ffffff;
+  --surface-2: #efece5;
+  --border:    #e0dbd1;
+  --text-1: #18191a;
+  --text-2: #58594f;
+  --text-3: #93948a;
+  --radius: 10px;
+  --font-ja: "Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111210;--surface:#1b1d19;--surface-2:#242620;--border:#2e302b;
+  --text-1:#eceee6;--text-2:#969890;--text-3:#5e5f58;
+}}
+:root[data-theme=dark]{--bg:#111210;--surface:#1b1d19;--surface-2:#242620;--border:#2e302b;--text-1:#eceee6;--text-2:#969890;--text-3:#5e5f58;}
+:root[data-theme=light]{--bg:#f5f4ef;--surface:#ffffff;--surface-2:#efece5;--border:#e0dbd1;--text-1:#18191a;--text-2:#58594f;--text-3:#93948a;}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",var(--font-ja),sans-serif;background:var(--bg);color:var(--text-1);min-height:100vh;display:flex;flex-direction:column;}
+
+/* Topbar */
+.topbar{background:var(--green);color:#fff;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:100;}
+.topbar-brand{font-size:13px;font-weight:700;opacity:.85;white-space:nowrap}
+.topbar-center{flex:1;text-align:center}
+.topbar-center .en{font-size:14px;font-weight:700;display:block}
+.topbar-center .ja{font-size:10px;opacity:.6;font-family:var(--font-ja);display:block;margin-top:1px}
+.pbar-wrap{width:160px;height:3px;background:rgba(255,255,255,.2);border-radius:2px;margin:5px auto 0}
+.pbar-fill{height:100%;background:var(--green-light);border-radius:2px;transition:width .3s}
+
+/* Section toggle */
+.section-toggle{display:flex;background:var(--surface-2);border-bottom:1px solid var(--border);padding:0 28px;}
+.stab{padding:11px 20px;font-size:13px;font-weight:600;color:var(--text-3);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:7px;}
+.stab.active{color:var(--green);border-bottom-color:var(--green);}
+.stab-badge{font-size:10px;background:var(--surface-2);color:var(--text-3);padding:1px 7px;border-radius:10px;font-weight:700;}
+.stab.active .stab-badge{background:var(--green-pale);color:var(--green);}
+
+/* Layout */
+.layout{display:flex;flex:1;max-width:1080px;margin:0 auto;width:100%;padding:32px 24px;gap:28px;align-items:flex-start;}
+.step-nav{width:200px;flex-shrink:0;position:sticky;top:108px;display:flex;flex-direction:column;}
+.snav-item{display:flex;align-items:flex-start;gap:11px;padding:8px 0;cursor:pointer;border:none;background:transparent;text-align:left;color:var(--text-2);position:relative;}
+.snav-item:not(:last-child)::after{content:'';position:absolute;left:13px;top:30px;width:2px;height:calc(100% - 14px);background:var(--border);}
+.snav-item.done::after,.snav-item.active::after{background:var(--green-light)}
+.snav-dot{width:28px;height:28px;border-radius:50%;flex-shrink:0;background:var(--surface-2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all .2s;position:relative;z-index:1;}
+.snav-item.active .snav-dot{background:var(--green);border-color:var(--green);color:#fff}
+.snav-item.done  .snav-dot{background:var(--green-light);border-color:var(--green-light);color:#fff}
+.snav-labels{padding-top:3px}
+.snav-labels .en{font-size:12px;font-weight:600;color:var(--text-1);display:block;line-height:1.3}
+.snav-labels .ja{font-size:10px;color:var(--text-3);display:block;margin-top:1px;font-family:var(--font-ja)}
+.snav-item.active .snav-labels .en{color:var(--green)}
+.content-area{flex:1;min-width:0}
+.step-panel{display:none;animation:stepIn .22s ease}
+.step-panel.active{display:block}
+@keyframes stepIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.step-panel{animation:none}}
+
+/* Step header */
+.step-eyebrow{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--green-light);margin-bottom:6px}
+.step-title-en{font-size:24px;font-weight:700;color:var(--text-1);line-height:1.25}
+.step-title-ja{font-size:15px;color:var(--text-2);margin-top:3px;font-family:var(--font-ja)}
+.step-header{margin-bottom:22px}
+
+/* Mockup shell */
+.mockup-shell{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;box-shadow:0 2px 16px rgba(0,0,0,.07);}
+.mockup-chrome{background:var(--surface-2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;align-items:center;gap:6px;}
+.mc-dot{width:10px;height:10px;border-radius:50%}
+.mc-dot.r{background:#ff5f57}.mc-dot.y{background:#ffbd2e}.mc-dot.g{background:#28c840}
+.mc-url{flex:1;background:var(--bg);border-radius:4px;padding:3px 10px;font-size:10px;color:var(--text-3);font-family:monospace;text-align:center;margin:0 10px;}
+
+/* App chrome */
+.app-wrap{display:flex;min-height:240px}
+.app-sb{width:136px;background:#1a3328;padding:10px 0;display:flex;flex-direction:column;flex-shrink:0;}
+.app-sb-brand{padding:5px 13px 10px;font-size:10px;color:rgba(255,255,255,.45);font-weight:700;letter-spacing:.04em;}
+.app-sb-item{padding:7px 13px;font-size:9.5px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:7px;line-height:1.3;}
+.app-sb-item.active{background:rgba(255,255,255,.1);color:#fff}
+.sb-pip{width:7px;height:7px;border-radius:2px;background:rgba(255,255,255,.18);flex-shrink:0;}
+.app-sb-item.active .sb-pip{background:#74c69d}
+.app-main{flex:1;padding:16px;background:var(--bg);overflow:hidden;}
+.app-mh{font-size:12px;font-weight:700;color:var(--text-1);display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.mb{background:var(--green);color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:8.5px;font-weight:700;cursor:default;}
+.mb.ol{background:transparent;color:var(--green);border:1px solid var(--green)}
+
+/* Table */
+.mt{width:100%;border-collapse:collapse;font-size:8.5px}
+.mt th{text-align:left;padding:4px 7px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:7.5px;}
+.mt td{padding:5px 7px;color:var(--text-2);border-bottom:1px solid var(--border)}
+.chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:7.5px;font-weight:700}
+.chip.sub{background:#dbeafe;color:#1d4ed8}.chip.rev{background:#fef3c7;color:#92400e}
+.chip.app{background:#d1fae5;color:#065f46}.chip.paid{background:#ede9fe;color:#5b21b6}
+.chip.rdy{background:#dcfce7;color:#166534}.chip.fil{background:#e0f2fe;color:#0369a1}
+
+/* Login */
+.login-center{display:flex;align-items:center;justify-content:center;min-height:240px;background:var(--bg);padding:20px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px 26px;width:240px;text-align:center;}
+.login-logo{width:38px;height:38px;border-radius:8px;background:var(--green);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:800;}
+.login-h{font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text-1)}
+.login-sub{font-size:9px;color:var(--text-3);margin-bottom:16px;font-family:var(--font-ja)}
+.mi{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-size:9.5px;color:var(--text-3);margin-bottom:8px;text-align:left;display:block;}
+.ms{width:100%;background:var(--green);color:#fff;border:none;border-radius:5px;padding:8px;font-size:10px;font-weight:700;margin-top:4px;cursor:default;}
+
+/* Form */
+.form-wrap{padding:16px;background:var(--bg);min-height:240px}
+.fh{font-size:11px;font-weight:700;color:var(--text-1);margin-bottom:12px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.ff{display:flex;flex-direction:column;gap:3px}
+.fl{font-size:7.5px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+.fi{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:9px;color:var(--text-2);}
+.fi.hl{border-color:var(--green-light);background:rgba(82,183,136,.07)}
+
+/* Receipt zone */
+.rzone{border:1.5px dashed var(--green-light);border-radius:6px;padding:14px;text-align:center;background:var(--green-pale);margin-top:8px;}
+.rzone-fn{font-size:9.5px;font-weight:600;color:var(--text-1)}
+.rzone-hint{font-size:8.5px;color:var(--text-3);margin-top:2px}
+.rzone-ai{font-size:8px;color:var(--green-light);font-weight:700;margin-top:8px}
+
+/* Status flow */
+.sf{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:12px 0}
+.sf-node{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;min-width:72px;position:relative}
+.sf-node:not(:last-child)::after{content:'';position:absolute;left:50%;top:12px;width:100%;height:2px;background:var(--border);z-index:0;}
+.sf-node.done:not(:last-child)::after,.sf-node.cur:not(:last-child)::after{background:var(--green-light)}
+.sf-c{width:26px;height:26px;border-radius:50%;background:var(--surface-2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;position:relative;z-index:1;}
+.sf-node.done .sf-c{background:var(--green-light);border-color:var(--green-light);color:#fff}
+.sf-node.cur  .sf-c{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 0 4px rgba(45,106,79,.14)}
+.sf-lbl{font-size:8.5px;font-weight:600;color:var(--text-2);text-align:center}
+.sf-ja{font-size:7.5px;color:var(--text-3);text-align:center;font-family:var(--font-ja)}
+
+/* Validation */
+.vs{display:flex;flex-direction:column;gap:7px}
+.vs-row{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:9px 12px;display:flex;align-items:center;gap:10px;}
+.vs-num{width:21px;height:21px;border-radius:50%;background:var(--green);color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.vs-info{flex:1}
+.vs-title{font-size:9.5px;font-weight:600;color:var(--text-1)}
+.vs-sub{font-size:8px;color:var(--text-3);margin-top:1px}
+.vbadge{font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px}
+.vbadge.p{background:#d1fae5;color:#065f46}
+.vbadge.w{background:#fef3c7;color:#92400e}
+
+/* Detail card (invoice) */
+.detail-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:9px;}
+.dc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.dc-field .dc-label{font-size:7.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:2px;}
+.dc-field .dc-val{font-size:10px;color:var(--text-1);font-weight:600;}
+.dc-section{font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin:10px 0 6px;border-top:1px solid var(--border);padding-top:8px;}
+
+/* Description */
+.desc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:22px;}
+.desc-block{margin-bottom:18px}
+.desc-block:last-child{margin-bottom:0}
+.dlang{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--green-light);margin-bottom:7px}
+.dtext{font-size:14px;line-height:1.7;color:var(--text-1)}
+.dtext.ja{font-family:var(--font-ja);font-size:13.5px}
+.desc-divider{border:none;border-top:1px solid var(--border);margin:18px 0}
+.tip{background:rgba(45,106,79,.06);border-left:3px solid var(--green-light);border-radius:0 6px 6px 0;padding:11px 15px;margin-top:16px;}
+.tip-lbl{font-size:10.5px;font-weight:700;color:var(--green);margin-bottom:4px}
+.tip-txt{font-size:12.5px;color:var(--text-2);line-height:1.55}
+
+/* Nav */
+.nav-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px}
+.nbtn{display:flex;align-items:center;gap:7px;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:all .15s;}
+.nbtn:hover:not(:disabled){border-color:var(--green);color:var(--green)}
+.nbtn.pri{background:var(--green);border-color:var(--green);color:#fff}
+.nbtn.pri:hover:not(:disabled){background:#245a42;border-color:#245a42;color:#fff}
+.nbtn:disabled{opacity:.35;cursor:not-allowed}
+.nav-ctr{font-size:12px;color:var(--text-3)}
+
+@media(max-width:660px){.step-nav{display:none}.layout{padding:16px 12px;gap:0}}
+</style>
+
+<div class="topbar">
+  <span class="topbar-brand">🌿 RoboCo-op</span>
+  <div class="topbar-center">
+    <span class="en">Member Guide</span>
+    <span class="ja">メンバーガイド</span>
+    <div class="pbar-wrap"><div class="pbar-fill" id="pbar" style="width:11%"></div></div>
+  </div>
+  <div style="width:80px"></div>
+</div>
+
+<div class="section-toggle">
+  <button class="stab active" id="tab-exp" onclick="setSection('expenses')">
+    💰 Expense Claims <span class="stab-badge">経費申請</span>
+  </button>
+  <button class="stab" id="tab-inv" onclick="setSection('invoices')">
+    📄 Invoices <span class="stab-badge">請求書</span>
+  </button>
+</div>
+
+<div class="layout">
+  <nav class="step-nav" id="snav"></nav>
+  <div class="content-area" id="carea"></div>
+</div>
+
+<script>
+const EXPENSES=[
+  {
+    en:"Sign In",ja:"サインイン",mockup:"login",
+    desc_en:`Open the app in your browser. Enter your <strong>organization email address</strong> and <strong>password</strong>, then click <em>Sign In</em>. If you do not have login credentials, contact your administrator.`,
+    desc_ja:`ブラウザでアプリを開きます。<strong>組織のメールアドレス</strong>と<strong>パスワード</strong>を入力し、「サインイン」をクリックしてください。ログイン情報がない場合は管理者にお問い合わせください。`,
+    tip_en:`Use your RoboCo-op email (e.g. you@roboco-op.org). Personal email addresses are not accepted.`,
+    tip_ja:`RoboCo-opのメールアドレス（例：you@roboco-op.org）をご使用ください。個人のメールアドレスは使用できません。`,
+  },
+  {
+    en:"Dashboard",ja:"ダッシュボード",mockup:"dashboard",
+    desc_en:`After signing in you land on the <strong>Dashboard</strong>. The green sidebar on the left is your main navigation — it lists every section of the tool.`,
+    desc_ja:`サインイン後、<strong>ダッシュボード</strong>が表示されます。左側の緑のサイドバーがメインナビゲーションです。`,
+    tip_en:`Click any section in the sidebar at any time to navigate there directly.`,
+    tip_ja:`サイドバーのどのセクションもいつでもクリックして直接移動できます。`,
+  },
+  {
+    en:"Go to Expense Claims",ja:"経費申請へ移動",mockup:"expense-nav",
+    desc_en:`In the left sidebar, click <strong>経費申請</strong> (Expense Claims). This is where you submit new expense requests and track the status of all your claims.`,
+    desc_ja:`左サイドバーの<strong>経費申請</strong>をクリックします。新しい経費申請の提出と、既存の申請状況の確認ができます。`,
+    tip_en:`All your claims — past and present — are listed here with their current status.`,
+    tip_ja:`提出済みのすべての申請がステータスとともにここに表示されます。`,
+  },
+  {
+    en:"Submit via Microsoft Forms",ja:"Microsoftフォームで提出",mockup:"forms",
+    desc_en:`The recommended way to submit an expense is via the linked <strong>Microsoft Forms</strong> questionnaire. Fill in your name, amount, date, category, and upload your receipt. The tool imports your submission automatically every 15 minutes. To import right away, click <em>Sync from Forms</em>.`,
+    desc_ja:`経費申請の推奨方法はリンクされた<strong>Microsoft Forms</strong>の使用です。氏名、金額、日付、カテゴリーを入力し、領収書をアップロードしてください。ツールは15分ごとに自動インポートします。すぐにインポートするには「Sync from Forms」をクリックしてください。`,
+    tip_en:`After clicking "Sync from Forms" you will see a confirmation showing how many claims were imported.`,
+    tip_ja:`「Sync from Forms」をクリックすると、インポートされた申請数の確認メッセージが表示されます。`,
+  },
+  {
+    en:"Create a Claim Directly",ja:"直接申請を作成",mockup:"new-claim",
+    desc_en:`You can also create a claim directly in the app. Click <strong>+ New Claim</strong> and fill in: <em>Category</em>, <em>Description</em>, <em>Amount (JPY)</em>, <em>Expense Date</em>, and attach your receipt.`,
+    desc_ja:`アプリ内で直接申請を作成することもできます。<strong>+ New Claim</strong>をクリックし、<em>カテゴリー</em>、<em>説明</em>、<em>金額（円）</em>、<em>経費日</em>を入力して領収書を添付してください。`,
+    tip_en:`Choose the right category — it helps the AI validate your receipt and speeds up approval.`,
+    tip_ja:`正しいカテゴリーを選択してください。AIによる領収書の確認が助けられ、承認が迅速になります。`,
+  },
+  {
+    en:"Attach Your Receipt",ja:"領収書を添付",mockup:"receipt",
+    desc_en:`Always attach a receipt or invoice. Accepted formats: <strong>JPG, PNG, PDF</strong>. The AI automatically reads the receipt to extract the amount, date, and vendor — used to verify your submission during review.`,
+    desc_ja:`必ず領収書または請求書を添付してください。対応形式：<strong>JPG、PNG、PDF</strong>。AIが領収書を自動的に読み取り、金額、日付、取引先を抽出します。`,
+    tip_en:`For public transport (train, bus) a receipt is not required — describe the route clearly in the Description field.`,
+    tip_ja:`公共交通機関の場合、領収書は不要です。代わりに説明欄に経路を明確に記入してください。`,
+  },
+  {
+    en:"Track Your Claim",ja:"申請状況を確認",mockup:"status",
+    desc_en:`Your claim appears in the Expense Claims list. The <strong>Status</strong> column shows its progress through the approval pipeline:`,
+    desc_ja:`申請は経費申請リストに表示されます。<strong>ステータス</strong>列で承認パイプラインの進捗が確認できます：`,
+    tip_en:`If your claim is Rejected, check the reviewer's comment — it explains exactly what needs to be corrected.`,
+    tip_ja:`申請が却下された場合は、審査担当者のコメントをご確認ください。修正が必要な点が詳しく説明されています。`,
+  },
+  {
+    en:"Validation & Approval",ja:"確認と承認",mockup:"validation",
+    desc_en:`An administrator validates your claim using the <strong>Validate</strong> button. Two automatic checks run in parallel:<br><br><strong>① Invoice vs Attachment</strong> — AI checks the receipt PDF matches your submitted amount and name.<br><strong>② SharePoint Member Check</strong> — confirms you are a registered team member.<br><br>If both pass, the claim moves to <em>Approved</em>.`,
+    desc_ja:`管理者が<strong>Validate</strong>ボタンで申請を確認します。2つの自動確認が並行して実行されます：<br><br><strong>① 領収書と申請の照合</strong> — AI が領収書の金額と名前を申請内容と比較。<br><strong>② SharePointメンバー確認</strong> — 登録されたチームメンバーであることを確認。<br><br>両方通過すると「承認済み」になります。`,
+    tip_en:`After validation you can see the extracted receipt details in the validation panel.`,
+    tip_ja:`確認後、確認パネルで抽出された領収書の詳細を確認できます。`,
+  },
+  {
+    en:"Done — Reimbursed",ja:"完了 — 精算完了",mockup:"done",
+    desc_en:`Once approved, your reimbursement is processed and the status changes to <strong>Paid</strong>. The tool keeps a full history of every claim. For questions, contact your administrator.`,
+    desc_ja:`承認されると精算処理が行われ、ステータスが<strong>支払済</strong>に変わります。すべての申請の完全な履歴が保存されます。ご不明な点は管理者にお問い合わせください。`,
+    tip_en:`Bookmark the Expense Claims page for quick access next time.`,
+    tip_ja:`次回の申請がすぐにできるよう、経費申請ページをブックマークしておくことをお勧めします。`,
+  },
+];
+
+const INVOICES=[
+  {
+    en:"Sign In",ja:"サインイン",mockup:"login",
+    desc_en:`Open the app in your browser. Enter your <strong>organization email address</strong> and <strong>password</strong>, then click <em>Sign In</em>. If you do not have login credentials, contact your administrator.`,
+    desc_ja:`ブラウザでアプリを開きます。<strong>組織のメールアドレス</strong>と<strong>パスワード</strong>を入力し、「サインイン」をクリックしてください。`,
+    tip_en:`Use your RoboCo-op email (e.g. you@roboco-op.org). Personal email addresses are not accepted.`,
+    tip_ja:`RoboCo-opのメールアドレスをご使用ください。個人のメールアドレスは使用できません。`,
+  },
+  {
+    en:"Go to Invoices",ja:"請求書一覧へ",mockup:"inv-nav",
+    desc_en:`In the left sidebar, click <strong>請求書一覧</strong> (Invoices). This is where all member invoice submissions are listed, and where you will submit your own.`,
+    desc_ja:`左サイドバーの<strong>請求書一覧</strong>をクリックします。ここにすべてのメンバーの請求書提出が一覧表示され、自分の請求書を提出できます。`,
+    tip_en:`Your submitted invoices will appear here with their current status so you can track them at any time.`,
+    tip_ja:`提出した請求書がステータスとともにここに表示され、いつでも確認できます。`,
+  },
+  {
+    en:"Fill the Submission Form",ja:"提出フォームに記入",mockup:"inv-form",
+    desc_en:`Click <strong>+ New Invoice</strong> and fill in the submission form. Required fields:<br><br>• <strong>Your name</strong> — as it appears on your invoice PDF<br>• <strong>Project Type</strong> — External (外部案件) or Internal (内部案件)<br>• <strong>Project Name</strong> — the client or project this invoice covers<br>• <strong>Claimed Amount (Tax Incl.)</strong> — the total you are invoicing`,
+    desc_ja:`<strong>+ New Invoice</strong>をクリックして提出フォームに記入します。必須項目：<br><br>・<strong>氏名</strong> — 請求書PDFに記載されている名前<br>・<strong>プロジェクト種別</strong> — 外部案件または内部案件<br>・<strong>プロジェクト名</strong> — この請求書が対象とするクライアントまたはプロジェクト<br>・<strong>請求金額（税込）</strong> — 請求する合計金額`,
+    tip_en:`Make sure your name in the form exactly matches how it is written on your PDF — the AI compares them during validation.`,
+    tip_ja:`フォームの氏名がPDFに記載されている名前と完全に一致していることを確認してください。AIが確認時に照合します。`,
+  },
+  {
+    en:"Attach Your Invoice PDF",ja:"請求書PDFを添付",mockup:"inv-pdf",
+    desc_en:`Attach your <strong>invoice PDF</strong> to the submission. The AI will automatically extract the invoice date, subtotal, tax amount, total, and your name from the document — these extracted values are then compared against what you entered in the form.`,
+    desc_ja:`提出書類に<strong>請求書PDF</strong>を添付してください。AIが請求書の日付、小計、税額、合計、氏名を自動的に抽出します。抽出された値はフォームに入力した内容と照合されます。`,
+    tip_en:`Use the same PDF you would send to a client — don't attach a draft or a copy with edits.`,
+    tip_ja:`クライアントに送付するものと同じPDFを使用してください。下書きや編集したコピーは添付しないでください。`,
+  },
+  {
+    en:"Submit — Status: Ready",ja:"提出 — ステータス：受付完了",mockup:"inv-ready",
+    desc_en:`Once submitted, your invoice appears in the Invoice List with the status <strong>Ready</strong>. This means it has been received and is waiting for an administrator to run the validation check.`,
+    desc_ja:`提出後、請求書は<strong>受付完了（Ready）</strong>のステータスで請求書一覧に表示されます。受信済みで管理者の確認待ち状態です。`,
+    tip_en:`You can open your submission at any time to review what you entered and see the extracted fields once validation runs.`,
+    tip_ja:`いつでも提出内容を開いて確認でき、確認実行後は抽出されたフィールドも確認できます。`,
+  },
+  {
+    en:"Admin Runs Validation",ja:"管理者が確認を実行",mockup:"inv-validation",
+    desc_en:`An administrator opens your submission and clicks <strong>Validate</strong>. The system automatically runs four checks:<br><br><strong>① Invoice vs Attachment</strong> — PDF amount and name match your form entry.<br><strong>② Duplicate Submission</strong> — checks if you have already submitted this month.<br><strong>③ Google Drive Check</strong> — confirms this invoice is not already filed in the month's Drive folder.<br><strong>④ Slack Notification</strong> — notifies the team channel once validation is complete.`,
+    desc_ja:`管理者が提出書類を開き、<strong>Validate</strong>をクリックします。システムが自動的に4つの確認を実行します：<br><br><strong>①</strong> 請求書と添付ファイルの照合 — PDFの金額と名前がフォーム入力と一致。<br><strong>②</strong> 重複提出の確認 — 今月すでに提出していないかを確認。<br><strong>③</strong> Google Driveの確認 — 今月のDriveフォルダにすでにファイルされていないかを確認。<br><strong>④</strong> Slack通知 — 確認完了後にチームチャンネルに通知。`,
+    tip_en:`If Duplicate Submission shows "Review", the admin will check manually — this does not automatically reject your invoice.`,
+    tip_ja:`重複提出が「Review」と表示された場合、管理者が手動で確認します。自動的に却下されるわけではありません。`,
+  },
+  {
+    en:"Approved & Filed",ja:"承認・ファイル済み",mockup:"inv-done",
+    desc_en:`Once all checks pass, the administrator approves your invoice. The status updates to <strong>Filed</strong> and your invoice is saved to the month's Google Drive folder. Payment is then processed separately. For any questions about payment timing, contact your administrator.`,
+    desc_ja:`すべての確認が通過すると、管理者が請求書を承認します。ステータスが<strong>ファイル済み</strong>に更新され、請求書が当月のGoogle Driveフォルダに保存されます。支払いは別途処理されます。支払いのタイミングについては管理者にお問い合わせください。`,
+    tip_en:`Keep a copy of your submitted PDF for your own records — the Drive-filed version is the official copy.`,
+    tip_ja:`提出したPDFのコピーを手元に保管してください。Driveにファイルされたものが公式コピーです。`,
+  },
+];
+
+let section='expenses';
+let cur=0;
+
+function steps(){ return section==='expenses'?EXPENSES:INVOICES; }
+
+function setSection(s){
+  section=s;cur=0;
+  document.getElementById('tab-exp').classList.toggle('active',s==='expenses');
+  document.getElementById('tab-inv').classList.toggle('active',s==='invoices');
+  render();
+}
+
+function goTo(i){
+  cur=Math.max(0,Math.min(steps().length-1,i));
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ── Mockups ── */
+function sb(active){
+  const items=[
+    ['ダッシュボード','Dashboard',false],
+    ['取引先','Clients',false],
+    ['提案・見積','Proposals',false],
+    ['請求書一覧','Invoices',active==='inv'],
+    ['経費申請','Expense Claims',active==='exp'],
+    ['支払記録','Payments',false],
+  ];
+  return `<div class="app-sb"><div class="app-sb-brand">🌿 RoboCo-op</div>${
+    items.map(([ja,en,a])=>`<div class="app-sb-item${a?' active':''}"><div class="sb-pip"></div><span style="line-height:1.3">${en}<br><span style="opacity:.45;font-size:7.5px">${ja}</span></span></div>`).join('')
+  }</div>`;
+}
+
+function mockup(type){
+  if(type==='login') return `<div class="login-center"><div class="login-card">
+    <div class="login-logo">RC</div>
+    <div class="login-h">請求書ツール</div>
+    <div class="login-sub">Expense &amp; Invoice Tool</div>
+    <div class="mi">✉ &nbsp;Email / メールアドレス</div>
+    <div class="mi">🔒 &nbsp;Password / パスワード</div>
+    <button class="ms">Sign In / サインイン</button>
+  </div></div>`;
+
+  if(type==='dashboard') return `<div class="app-wrap">${sb('')}<div class="app-main">
+    <div class="app-mh">Dashboard <span style="font-size:9px;color:var(--text-3);font-weight:400">ダッシュボード</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      ${['Expenses: 3 pending','Invoices: 1 ready','Approved: 2','Paid: 1'].map(t=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-size:9px;color:var(--text-2)">${t}</div>`).join('')}
+    </div>
+    <div style="font-size:7.5px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">Recent Activity</div>
+    ${['Invoice submitted — Noraldeen A. $216','Expense approved — Mohamad A. ¥8,400','Sync — 3 new expense claims'].map(t=>`<div style="font-size:8.5px;color:var(--text-2);padding:5px 0;border-bottom:1px solid var(--border)">${t}</div>`).join('')}
+  </div></div>`;
+
+  if(type==='expense-nav') return `<div class="app-wrap">${sb('exp')}<div class="app-main">
+    <div class="app-mh">Expense Claims<div style="display:flex;gap:4px"><button class="mb ol">Sync from Forms</button><button class="mb">+ New Claim</button></div></div>
+    <table class="mt"><tr><th>Submitted By</th><th>Amount</th><th>Status</th></tr>
+    <tr><td>Mohamad A.</td><td>¥8,400</td><td><span class="chip app">approved</span></td></tr>
+    <tr><td>Mido</td><td>$342.50</td><td><span class="chip sub">submitted</span></td></tr>
+    <tr><td>信楽堂こと</td><td>¥500</td><td><span class="chip rev">under review</span></td></tr>
+    </table></div></div>`;
+
+  if(type==='forms') return `<div class="app-wrap">${sb('exp')}<div class="app-main">
+    <div class="app-mh">Expense Claims<button class="mb ol">⟳ Sync from Forms</button></div>
+    <div style="background:var(--surface);border:1px solid var(--green-light);border-radius:6px;padding:8px 11px;font-size:8.5px;color:var(--text-2);margin-bottom:10px">
+      <strong style="color:var(--green);display:block;margin-bottom:2px">✓ 22 of 22 expense claims synced from Microsoft Forms</strong>
+      Auto-syncs every 15 min · Last sync: just now
+    </div>
+    <table class="mt"><tr><th>Submitted By</th><th>Amount</th><th>Status</th></tr>
+    <tr><td>Mohamad A.</td><td>$342.50</td><td><span class="chip sub">submitted</span></td></tr>
+    <tr><td>信楽堂こと</td><td>¥500</td><td><span class="chip rev">under review</span></td></tr>
+    </table></div></div>`;
+
+  if(type==='new-claim') return `<div class="form-wrap">
+    <div class="fh">New Expense Claim / 新規経費申請</div>
+    <div class="fg">
+      <div class="ff"><div class="fl">Category</div><div class="fi hl">🍽 Meals / 食事</div></div>
+      <div class="ff"><div class="fl">Amount (JPY)</div><div class="fi hl">¥ 8,400</div></div>
+    </div>
+    <div class="fg">
+      <div class="ff"><div class="fl">Expense Date</div><div class="fi">2026-07-03</div></div>
+      <div class="ff"><div class="fl">Submitted By</div><div class="fi">Mohamad Alayoubi</div></div>
+    </div>
+    <div class="ff" style="margin-bottom:12px"><div class="fl">Description</div><div class="fi">Team lunch — onboarding session</div></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end"><button class="mb ol">Cancel</button><button class="mb">Save Claim</button></div></div>`;
+
+  if(type==='receipt') return `<div class="form-wrap">
+    <div class="fh">Attach Receipt / 領収書を添付</div>
+    <div class="fg">
+      <div class="ff"><div class="fl">Amount</div><div class="fi">¥ 8,400</div></div>
+      <div class="ff"><div class="fl">Date</div><div class="fi">2026-07-03</div></div>
+    </div>
+    <div class="rzone">
+      <div style="font-size:20px;margin-bottom:4px">📄</div>
+      <div class="rzone-fn">receipt_2026-0703.pdf</div>
+      <div class="rzone-hint">Drag &amp; drop or click to upload · JPG · PNG · PDF</div>
+      <div class="rzone-ai">✓ AI will extract amount, date &amp; vendor automatically</div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px"><button class="mb">Save Claim</button></div></div>`;
+
+  if(type==='status') return `<div class="app-wrap">${sb('exp')}<div class="app-main">
+    <div class="app-mh">Expense Claims</div>
+    <div class="sf">
+      ${[['1','Submitted','提出済','done'],['2','Under Review','審査中','cur'],['3','Approved','承認済',''],['4','Paid','支払済','']].map(([n,l,j,s])=>
+        `<div class="sf-node ${s}"><div class="sf-c">${s==='done'?'✓':n}</div><div class="sf-lbl">${l}</div><div class="sf-ja">${j}</div></div>`).join('')}
+    </div>
+    <table class="mt"><tr><th>Description</th><th>Amount</th><th>Status</th></tr>
+    <tr><td>Team lunch</td><td>¥8,400</td><td><span class="chip rev">under review</span></td></tr>
+    <tr><td>Osaka transport</td><td>¥1,200</td><td><span class="chip app">approved</span></td></tr>
+    <tr><td>Consulting receipt</td><td>$342.50</td><td><span class="chip sub">submitted</span></td></tr>
+    </table></div></div>`;
+
+  if(type==='validation') return `<div class="app-wrap">${sb('exp')}<div class="app-main">
+    <div style="font-size:10.5px;font-weight:700;color:var(--text-1);margin-bottom:8px">Validation — Mohamad Alayoubi</div>
+    <div style="background:#d1fae5;border-radius:5px;padding:7px 10px;font-size:8.5px;color:#065f46;font-weight:600;margin-bottom:10px">✓ Claim verified — member registered and receipt matches</div>
+    <div class="vs">
+      <div class="vs-row"><div class="vs-num">1</div><div class="vs-info"><div class="vs-title">SharePoint Member Check</div><div class="vs-sub">✓ "mohamad alayoubi" found in contracts</div></div><span class="vbadge p">Passed</span></div>
+      <div class="vs-row"><div class="vs-num">2</div><div class="vs-info"><div class="vs-title">Receipt vs Submission</div><div class="vs-sub">Amount ¥8,400 ✓ · Date 2026-07-03 ✓</div></div><span class="vbadge p">Passed</span></div>
+    </div>
+  </div></div>`;
+
+  if(type==='done') return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;background:var(--bg);padding:24px;text-align:center">
+    <div style="font-size:36px;margin-bottom:10px">🎉</div>
+    <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:4px">Reimbursement Complete!</div>
+    <div style="font-size:11px;color:var(--text-2);margin-bottom:16px;font-family:var(--font-ja)">精算が完了しました</div>
+    <table class="mt" style="max-width:300px;width:100%">
+      <tr><td>Team lunch</td><td>¥8,400</td><td><span class="chip paid">paid</span></td></tr>
+      <tr><td>Transport</td><td>¥1,200</td><td><span class="chip paid">paid</span></td></tr>
+    </table></div>`;
+
+  /* ── Invoice mockups ── */
+  if(type==='inv-nav') return `<div class="app-wrap">${sb('inv')}<div class="app-main">
+    <div class="app-mh">Invoices — 請求書一覧<button class="mb">+ New Invoice</button></div>
+    <table class="mt"><tr><th>Member</th><th>Project</th><th>Amount</th><th>Status</th></tr>
+    <tr><td>Noraldeen A.</td><td>IT-related Web</td><td>$216</td><td><span class="chip rdy">ready</span></td></tr>
+    <tr><td>Mohamad A.</td><td>Internal Project</td><td>¥45,000</td><td><span class="chip fil">filed</span></td></tr>
+    <tr><td>Ahmad S.</td><td>External Design</td><td>$580</td><td><span class="chip rev">review</span></td></tr>
+    </table></div></div>`;
+
+  if(type==='inv-form') return `<div class="form-wrap">
+    <div class="fh">New Invoice Submission / 新規請求書提出</div>
+    <div class="fg">
+      <div class="ff"><div class="fl">Your Name</div><div class="fi hl">Noraldeen Ahmed Bashir Jammaa</div></div>
+      <div class="ff"><div class="fl">Project Type</div><div class="fi hl">外部案件 (External)</div></div>
+    </div>
+    <div class="fg">
+      <div class="ff"><div class="fl">Project Name (External)</div><div class="fi">Project IT-related Web</div></div>
+      <div class="ff"><div class="fl">Claimed Amount (Tax Incl.)</div><div class="fi">$ 216</div></div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px"><button class="mb ol">Cancel</button><button class="mb">Next — Attach PDF →</button></div></div>`;
+
+  if(type==='inv-pdf') return `<div class="form-wrap">
+    <div class="fh">Attach Invoice PDF / 請求書PDFを添付</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:8.5px;color:var(--text-2);margin-bottom:10px">
+      <strong style="display:block;margin-bottom:3px;color:var(--text-1)">Noraldeen Ahmed Bashir Jammaa · $216 · External</strong>
+      Project IT-related Web
+    </div>
+    <div class="rzone">
+      <div style="font-size:20px;margin-bottom:4px">📑</div>
+      <div class="rzone-fn">Invoice_Noraldeen_2026-06.pdf</div>
+      <div class="rzone-hint">Attach the PDF invoice you would send to the client</div>
+      <div class="rzone-ai">✓ AI extracts: date · subtotal · tax · total · member name</div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px"><button class="mb">Submit Invoice</button></div></div>`;
+
+  if(type==='inv-ready') return `<div class="app-wrap">${sb('inv')}<div class="app-main">
+    <div class="app-mh">Invoices — 請求書一覧<button class="mb">+ New Invoice</button></div>
+    <div style="background:var(--surface);border:1px solid var(--green-light);border-radius:6px;padding:8px 11px;font-size:8.5px;color:var(--text-2);margin-bottom:10px">
+      <strong style="color:var(--green);display:block;margin-bottom:2px">✓ Invoice submitted successfully</strong>
+      Noraldeen Ahmed Bashir Jammaa · $216 · waiting for validation
+    </div>
+    <table class="mt"><tr><th>Member</th><th>Amount</th><th>Status</th></tr>
+    <tr><td><strong>Noraldeen A.</strong></td><td><strong>$216</strong></td><td><span class="chip rdy">ready</span></td></tr>
+    <tr><td>Mohamad A.</td><td>¥45,000</td><td><span class="chip fil">filed</span></td></tr>
+    </table></div></div>`;
+
+  if(type==='inv-validation') return `<div class="app-wrap">${sb('inv')}<div class="app-main" style="overflow-y:auto">
+    <div style="font-size:10px;font-weight:700;color:var(--text-1);margin-bottom:8px">Noraldeen Ahmed Bashir Jammaa · $216 · <span class="chip rdy">ready</span></div>
+    <div class="detail-card" style="margin-bottom:8px">
+      <div class="dc-grid">
+        <div class="dc-field"><div class="dc-label">Invoice Date</div><div class="dc-val">2026-06-06</div></div>
+        <div class="dc-field"><div class="dc-label">Total</div><div class="dc-val">$216</div></div>
+      </div>
+      <div class="dc-section">Validation Stages</div>
+      <div class="vs" style="gap:5px">
+        <div class="vs-row"><div class="vs-num">1</div><div class="vs-info"><div class="vs-title">Invoice vs Attachment</div><div class="vs-sub">Amount $216 ✓ · Name found in PDF ✓</div></div><span class="vbadge p">Passed</span></div>
+        <div class="vs-row"><div class="vs-num">2</div><div class="vs-info"><div class="vs-title">Duplicate Submission</div><div class="vs-sub">13 other submissions this month — flagged for review</div></div><span class="vbadge w">Review</span></div>
+        <div class="vs-row"><div class="vs-num">3</div><div class="vs-info"><div class="vs-title">Google Drive Check</div><div class="vs-sub">Not in month's Drive folder — safe to file</div></div><span class="vbadge p">Passed</span></div>
+        <div class="vs-row"><div class="vs-num">4</div><div class="vs-info"><div class="vs-title">Slack Notification</div><div class="vs-sub">Team channel notified of validation result</div></div><span class="vbadge p">Sent</span></div>
+      </div>
+    </div>
+  </div></div>`;
+
+  if(type==='inv-done') return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;background:var(--bg);padding:24px;text-align:center">
+    <div style="font-size:36px;margin-bottom:10px">✅</div>
+    <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:4px">Invoice Approved &amp; Filed</div>
+    <div style="font-size:11px;color:var(--text-2);margin-bottom:16px;font-family:var(--font-ja)">承認・ファイル済み</div>
+    <table class="mt" style="max-width:340px;width:100%">
+      <tr><th>Member</th><th>Amount</th><th>Status</th></tr>
+      <tr><td>Noraldeen A.</td><td>$216</td><td><span class="chip fil">filed</span></td></tr>
+      <tr><td>Mohamad A.</td><td>¥45,000</td><td><span class="chip fil">filed</span></td></tr>
+    </table>
+    <div style="margin-top:12px;font-size:9px;color:var(--text-3)">Saved to Google Drive · Month folder · 2026-07</div>
+  </div>`;
+
+  return '';
+}
+
+function render(){
+  const all=steps();
+  const s=all[cur];
+  const pct=Math.round(((cur+1)/all.length)*100);
+  document.getElementById('pbar').style.width=pct+'%';
+
+  document.getElementById('snav').innerHTML=all.map((step,i)=>`
+    <button class="snav-item ${i<cur?'done':''} ${i===cur?'active':''}" onclick="goTo(${i})">
+      <div class="snav-dot">${i<cur?'✓':i+1}</div>
+      <div class="snav-labels"><span class="en">${step.en}</span><span class="ja">${step.ja}</span></div>
+    </button>`).join('');
+
+  document.getElementById('carea').innerHTML=`
+    <div class="step-panel active">
+      <div class="step-header">
+        <div class="step-eyebrow">Step ${cur+1} of ${all.length}</div>
+        <div class="step-title-en">${s.en}</div>
+        <div class="step-title-ja">${s.ja}</div>
+      </div>
+      <div class="mockup-shell">
+        <div class="mockup-chrome">
+          <div class="mc-dot r"></div><div class="mc-dot y"></div><div class="mc-dot g"></div>
+          <div class="mc-url">sdc-invoices.vercel.app</div>
+        </div>
+        ${mockup(s.mockup)}
+      </div>
+      <div class="desc-card">
+        <div class="desc-block"><div class="dlang">English</div><div class="dtext">${s.desc_en}</div></div>
+        <hr class="desc-divider">
+        <div class="desc-block"><div class="dlang">日本語</div><div class="dtext ja">${s.desc_ja}</div></div>
+        ${s.tip_en?`<div class="tip"><div class="tip-lbl">💡 Tip / ヒント</div><div class="tip-txt"><strong>EN:</strong> ${s.tip_en}<br><strong>JP:</strong> <span style="font-family:var(--font-ja)">${s.tip_ja}</span></div></div>`:''}
+      </div>
+      <div class="nav-row">
+        <button class="nbtn" onclick="goTo(${cur-1})" ${cur===0?'disabled':''}>← Previous</button>
+        <span class="nav-ctr">${cur+1} / ${all.length}</span>
+        <button class="nbtn pri" onclick="goTo(${cur+1})" ${cur===all.length-1?'disabled':''}>
+          ${cur===all.length-1?'✓ Done':'Next →'}
+        </button>
+      </div>
+    </div>`;
+}
+
+render();
+</script>

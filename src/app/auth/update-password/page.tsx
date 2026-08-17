@@ -21,6 +21,7 @@ export default function UpdatePasswordPage() {
     setError(null);
 
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
     const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {

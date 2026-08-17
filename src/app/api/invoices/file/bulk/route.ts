@@ -1,9 +1,12 @@
+
 // src/app/api/invoices/file/bulk/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getDriveService, getStorageService } from "@/lib/services";
 import { DEFAULT_CONFIG, buildMonthFolderName } from "@/config/defaults";
 import { generateId } from "@/lib/utils";
 import type { InvoiceValidationResult, FiledDocument } from "@/types";
+
+export const dynamic = 'force-dynamic';
 
 const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
 
@@ -13,7 +16,7 @@ const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
  *
  * Files all READY or human-approved invoices in one request.
  * Returns per-invoice results so the caller knows which succeeded/failed.
- * ⚠ Phase 1: Only stores — never triggers payment.
+ * âš  Phase 1: Only stores â€” never triggers payment.
  */
 export async function POST(req: NextRequest) {
   let body: unknown;

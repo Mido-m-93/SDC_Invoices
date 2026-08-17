@@ -1,6 +1,9 @@
+
 // src/app/api/logs/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/logs?runId=xxx

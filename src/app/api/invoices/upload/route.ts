@@ -10,6 +10,9 @@ import iconv from "iconv-lite";
 import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 import { getStorageService } from "@/lib/services";
+import { type FieldName, buildFieldMap } from "@/lib/services/formFieldMapping";
+
+export const dynamic = 'force-dynamic';
 
 // ── Encoding detection ────────────────────────────────────────────────────────
 function decodeBuffer(buffer: Buffer): { text: string; encoding: string } {
@@ -76,38 +79,6 @@ function parseCSVText(text: string): Record<string, string>[] {
   });
 }
 
-// ── Column keyword matching ───────────────────────────────────────────────────
-type FieldName = keyof InvoiceSubmission | "email";
-
-// Matches your exact Microsoft Forms column headers (bilingual Japanese/English).
-// Most-specific rules first to avoid false matches.
-const KEYWORD_RULES: Array<{ keywords: string[]; field: FieldName }> = [
-  { keywords: ["Start time", "開始時刻"],                                                    field: "submittedAt" },
-  { keywords: ["Email Address", "メールアドレス"],                                           field: "email" },
-  { keywords: ["Invoice Amount", "請求金額"],                                                field: "claimedAmountTaxIncluded" },
-  { keywords: ["Which month", "invoice cover", "稼働月", "対象月"],                          field: "closingMonth" },
-  { keywords: ["Invoice Category", "Internal Project or External", "内訳"],                 field: "projectType" },
-  { keywords: ["For Internal Projects Only", "内部案件の場合のみ"],                           field: "internalDepartment" },
-  { keywords: ["For External Projects Only", "select the project name", "外部案件の場合のみ"],field: "externalProjectName" },
-  { keywords: ["upload only one invoice", "supported files (PDF)", "Invoice Attachment", "請求書の添付", "請求書ファイル"], field: "invoiceAttachment" },
-  { keywords: ["Additional Notes", "特記事項", "備考"],                                      field: "notes" },
-  { keywords: ["Name", "名前"],                                                              field: "payerName" },
-];
-
-function buildFieldMap(headers: string[]): Map<string, FieldName> {
-  const map = new Map<string, FieldName>();
-  for (const header of headers) {
-    const lower = header.toLowerCase();
-    for (const rule of KEYWORD_RULES) {
-      if (rule.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
-        if (!map.has(header)) map.set(header, rule.field);
-        break;
-      }
-    }
-  }
-  return map;
-}
-
 // ── Date conversion ───────────────────────────────────────────────────────────
 function convertExcelDate(value: string): string {
   const num = Number(value);
@@ -120,9 +91,16 @@ function convertExcelDate(value: string): string {
 
 function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, rowIndex: number): InvoiceSubmission {
   const values = new Map<FieldName, string>();
+  const headerLengths = new Map<FieldName, number>();
   for (const [header, field] of Array.from(fieldMap)) {
     const val = (row[header] ?? "").toString().trim();
-    if (val !== "") values.set(field, val);
+    // Prefer the more specific (longer) column header when multiple headers map
+    // to the same field — e.g. custom question "Name1" should win over the
+    // MS Forms built-in respondent "名前" column which contains the uploader's name.
+    if (val !== "" && header.length > (headerLengths.get(field) ?? 0)) {
+      values.set(field, val);
+      headerLengths.set(field, header.length);
+    }
   }
   const get = (f: FieldName) => values.get(f) ?? "";
   return {
@@ -138,6 +116,7 @@ function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, 
     externalProjectName:      get("externalProjectName"),
     projectType:              get("projectType"),
     claimedAmountTaxIncluded: get("claimedAmountTaxIncluded"),
+    currency:                 get("currency") || undefined,
     invoiceProjectStatus:     "",
     paymentStatus:            "",
     paymentAmount:            "",
@@ -188,6 +167,9 @@ export async function POST(req: NextRequest) {
     // Handles: "2026年5月", "2026-05", "2026-05-01", "4/23/26" (MM/DD/YY), "04/2026"
     const firstMonth = submissions[0]?.closingMonth ?? "";
     const snapshotMonth = parseSnapshotMonth(firstMonth);
+
+    console.log("[upload] detectedHeaders:", JSON.stringify(detectedHeaders));
+    console.log("[upload] headerMapping:", JSON.stringify(headerMapping));
 
     await getStorageService().saveSubmissions(submissions, snapshotMonth);
 

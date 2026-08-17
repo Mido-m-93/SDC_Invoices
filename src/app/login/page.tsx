@@ -34,6 +34,7 @@ function LoginForm() {
     setSuccess(null);
 
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setError("Auth not configured."); setLoading(false); return; }
 
     if (mode === "signin") {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
@@ -56,9 +57,25 @@ function LoginForm() {
       } else if (signUpData.user && signUpData.user.identities?.length === 0) {
         setError("This email is already registered. Please sign in instead.");
         setLoading(false);
+      } else if (signUpData.session) {
+        // Email confirmation isn't required (or is disabled) — Supabase already
+        // returned an active session, so there's nothing to "check email" for.
+        router.push("/dashboard");
+        router.refresh();
       } else {
-        setSuccess("Check your email for a confirmation link to activate your account.");
-        setLoading(false);
+        // signUp() didn't hand back a session — try signing straight in with
+        // the same credentials. If "Confirm email" is actually disabled this
+        // succeeds immediately (some GoTrue versions don't always return a
+        // session inline from signUp), skipping the email step entirely. Only
+        // a genuine "Email not confirmed" failure falls back to the message.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (!signInError) {
+          router.push("/dashboard");
+          router.refresh();
+        } else {
+          setSuccess("Check your email for a confirmation link to activate your account.");
+          setLoading(false);
+        }
       }
     } else {
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {

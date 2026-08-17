@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import type { ISheetsService } from "../types";
 import type { InvoiceSubmission } from "@/types";
 import { generateId, excelSerialToDate } from "@/lib/utils";
+import { type FieldName, buildFieldMap } from "../formFieldMapping";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID     = process.env.AZURE_CLIENT_ID!;
@@ -47,34 +48,6 @@ async function graphGet<T>(path: string, token: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── Column mapping: Microsoft Forms → InvoiceSubmission ──────────────────────
-// Keys are normalized (trimmed, \r\n→space, collapsed spaces) before matching.
-const COLUMN_MAP: Record<string, keyof InvoiceSubmission | "email"> = {
-  "Start time":                                               "submittedAt",
-  "Email":                                                    "email",
-  "Name":                                                     "payerName",
-  "メールアドレス（Email Address）":                          "email",
-  "名前（Name）":                                             "payerName",
-  "請求金額(税込)　※請求通貨で記入 Invoice Amount(local currency)": "claimedAmountTaxIncluded",
-  "請求金額(税込)　※請求通貨で記入":                          "claimedAmountTaxIncluded",
-  "請求書の稼働月 Which month does this invoice cover?":       "closingMonth",
-  "請求書の稼働月":                                           "closingMonth",
-  "請求書の内訳(内部案件or外部案件) Invoice Category (Internal Project or External Project)": "projectType",
-  "請求書の内訳(内部案件or外部案件)":                         "projectType",
-  "※内部案件の場合のみ部門を選択して下さい。( For Internal Projects Only)": "internalDepartment",
-  "※外部案件の場合のみ案件名を選択してください。 For External Projects Only: Please select the project name.": "externalProjectName",
-  "※外部案件の場合のみ案件名を選択してください。":            "externalProjectName",
-  "請求書の添付( Invoice Attachment)*PDF形式にて1つの請求書のみアップロードしてください Please upload only one invoice in PDF format. You may upload up to 10 supported files (PDF). Upload up to 10 supported files: PDF. Max 10 MB per": "invoiceAttachment",
-  "請求書の添付( Invoice Attachment)":                        "invoiceAttachment",
-  "請求書ファイル添付（Attach Invoice File）":                "invoiceAttachment",
-  "その他特記事項（何かあれば記載してください） Additional Notes (if any)": "notes",
-  "備考（Remarks / Notes）":                                  "notes",
-};
-
-function normalizeHeader(h: string): string {
-  return h.replace(/\r\n/g, " ").replace(/\s+/g, " ").trim();
-}
-
 // Convert an Excel serial number string to a readable value.
 // Dates (no fractional part): "2026年5月14日"  → used for closingMonth
 // Datetimes (with fractional): ISO string       → used for submittedAt
@@ -82,27 +55,27 @@ function convertSerial(raw: string, mode: "date" | "datetime"): string {
   const num = Number(raw);
   if (isNaN(num) || num < 40000 || num > 60000) return raw;
   const d = excelSerialToDate(mode === "date" ? Math.floor(num) : num);
-  if (mode === "datetime") return d.toISOString();
+  if (mode === "datetime") {
+    // Microsoft Forms Excel export stores "Start time" as JST local time (UTC+9).
+    // Subtract 9 h so the resulting ISO string represents the correct UTC instant.
+    return new Date(d.getTime() - 9 * 60 * 60 * 1000).toISOString();
+  }
   return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
 }
 
 function normalizeRow(
   raw: Record<string, string>,
+  fieldMap: Map<string, FieldName>,
   rowIndex: number
 ): InvoiceSubmission {
-  // Normalize the raw row keys so they match COLUMN_MAP
-  const normalized: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    normalized[normalizeHeader(k)] = (v ?? "").toString().trim();
-  }
-
-  const get = (key: keyof InvoiceSubmission | "email") =>
-    Object.entries(COLUMN_MAP)
-      .filter(([, v]) => v === key)
-      // Normalize the COLUMN_MAP key the same way we normalized the Excel headers
-      // so ideographic spaces (U+3000) and other Unicode whitespace don't cause mismatches
-      .map(([k]) => normalized[normalizeHeader(k)] ?? "")
-      .find((v) => v !== "") ?? "";
+  const get = (key: FieldName): string => {
+    for (const [header, field] of Array.from(fieldMap)) {
+      if (field !== key) continue;
+      const val = (raw[header] ?? "").toString().trim();
+      if (val) return val;
+    }
+    return "";
+  };
 
   return {
     id: generateId(),
@@ -117,6 +90,7 @@ function normalizeRow(
     externalProjectName:        get("externalProjectName"),
     projectType:                get("projectType"),
     claimedAmountTaxIncluded:   get("claimedAmountTaxIncluded"),
+    currency:                   get("currency") || undefined,
     invoiceProjectStatus:       "",
     paymentStatus:              "",
     paymentAmount:              "",
@@ -137,14 +111,28 @@ export class MicrosoftSheetsService implements ISheetsService {
     );
     const driveId = driveInfo.id;
 
-    // Download the raw file to bypass Graph API Excel caching
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/content`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Failed to download Excel file (${res.status}): ${body}`);
+    // Download the raw file to bypass Graph API Excel caching. SharePoint
+    // Online occasionally returns a transient 502/503/504 ("something went
+    // wrong, try again in a few minutes") — retry those a few times before
+    // giving up, since a client-error (4xx) retrying won't help.
+    const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/content`;
+    const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+    const MAX_ATTEMPTS = 3;
+
+    let res: Response | undefined;
+    let lastErrorBody = "";
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+      if (res.ok) break;
+      if (!RETRYABLE_STATUSES.has(res.status) || attempt === MAX_ATTEMPTS) {
+        lastErrorBody = await res.text();
+        break;
+      }
+      console.warn(`[MicrosoftSheetsService] Excel download got ${res.status}, retrying (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+    }
+    if (!res || !res.ok) {
+      throw new Error(`Failed to download Excel file (${res?.status}): ${lastErrorBody}`);
     }
 
     const buffer = await res.arrayBuffer();
@@ -161,10 +149,13 @@ export class MicrosoftSheetsService implements ISheetsService {
     });
 
     console.log("[MicrosoftSheetsService] rows found:", rows.length);
-    if (rows.length > 0) console.log("[MicrosoftSheetsService] headers:", Object.keys(rows[0]));
+    const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+    console.log("[MicrosoftSheetsService] headers:", headers);
+    const fieldMap = buildFieldMap(headers);
+    console.log("[MicrosoftSheetsService] fieldMap:", JSON.stringify(Object.fromEntries(fieldMap)));
 
     return rows
       .filter((row) => Object.values(row).some((v) => v !== ""))
-      .map((row, i) => normalizeRow(row, i));
+      .map((row, i) => normalizeRow(row, fieldMap, i));
   }
 }

@@ -2,6 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
+import type { InvoiceSubmission } from "@/types";
+
+export const dynamic = 'force-dynamic';
+
+export const maxDuration = 25;
 
 export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get("month");
@@ -13,17 +18,27 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Load what is already stored so we can preserve stable IDs.
-    // Validation and filed-document records reference these IDs.
-    const stored = await getStorageService().loadSubmissionsFromStore(month);
+    console.log(`[GET /api/invoices] month=${month} mock_sheets=${process.env.NEXT_PUBLIC_USE_MOCK_SHEETS} mock_storage=${process.env.NEXT_PUBLIC_USE_MOCK_STORAGE} azure_tenant=${!!process.env.AZURE_TENANT_ID}`);
+
+    // Storage and Sheets are independent data sources — fetch concurrently
+    // instead of sequentially. Sheets is the slow one (Microsoft Graph round
+    // trip), so this halves wall-clock time instead of adding the two waits.
+    console.log("[GET /api/invoices] loading from storage + sheets concurrently...");
+    const [stored, sheetsOutcome] = await Promise.all([
+      getStorageService().loadSubmissionsFromStore(month),
+      getSheetsService().loadSubmissions(month)
+        .then((rows) => ({ rows, error: undefined as string | undefined }))
+        .catch((sheetsErr) => {
+          console.warn("[GET /api/invoices] sheets service failed (returning stored data only):", sheetsErr);
+          return { rows: [] as InvoiceSubmission[], error: String(sheetsErr) };
+        }),
+    ]);
+    console.log(`[GET /api/invoices] storage returned ${stored.length} rows, sheets returned ${sheetsOutcome.rows.length} rows`);
+
     const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
     const storedIdByRow = new Map(stored.map((s) => [s.submissionRowNumber, s.id]));
-
-    // Pull the latest responses from Microsoft Forms (OneDrive Excel / Graph API).
-    // MicrosoftSheetsService returns ALL rows regardless of month, so we filter
-    // by the correct month using parseSnapshotMonth which handles M/D/YY, YYYY年M月,
-    // ISO, and other formats.
-    const allFresh = await getSheetsService().loadSubmissions(month);
+    const allFresh = sheetsOutcome.rows;
+    const sheetsWarning = sheetsOutcome.error;
     const freshForMonth = allFresh.filter(
       (s) => parseSnapshotMonth(s.closingMonth) === month
     );
@@ -45,17 +60,27 @@ export async function GET(req: NextRequest) {
       rows.map((s) => ({ ...s, submittedAt: submittedAtByRow.get(s.submissionRowNumber) ?? s.submittedAt }));
 
     if (newRows.length === 0) {
-      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored) });
+      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored), ...(sheetsWarning ? { sheetsWarning } : {}) });
     }
 
     const allToSave = [...stored, ...newRows];
     await getStorageService().saveSubmissions(allToSave, month);
-    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave) });
+    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave), ...(sheetsWarning ? { sheetsWarning } : {}) });
   } catch (err) {
     console.error("[GET /api/invoices]", err);
     return NextResponse.json(
       { error: "Failed to load invoices", detail: String(err) },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE() {
+  try {
+    await getStorageService().clearAllSubmissions();
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[DELETE /api/invoices]", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

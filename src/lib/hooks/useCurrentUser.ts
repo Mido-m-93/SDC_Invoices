@@ -25,15 +25,27 @@ export function useCurrentUser() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
+    // No Supabase credentials (mock storage mode) — skip auth entirely
+    if (!supabase) {
+      setReady(true);
+      return;
+    }
+
     const resolveUser = (authUser: { user_metadata?: Record<string, unknown>; email?: string } | null) => {
       if (!authUser) return null;
       const name = authUser.user_metadata?.name as string | undefined;
       return name || authUser.email?.split("@")[0] || "User";
     };
 
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      setUser(resolveUser(authUser));
-      setReady(true);
+    supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {
+      if (refreshedUser) {
+        setUser(resolveUser(refreshedUser));
+        setReady(true);
+      } else {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        setUser(resolveUser(authUser));
+        setReady(true);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -45,6 +57,7 @@ export function useCurrentUser() {
 
   const signOut = async () => {
     const supabase = createSupabaseBrowserClient();
+    if (!supabase) { router.push("/login"); return; }
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "mf-inv-00001",
+    "invoice_number": "INV-2026-0401",
+    "partner_id": "mf-prt-0002",
+    "issue_date": "2026-04-30",
+    "due_date": "2026-05-31",
+    "billing_period_from": "2026-04-01",
+    "billing_period_to": "2026-04-30",
+    "amount_excl_tax": 2000000,
+    "tax": 200000,
+    "amount_incl_tax": 2200000,
+    "currency": "JPY",
+    "status": "sent"
+  },
+  {
+    "id": "mf-inv-00002",
+    "invoice_number": "INV-2026-0330",
+    "partner_id": "mf-prt-0003",
+    "issue_date": "2026-02-28",
+    "due_date": "2026-03-31",
+    "billing_period_from": "2026-02-01",
+    "billing_period_to": "2026-02-28",
+    "amount_excl_tax": 3000000,
+    "tax": 300000,
+    "amount_incl_tax": 3300000,
+    "currency": "JPY",
+    "status": "paid"
+  },
+  {
+    "id": "mf-inv-00003",
+    "invoice_number": "INV-2026-0399",
+    "partner_id": "mf-prt-0006",
+    "issue_date": "2026-04-30",
+    "due_date": "2026-05-30",
+    "billing_period_from": "2026-04-01",
+    "billing_period_to": "2026-04-30",
+    "amount_excl_tax": 3000000,
+    "tax": 0,
+    "amount_incl_tax": 3000000,
+    "currency": "JPY",
+    "status": "issued"
+  }
+]

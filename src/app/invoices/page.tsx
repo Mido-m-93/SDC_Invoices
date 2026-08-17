@@ -18,9 +18,12 @@ import {
   fileInvoice,
   uploadInvoiceExcel,
   fetchAvailableMonths,
+  clearAllInvoices,
+  patchSubmissionCurrency,
+  sendInvoiceToMoneyForward,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
-import { monthOptions, formatCurrency, formatTimestamp } from "@/lib/utils";
+import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 
@@ -38,19 +41,27 @@ export default function InvoicesPage() {
   const [validating, setValidating] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
+  const [sendingToMF, setSendingToMF] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [error, setError] = useState<string | null>(null);
+  const [sheetsWarning, setSheetsWarning] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [detectedHeaders, setDetectedHeaders] = useState<string[] | null>(null);
   const [headerMapping, setHeaderMapping] = useState<Record<string, string> | null>(null);
   const [rawPreview, setRawPreview] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSheetsWarning(null);
     try {
-      const submissions = await fetchInvoices(month);
+      const { submissions, sheetsWarning: sw } = await fetchInvoices(month);
+      if (sw) setSheetsWarning(sw);
       const ids = submissions.map((s) => s.id);
 
       const [validations, filedDocs] = await Promise.all([
@@ -89,11 +100,28 @@ export default function InvoicesPage() {
     loadInvoices();
   }, [loadInvoices]);
 
+  const handleClearAll = async () => {
+    setClearing(true);
+    setError(null);
+    try {
+      await clearAllInvoices();
+      setItems([]);
+      setAvailableMonths([]);
+      setSelectedItem(null);
+      setConfirmClear(false);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleValidate = async (submission: InvoiceSubmission) => {
     setValidating(submission.id);
     setError(null);
     try {
-      const result = await validateInvoice(submission, user ?? undefined);
+      const allMonthSubmissions = items.map((i) => i.submission);
+      const result = await validateInvoice(submission, user ?? undefined, allMonthSubmissions);
       setItems((prev) =>
         prev.map((item) =>
           item.submission.id === submission.id
@@ -128,7 +156,7 @@ export default function InvoicesPage() {
       setSelectedItem((prev) =>
         prev?.submission.id === item.submission.id ? updated : prev
       );
-      setSavedMsg(`✓ ${item.submission.payerName} saved as "${fd.newFilename}"`);
+      setSavedMsg(t("invoices_save_success").replace("{name}", item.submission.payerName).replace("{filename}", fd.newFilename));
     } catch (err) {
       setError(String(err));
     } finally {
@@ -153,6 +181,34 @@ export default function InvoicesPage() {
     );
   };
 
+  const handleSendToMF = async (item: InvoiceListItem) => {
+    if (!item.validation) return;
+    setSendingToMF(item.submission.id);
+    setError(null);
+    try {
+      const result = await sendInvoiceToMoneyForward(item.submission, item.validation);
+      const updated = {
+        ...item,
+        validation: {
+          ...item.validation,
+          mfBillingId: result.billingId,
+          mfBillingUrl: result.billingUrl,
+          mfSentAt: new Date().toISOString(),
+        },
+      };
+      setItems((prev) =>
+        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+      );
+      setSelectedItem((prev) =>
+        prev?.submission.id === item.submission.id ? updated : prev
+      );
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSendingToMF(null);
+    }
+  };
+
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -170,9 +226,9 @@ export default function InvoicesPage() {
         setDetectedHeaders(headers);
         setHeaderMapping(mapping);
         setSavedMsg(null);
-        setError(`0 rows matched — column headers not recognized. See detected headers below.`);
+        setError(t("invoices_no_headers_matched"));
       } else {
-        setSavedMsg(`✓ Loaded ${submissions.length} rows from "${file.name}"`);
+        setSavedMsg(t("invoices_loaded_msg").replace("{count}", String(submissions.length)).replace("{file}", file.name));
         if (snapshotMonth && snapshotMonth !== "unknown") {
           setAvailableMonths((prev) =>
             prev.includes(snapshotMonth) ? prev : [snapshotMonth, ...prev]
@@ -200,6 +256,13 @@ export default function InvoicesPage() {
       ? items.filter((i) => i.filedDocument != null)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset to page 1 whenever filter or month changes
+  useEffect(() => { setPage(1); }, [filterStatus, month]);
+
   const tabCount = (f: string): number => {
     if (f === "ALL") return items.length;
     if (f === "SAVED") return items.filter((i) => i.filedDocument != null).length;
@@ -220,6 +283,13 @@ export default function InvoicesPage() {
           actions={
             <div className="flex items-center gap-3">
               <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
+              >
+                <TrashIcon />
+                {t("invoices_clear_all")}
+              </button>
               {/* Excel file upload (workaround while waiting for Graph API approval) */}
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none
                 ${uploading
@@ -243,7 +313,7 @@ export default function InvoicesPage() {
                 onClick={loadInvoices}
                 icon={<RefreshIcon />}
               >
-                {t("load_invoices")}
+                {t("btn_sync")}
               </Button>
             </div>
           }
@@ -253,6 +323,17 @@ export default function InvoicesPage() {
         {error && (
           <div className="mb-5 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 font-mono">
             {error}
+          </div>
+        )}
+
+        {/* Sheets sync warning — non-blocking: stored data still shows */}
+        {sheetsWarning && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800 flex items-start justify-between gap-4">
+            <div>
+              <span className="font-semibold">{t("invoices_sync_failed_banner")}</span>
+              <span className="text-amber-700 font-mono text-xs block mt-1 break-all">{sheetsWarning}</span>
+            </div>
+            <button onClick={() => setSheetsWarning(null)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
           </div>
         )}
 
@@ -317,11 +398,11 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-stone-200">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
                     <Th>{t("col_name")}</Th>
-                    <Th>{t("col_email")}</Th>
                     <Th>{t("col_submitted_at")}</Th>
                     <Th>{t("col_which_month")}</Th>
                     <Th>{t("col_invoice_category")}</Th>
@@ -333,7 +414,7 @@ export default function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
-                  {filtered.map((item) => {
+                  {paginated.map((item) => {
                     const { submission: s, validation: v } = item;
                     const isValidating = validating === s.id;
                     return (
@@ -344,14 +425,17 @@ export default function InvoicesPage() {
                           {s.payerName}
                         </td>
 
-                        {/* Email */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.email || <span className="text-stone-300">—</span>}
-                        </td>
-
                         {/* Submitted at */}
-                        <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.submittedAt ? formatTimestamp(s.submittedAt, language) : <span className="text-stone-300">—</span>}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {s.submittedAt ? (() => {
+                            const { date, time } = formatDateParts(s.submittedAt, language);
+                            return (
+                              <div>
+                                <div className="text-stone-700 text-xs font-medium">{date}</div>
+                                <div className="text-stone-400 text-xs">{time}</div>
+                              </div>
+                            );
+                          })() : <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Month */}
@@ -366,7 +450,27 @@ export default function InvoicesPage() {
 
                         {/* Amount */}
                         <td className="px-4 py-3 text-stone-700 font-mono text-xs whitespace-nowrap">
-                          {formatCurrency(s.claimedAmountTaxIncluded)}
+                          <div className="flex items-center gap-1.5">
+                            {formatCurrency(s.claimedAmountTaxIncluded, s.currency)}
+                            <select
+                              value={s.currency ?? "JPY"}
+                              onChange={async (e) => {
+                                const cur = e.target.value;
+                                await patchSubmissionCurrency(s.id, month, cur);
+                                setItems((prev) => prev.map((it) =>
+                                  it.submission.id === s.id
+                                    ? { ...it, submission: { ...it.submission, currency: cur } }
+                                    : it
+                                ));
+                              }}
+                              className="text-[10px] border border-stone-200 rounded px-1 py-0.5 bg-white text-stone-500 cursor-pointer hover:border-stone-400"
+                              title={t("invoices_change_currency")}
+                            >
+                              {["JPY", "USD", "EUR", "GBP", "SGD", "AUD", "CNY", "KRW"].map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
 
                         {/* Attachment */}
@@ -397,7 +501,7 @@ export default function InvoicesPage() {
                             )}
                             {v?.validatedBy && (
                               <span
-                                title={`Validated by ${v.validatedBy}`}
+                                title={t("invoices_validated_by").replace("{name}", v.validatedBy)}
                                 className="flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white"
                                 style={{ backgroundColor: userColor(v.validatedBy) }}
                               >
@@ -416,7 +520,7 @@ export default function InvoicesPage() {
                                   key={issue}
                                   className="text-[10px] font-mono bg-red-50 text-red-600 px-1.5 py-0.5 rounded"
                                 >
-                                  {issue}
+                                  {translateIssue(issue, language)}
                                 </span>
                               ))}
                               {v.issues.length > 2 && (
@@ -455,7 +559,7 @@ export default function InvoicesPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleApprove(item)}
-                                title="Approve for filing after human review"
+                                title={t("invoices_approve_tooltip")}
                               >
                                 ✓ {t("action_approve")}
                               </Button>
@@ -480,11 +584,43 @@ export default function InvoicesPage() {
                   })}
                 </tbody>
               </table>
+            </div>
 
-            <div className="px-4 py-3 border-t border-stone-100 bg-stone-50">
+            <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-4">
               <p className="text-xs text-stone-400">
                 {filtered.length} / {items.length} {t("items_shown")}
               </p>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t("invoices_prev")}
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n)}
+                      className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                        n === safePage
+                          ? "bg-emerald-500 text-white shadow-sm"
+                          : "text-stone-500 hover:bg-stone-200"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t("invoices_next")}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -494,7 +630,37 @@ export default function InvoicesPage() {
         <InvoiceDetailPanel
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
+          onSendToMF={handleSendToMF}
+          sendingToMF={sendingToMF === selectedItem.submission.id}
         />
+      )}
+
+      {/* Clear All confirmation modal */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-semibold text-stone-900">{t("invoices_clear_all_confirm_title")}</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              {t("invoices_clear_all_confirm_body")}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmClear(false)}
+                disabled={clearing}
+                className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {clearing ? t("invoices_clear_all_deleting") : t("invoices_clear_all_confirm_action")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   );
@@ -514,4 +680,8 @@ function RefreshIcon() {
 
 function UploadIcon() {
   return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function TrashIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 }

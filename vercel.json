@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/members/sync",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-expenses",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

@@ -1,7 +1,10 @@
+
 // src/app/api/config/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
 import type { AppConfig } from "@/types";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

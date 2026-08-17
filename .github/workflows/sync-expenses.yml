@@ -1,0 +1,22 @@
+name: Sync Expense Claims
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch:           # allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger expense sync
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/sync-expenses")
+          echo "Response: $response"
+          if [ "$response" -ne 200 ]; then
+            echo "Sync failed with status $response"
+            exit 1
+          fi

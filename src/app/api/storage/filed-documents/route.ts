@@ -1,6 +1,9 @@
+
 // src/app/api/storage/filed-documents/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/storage/filed-documents

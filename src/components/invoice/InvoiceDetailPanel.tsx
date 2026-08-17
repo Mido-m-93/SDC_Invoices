@@ -1,21 +1,75 @@
 "use client";
 // src/components/invoice/InvoiceDetailPanel.tsx
 
+import { useState } from "react";
 import { useLanguage } from "@/translations";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
 import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
-import { formatCurrency, formatTimestamp } from "@/lib/utils";
+import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
+import ValidationStages from "@/components/invoice/ValidationStages";
 
 interface Props {
   item: InvoiceListItem;
   onClose: () => void;
+  onSendToMF?: (item: InvoiceListItem) => void;
+  sendingToMF?: boolean;
 }
 
-export default function InvoiceDetailPanel({ item, onClose }: Props) {
+export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
+  const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
+
+  // ── Add as Vendor state ───────────────────────────────────────────────────
+  const [addingVendor, setAddingVendor]     = useState(false);
+  const [vendorName, setVendorName]         = useState(s.payerName ?? "");
+  const [vendorSaving, setVendorSaving]     = useState(false);
+  const [vendorAdded, setVendorAdded]       = useState(false);
+  const [vendorError, setVendorError]       = useState<string | null>(null);
+  const [savedVendorId, setSavedVendorId]   = useState<string | null>(null);
+
+  // ── Derived / optimistic state ────────────────────────────────────────────
+  const effectiveVendorMatched = (v?.vendorMatched ?? false) || vendorAdded;
+  const effectiveRiskLevel = (() => {
+    if (!v?.riskLevel || v.riskLevel === "OK" || v.riskLevel === "BLOCKED") return v?.riskLevel;
+    if (effectiveVendorMatched && (v?.contractMatched ?? false)) return "OK";
+    return v.riskLevel;
+  })();
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  async function handleAddVendor() {
+    if (!vendorName.trim()) return;
+    setVendorSaving(true);
+    setVendorError(null);
+    try {
+      const res = await fetch("/api/vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: vendorName.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as { vendor: { id: string } };
+      setSavedVendorId(data.vendor.id);
+      setVendorAdded(true);
+      setAddingVendor(false);
+    } catch (err) {
+      setVendorError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVendorSaving(false);
+    }
+  }
+
+  function normalizeDisplayDate(raw: string | null | undefined): string {
+    if (!raw) return "—";
+    const jp = raw.match(/(\d{4})年(\d{1,2})月[\-\s]?(\d{1,2})日?/);
+    if (jp) return `${jp[1]}-${jp[2].padStart(2, "0")}-${jp[3].padStart(2, "0")}`;
+    return raw;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
@@ -34,7 +88,11 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
             <h2 className="text-lg font-semibold text-stone-900">{s.payerName}</h2>
           </div>
           <div className="flex items-center gap-3">
-            {v && <StatusBadge code={v.statusCode} />}
+            {v && <StatusBadge code={
+              effectiveRiskLevel === "OK" && v.statusCode === "REVIEW_REQUIRED"
+                ? "READY"
+                : v.statusCode
+            } />}
             <Button variant="ghost" size="sm" onClick={onClose}>
               <CloseIcon />
             </Button>
@@ -48,7 +106,7 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               <Field label={t("field_payer_name")}>{s.payerName}</Field>
               <Field label={t("field_closing_month")}>{s.closingMonth}</Field>
               <Field label={t("field_project_type")}>{s.projectType || t("none")}</Field>
-              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded)}</Field>
+              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded, s.currency)}</Field>
               <Field label={t("field_internal_dept")}>{s.internalDepartment || t("none")}</Field>
               <Field label={t("field_external_project")}>{s.externalProjectName || t("none")}</Field>
               <Field label={t("field_payment_status")}>{s.paymentStatus || t("none")}</Field>
@@ -60,22 +118,18 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               )}
               <Field label={t("field_attachment")} span>
                 {s.invoiceAttachment ? (
-                  <div className="space-y-2">
-                    <a
-                      href={s.invoiceAttachment}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#2d6a4f] underline text-xs font-mono break-all"
-                    >
-                      {s.invoiceAttachment}
-                    </a>
-                    <iframe
-                      src={s.invoiceAttachment}
-                      className="w-full rounded-lg border border-stone-200"
-                      style={{ height: 400 }}
-                      title="Invoice PDF"
-                    />
-                  </div>
+                  <a
+                    href={s.invoiceAttachment}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#235c43]"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Open Attachment
+                  </a>
                 ) : (
                   <span className="text-red-500 text-xs">{t("missing_attachment")}</span>
                 )}
@@ -89,22 +143,25 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               {v.extractedFields ? (
                 <FieldGrid>
                   <Field label={t("field_invoice_date")}>
-                    {v.extractedFields.invoiceDate ?? t("not_found")}
+                    {normalizeDisplayDate(v.extractedFields.invoiceDate)}
                   </Field>
                   <Field label={t("field_subtotal")}>
                     {v.extractedFields.subtotal !== null
-                      ? `¥${v.extractedFields.subtotal.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.subtotal, currency)
                       : t("not_found")}
                   </Field>
                   <Field label={t("field_tax_amount")}>
                     {v.extractedFields.taxAmount !== null
-                      ? `¥${v.extractedFields.taxAmount.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.taxAmount, currency)
                       : t("not_found")}
                   </Field>
                   <Field label={t("field_total")}>
                     {v.extractedFields.total !== null
-                      ? `¥${v.extractedFields.total.toLocaleString("ja-JP")}`
+                      ? formatAmount(v.extractedFields.total, currency)
                       : t("not_found")}
+                  </Field>
+                  <Field label="Member">
+                    {v.extractedFields.memberName ?? t("not_found")}
                   </Field>
                 </FieldGrid>
               ) : (
@@ -113,38 +170,93 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
             </Section>
           )}
 
-          {/* ── Risk assessment ──────────────────────────────────────── */}
-          {v && (v.riskLevel || v.vendorMatched !== undefined) && (
-            <Section title="Risk Assessment">
-              <div className="space-y-3">
-                {v.riskLevel && (
-                  <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
-                    v.riskLevel === "OK" ? "bg-green-50 border border-green-200" :
-                    v.riskLevel === "BLOCKED" ? "bg-red-50 border border-red-200" :
-                    "bg-amber-50 border border-amber-200"
-                  }`}>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Risk Level</span>
-                    <span className={`text-sm font-bold ${
-                      v.riskLevel === "OK" ? "text-green-700" :
-                      v.riskLevel === "BLOCKED" ? "text-red-700" :
-                      "text-amber-700"
-                    }`}>
-                      {v.riskLevel === "OK" ? "✓ OK" : v.riskLevel === "BLOCKED" ? "✕ BLOCKED" : "⚠ NEEDS REVIEW"}
-                    </span>
-                  </div>
-                )}
-                <div className="bg-stone-50 rounded-lg px-4 divide-y divide-stone-100">
-                  <ValidationCheck label="Vendor Registered" pass={v.vendorMatched ?? false} />
-                  <ValidationCheck label="Active Contract Found" pass={v.contractMatched ?? false} />
+          {/* ── Validation stages ────────────────────────────────────── */}
+          {v && (
+            <Section title="">
+              <ValidationStages v={v} submission={s} />
+              {onSendToMF && (
+                <div className="mt-3">
+                  {!v.mfBillingUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={!!sendingToMF}
+                      onClick={() => onSendToMF(item)}
+                    >
+                      💴 {t("action_send_to_mf")}
+                    </Button>
+                  )}
+                  {v.mfBillingUrl && (
+                    <a
+                      href={v.mfBillingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                      title={t("mf_sent")}
+                    >
+                      💴 {t("action_view_in_mf")}
+                    </a>
+                  )}
                 </div>
-                {v.reviewerRecommendation && (
-                  <div className="flex items-center gap-2 text-xs text-stone-500 px-1">
-                    <span className="font-medium">Recommended Reviewer:</span>
-                    <span className="text-stone-700 font-semibold">{v.reviewerRecommendation}</span>
-                  </div>
+              )}
+            </Section>
+          )}
+
+          {/* ── Add as Vendor banner ─────────────────────────────────── */}
+          {v && !effectiveVendorMatched && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-amber-800">
+                  ⚠️ Vendor not registered
+                </p>
+                {!addingVendor && (
+                  <button
+                    onClick={() => setAddingVendor(true)}
+                    className="text-xs font-semibold text-amber-700 underline hover:text-amber-900"
+                  >
+                    + Add as Vendor
+                  </button>
                 )}
               </div>
-            </Section>
+              <p className="text-xs text-amber-700 mb-3">
+                &ldquo;{s.payerName}&rdquo; is not in the vendor list. Add them to clear this flag.
+              </p>
+              {addingVendor && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                    placeholder="Vendor name"
+                    className="w-full rounded border border-amber-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  {vendorError && (
+                    <p className="text-xs text-red-600">{vendorError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      disabled={vendorSaving || !vendorName.trim()}
+                      onClick={handleAddVendor}
+                      className="rounded bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {vendorSaving ? "Saving…" : "Save Vendor"}
+                    </button>
+                    <button
+                      onClick={() => setAddingVendor(false)}
+                      className="text-xs text-amber-700 underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {vendorAdded && (
+            <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3">
+              <p className="text-sm font-semibold text-green-800">✓ Vendor added successfully</p>
+            </div>
           )}
 
           {/* ── Validation results ───────────────────────────────────── */}
@@ -156,9 +268,11 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                     {t("review_required")}
                   </p>
                   <ul className="space-y-1">
-                    {v.issues.map((issue) => (
-                      <li key={issue} className="text-xs text-amber-700 font-mono">
-                        • {issue}
+                    {v.issues.flatMap((issue) =>
+                      translateIssue(issue, language).split("\n").filter(Boolean)
+                    ).map((line, idx) => (
+                      <li key={idx} className="text-xs text-amber-700 font-mono">
+                        • {line}
                       </li>
                     ))}
                   </ul>
@@ -172,7 +286,7 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
                 <ValidationCheck label={t("validation_total_found")} pass={v.totalFound} />
                 <ValidationCheck label={t("validation_amount_consistent")} pass={v.amountConsistent} />
                 <ValidationCheck label={t("validation_amount_matches_sheet")} pass={v.amountMatchesSheet} />
-                <ValidationCheck label={t("validation_no_duplicate")} pass={!v.duplicateDetected} />
+                <ValidationCheck label={t("validation_no_duplicate")} pass={!v.duplicateDetected && !v.issues.some(i => i.toLowerCase().startsWith("duplicate:"))} />
               </div>
             </Section>
           )}

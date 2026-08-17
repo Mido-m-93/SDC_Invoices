@@ -1,7 +1,10 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { getVendorService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import type { Vendor } from "@/types";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

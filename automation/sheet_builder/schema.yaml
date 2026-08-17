@@ -1,0 +1,258 @@
+# 統合管理Excel スキーマ定義
+# 出力先: C:/Users/jinta/nexus/pc/sandbox/RCP_契約請求支払統合管理.xlsx
+# 10シート構成（ハイブリッド：裏正規化 M_/T_ + 表横展開ビュー V_）
+
+workbook:
+  filename: "RCP_契約請求支払統合管理.xlsx"
+  sandbox_dir: "C:/Users/jinta/nexus/pc/sandbox"
+  prod_dir: "C:/Users/jinta/Robo Co-op/RoboCo-op SharedFiles - Documents/40_ExpandTogether/02_Functions/01_ACCT"
+
+# ==========================================
+# シート定義
+# 順序どおりにシートを生成する
+# ==========================================
+sheets:
+
+  # ------------------------------------------
+  # 00_README — 使い方・用語集・更新日
+  # ------------------------------------------
+  - name: "00_README"
+    type: "doc"
+    description: "本ファイルの目的・使い方・自動化の前提"
+    freeze: "A1"
+
+  # ------------------------------------------
+  # 10_M_取引先 — マスタ（Notion Company + MF取引先 fuzzy match）
+  # ------------------------------------------
+  - name: "10_M_取引先"
+    type: "master"
+    key: "partner_id"
+    freeze: "A2"
+    columns:
+      - { name: "partner_id",        type: "text",    width: 14, note: "RC-PRT-0001 形式の内部ID" }
+      - { name: "partner_name",      type: "text",    width: 30, note: "正規化後の取引先名" }
+      - { name: "partner_name_raw",  type: "text",    width: 30, note: "Notion Company / MF名 の原文（参考）" }
+      - { name: "mf_partner_id",     type: "text",    width: 18, note: "MoneyForward顧客ID（fuzzy自動マッピング）" }
+      - { name: "mf_match_score",    type: "number",  width: 10, note: "rapidfuzz信頼度 0-100" }
+      - { name: "mf_match_status",   type: "text",    width: 14, note: "auto / confirmed / queued / unmatched" }
+      - { name: "country",           type: "text",    width: 10, note: "JP / US / SG etc." }
+      - { name: "industry",          type: "text",    width: 16 }
+      - { name: "notion_company_id", type: "text",    width: 36, note: "Notion new Unified v2 のCompany relation先ID" }
+      - { name: "first_seen",        type: "date",    width: 12 }
+      - { name: "last_seen",         type: "date",    width: 12 }
+      - { name: "notes",             type: "text",    width: 40 }
+
+  # ------------------------------------------
+  # 11_M_案件 — 新Unified v2 のミラー
+  # ------------------------------------------
+  - name: "11_M_案件"
+    type: "master"
+    key: "project_id"
+    source: "notion:new_unified_v2"
+    freeze: "A2"
+    columns:
+      - { name: "project_id",        type: "text",    width: 14, note: "RC-PRJ-0001" }
+      - { name: "project_name",      type: "text",    width: 30 }
+      - { name: "partner_id",        type: "text",    width: 14, note: "10_M_取引先 への参照" }
+      - { name: "status",            type: "text",    width: 14, note: "Lead/Pending/Discovery/Proposal/Negotiation/Closing/Contracted/Delivery/Delivered/Lost" }
+      - { name: "source_db",         type: "text",    width: 16, note: "jp_pipeline / global_pipeline / old_unified" }
+      - { name: "sales_in_charge",   type: "text",    width: 14 }
+      - { name: "region",            type: "text",    width: 10 }
+      - { name: "project_type",      type: "text",    width: 14 }
+      - { name: "new_continuing",    type: "text",    width: 10 }
+      - { name: "industry",          type: "text",    width: 14 }
+      - { name: "probability",       type: "text",    width: 10, note: "Low/Middle/High" }
+      - { name: "strategic_fit",     type: "text",    width: 12 }
+      - { name: "priority",          type: "text",    width: 10 }
+      - { name: "expected_close",    type: "date",    width: 12 }
+      - { name: "last_discussion",   type: "date",    width: 12 }
+      - { name: "revenue_k_jpy",     type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "revenue_monthly_k_jpy", type: "number", width: 14, fmt: "#,##0" }
+      - { name: "pj_term_months",    type: "number",  width: 10 }
+      - { name: "next_step",         type: "text",    width: 30 }
+      - { name: "notion_url",        type: "url",     width: 40 }
+      - { name: "original_url",      type: "url",     width: 40, note: "出身旧DB上のページURL" }
+      - { name: "last_synced_at",    type: "datetime",width: 18 }
+
+  # ------------------------------------------
+  # 12_M_契約 — 契約条件スナップショット（案件と1:N）
+  # ------------------------------------------
+  - name: "12_M_契約"
+    type: "master"
+    key: "contract_id"
+    freeze: "A2"
+    columns:
+      - { name: "contract_id",       type: "text",    width: 14, note: "RC-CTR-0001" }
+      - { name: "project_id",        type: "text",    width: 14 }
+      - { name: "partner_id",        type: "text",    width: 14 }
+      - { name: "contract_type",     type: "text",    width: 14, note: "月額/一括/準委任/請負 等" }
+      - { name: "contract_start",    type: "date",    width: 12 }
+      - { name: "contract_end",      type: "date",    width: 12 }
+      - { name: "pj_term_months",    type: "number",  width: 10 }
+      - { name: "amount_total_k_jpy",type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "amount_monthly_k_jpy", type: "number", width: 14, fmt: "#,##0" }
+      - { name: "currency",          type: "text",    width: 8  }
+      - { name: "tax_rule",          type: "text",    width: 14, note: "税抜/税込/輸出免税 etc" }
+      - { name: "payment_terms",     type: "text",    width: 18, note: "月末締翌月末払 等" }
+      - { name: "invoice_schedule",  type: "text",    width: 20, note: "毎月20日発行 等（定型）" }
+      - { name: "contract_status",   type: "text",    width: 14, note: "押印済/押印確認中/ひな型送付・受領/未着手/対象外" }
+      - { name: "contract_file",     type: "url",     width: 50, note: "契約フォルダへのパス（今回は手動or後続タスクで自動入力）" }
+      - { name: "notes",             type: "text",    width: 30 }
+      - { name: "last_synced_at",    type: "datetime",width: 18 }
+
+  # ------------------------------------------
+  # 20_T_請求明細 — MF請求書ミラー（read-only）
+  # ------------------------------------------
+  - name: "20_T_請求明細"
+    type: "transaction"
+    key: "mf_invoice_id"
+    source: "mf:invoices"
+    freeze: "A2"
+    columns:
+      - { name: "mf_invoice_id",     type: "text",    width: 24, note: "MF請求書の一意ID（SSoT）" }
+      - { name: "invoice_number",    type: "text",    width: 16 }
+      - { name: "mf_partner_id",     type: "text",    width: 18 }
+      - { name: "partner_id",        type: "text",    width: 14, note: "10_M_取引先 で解決" }
+      - { name: "project_id",        type: "text",    width: 14, note: "fuzzy or 手動マッピング" }
+      - { name: "contract_id",       type: "text",    width: 14, note: "任意" }
+      - { name: "issue_date",        type: "date",    width: 12 }
+      - { name: "due_date",          type: "date",    width: 12 }
+      - { name: "billing_period_from", type: "date",  width: 12 }
+      - { name: "billing_period_to",   type: "date",  width: 12 }
+      - { name: "amount_excl_tax",   type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "tax",               type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "amount_incl_tax",   type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "currency",          type: "text",    width: 8  }
+      - { name: "status",            type: "text",    width: 14, note: "draft/issued/sent/paid/cancelled" }
+      - { name: "mf_url",            type: "url",     width: 40 }
+      - { name: "last_synced_at",    type: "datetime",width: 18 }
+
+  # ------------------------------------------
+  # 21_T_入金明細 — MF会計取引のうち売掛消込対象
+  # ------------------------------------------
+  - name: "21_T_入金明細"
+    type: "transaction"
+    key: "mf_transaction_id"
+    source: "mf:transactions"
+    freeze: "A2"
+    columns:
+      - { name: "mf_transaction_id",  type: "text",   width: 24 }
+      - { name: "mf_invoice_id",      type: "text",   width: 24, note: "突合で紐付け" }
+      - { name: "partner_id",         type: "text",   width: 14 }
+      - { name: "project_id",         type: "text",   width: 14 }
+      - { name: "contract_id",        type: "text",   width: 14 }
+      - { name: "received_date",      type: "date",   width: 12 }
+      - { name: "amount",             type: "number", width: 14, fmt: "#,##0" }
+      - { name: "currency",           type: "text",   width: 8  }
+      - { name: "bank_account",       type: "text",   width: 20 }
+      - { name: "account_item",       type: "text",   width: 14, note: "MF勘定科目" }
+      - { name: "memo",               type: "text",   width: 30 }
+      - { name: "reconciled",         type: "bool",   width: 10, note: "TRUEで消込済" }
+      - { name: "last_synced_at",     type: "datetime", width: 18 }
+
+  # ------------------------------------------
+  # 22_T_支払明細 — MF買掛・経費
+  # ------------------------------------------
+  - name: "22_T_支払明細"
+    type: "transaction"
+    key: "mf_transaction_id"
+    source: "mf:transactions"
+    freeze: "A2"
+    columns:
+      - { name: "mf_transaction_id",  type: "text",   width: 24 }
+      - { name: "partner_id",         type: "text",   width: 14 }
+      - { name: "project_id",         type: "text",   width: 14, note: "原価ひも付けできる場合のみ" }
+      - { name: "paid_date",          type: "date",   width: 12 }
+      - { name: "due_date",           type: "date",   width: 12 }
+      - { name: "amount",             type: "number", width: 14, fmt: "#,##0" }
+      - { name: "currency",           type: "text",   width: 8  }
+      - { name: "category",           type: "text",   width: 14, note: "外注費/給与/家賃/その他" }
+      - { name: "account_item",       type: "text",   width: 14 }
+      - { name: "memo",               type: "text",   width: 30 }
+      - { name: "status",             type: "text",   width: 12, note: "scheduled/paid/overdue" }
+      - { name: "last_synced_at",     type: "datetime", width: 18 }
+
+  # ------------------------------------------
+  # 30_V_案件ビュー — 案件×契約×請求×入金 の横展開
+  # ------------------------------------------
+  - name: "30_V_案件ビュー"
+    type: "view"
+    freeze: "A2"
+    description: "案件ごとに契約金額・請求済合計・入金済合計・未請求残・未回収残を1行に展開"
+    columns:
+      - { name: "project_id",        type: "text",    width: 14 }
+      - { name: "project_name",      type: "text",    width: 30 }
+      - { name: "partner_name",      type: "text",    width: 24 }
+      - { name: "status",            type: "text",    width: 14 }
+      - { name: "contract_id",       type: "text",    width: 14 }
+      - { name: "contract_start",    type: "date",    width: 12 }
+      - { name: "contract_end",      type: "date",    width: 12 }
+      - { name: "amount_total_k_jpy",type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "invoiced_total",    type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "received_total",    type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "unbilled_remain",   type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "unpaid_remain",     type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "next_invoice_due",  type: "date",    width: 12 }
+      - { name: "next_payment_due",  type: "date",    width: 12 }
+      - { name: "flags",             type: "text",    width: 30, note: "🔴請求漏れ/🔴未入金/🟡契約終了30d 等" }
+
+  # ------------------------------------------
+  # 31_V_週次チェック — 突合エンジン結果（毎営業日更新）
+  # ------------------------------------------
+  - name: "31_V_週次チェック"
+    type: "view"
+    freeze: "A2"
+    description: "reconcile.py が出力するアラート一覧。Teams投稿と同内容"
+    columns:
+      - { name: "detected_at",       type: "datetime",width: 18 }
+      - { name: "severity",          type: "text",    width: 10, note: "🔴/🟡/🟠/🟢" }
+      - { name: "category",          type: "text",    width: 20, note: "missing_invoice / overdue_payment / contract_ending / amount_mismatch / unmapped_invoice / partner_queue" }
+      - { name: "project_id",        type: "text",    width: 14 }
+      - { name: "partner_id",        type: "text",    width: 14 }
+      - { name: "mf_invoice_id",     type: "text",    width: 24 }
+      - { name: "expected",          type: "text",    width: 20 }
+      - { name: "actual",            type: "text",    width: 20 }
+      - { name: "message",           type: "text",    width: 50 }
+      - { name: "action",            type: "text",    width: 30 }
+      - { name: "resolved",          type: "bool",    width: 10 }
+
+  # ------------------------------------------
+  # 32_V_月次ダッシュボード — 月次締めKPI
+  # ------------------------------------------
+  - name: "32_V_月次ダッシュボード"
+    type: "view"
+    freeze: "A2"
+    description: "月次の請求・入金・支払サマリ + 月次締めレポート"
+    columns:
+      - { name: "year_month",        type: "text",    width: 10, note: "2026-04" }
+      - { name: "invoiced_total",    type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "received_total",    type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "paid_total",        type: "number",  width: 14, fmt: "#,##0" }
+      - { name: "ar_balance",        type: "number",  width: 14, fmt: "#,##0", note: "売掛残" }
+      - { name: "ap_balance",        type: "number",  width: 14, fmt: "#,##0", note: "買掛残" }
+      - { name: "new_contracts",     type: "number",  width: 10 }
+      - { name: "ended_contracts",   type: "number",  width: 10 }
+      - { name: "alerts_open",       type: "number",  width: 10 }
+      - { name: "alerts_resolved",   type: "number",  width: 10 }
+      - { name: "notes",             type: "text",    width: 50 }
+
+# ==========================================
+# 書式共通設定
+# ==========================================
+formatting:
+  header:
+    bold: true
+    fill: "E8EEF7"
+    border: "thin"
+  date_fmt: "yyyy-mm-dd"
+  datetime_fmt: "yyyy-mm-dd hh:mm"
+  number_fmt: "#,##0"
+  zebra_fill: "F7F9FC"  # 偶数行の淡い背景
+
+# ==========================================
+# ID採番ルール
+# ==========================================
+id_rules:
+  partner_id:   { prefix: "RC-PRT-", width: 4 }  # RC-PRT-0001
+  project_id:   { prefix: "RC-PRJ-", width: 4 }
+  contract_id:  { prefix: "RC-CTR-", width: 4 }

@@ -1,6 +1,9 @@
+
 import { NextResponse } from "next/server";
 import { getStorageService, getSheetsService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -19,7 +22,7 @@ export async function GET() {
       }
       excelMonths = Array.from(seen);
     } catch {
-      // Best-effort — fall back to stored months only if Excel is unreachable
+      // Best-effort â€” fall back to stored months only if Excel is unreachable
     }
 
     const merged = Array.from(new Set([...storedMonths, ...excelMonths]))

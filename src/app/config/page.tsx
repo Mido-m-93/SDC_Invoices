@@ -6,7 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage } from "@/translations";
-import { fetchConfig, saveConfig } from "@/lib/api/client";
+import { fetchConfig, saveConfig, testNotification } from "@/lib/api/client";
 import type { AppConfig } from "@/types";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 
@@ -17,6 +17,8 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -46,6 +48,21 @@ export default function ConfigPage() {
   const setStringArray = (key: "completedStatuses" | "skipStatuses", raw: string) =>
     set(key, raw.split("\n").map((s) => s.trim()).filter(Boolean));
 
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      // Save current webhook URL first so the API can use it
+      await saveConfig(config);
+      const result = await testNotification();
+      setWebhookTestResult(result);
+    } catch (err) {
+      setWebhookTestResult({ ok: false, message: String(err) });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppShell>
@@ -61,7 +78,7 @@ export default function ConfigPage() {
           title={t("config_title")}
           actions={
             <Button variant="primary" size="md" loading={saving} onClick={handleSave}>
-              {savedOk ? "✓ 保存しました" : t("config_save")}
+              {savedOk ? t("config_saved") : t("config_save")}
             </Button>
           }
         />
@@ -76,35 +93,35 @@ export default function ConfigPage() {
           {/* Completed statuses */}
           <Card title={t("config_completed_statuses")}>
             <p className="text-xs text-stone-400 mb-3">
-              支払処理 列のこれらの値は「処理済み」として扱います（1行に1つ）
+              {t("config_completed_statuses_help")}
             </p>
             <textarea
               className={textareaClass}
               rows={4}
               value={config.completedStatuses.join("\n")}
               onChange={(e) => setStringArray("completedStatuses", e.target.value)}
-              placeholder={"支払済み\n完了\n処理済み"}
+              placeholder={t("config_completed_statuses_placeholder")}
             />
           </Card>
 
           {/* Skip statuses */}
           <Card title={t("config_skip_statuses")}>
             <p className="text-xs text-stone-400 mb-3">
-              これらの値を持つ行は処理をスキップします（1行に1つ）
+              {t("config_skip_statuses_help")}
             </p>
             <textarea
               className={textareaClass}
               rows={3}
               value={config.skipStatuses.join("\n")}
               onChange={(e) => setStringArray("skipStatuses", e.target.value)}
-              placeholder={"キャンセル\n対象外"}
+              placeholder={t("config_skip_statuses_placeholder")}
             />
           </Card>
 
           {/* Folder naming */}
           <Card title={t("config_folder_naming")}>
             <p className="text-xs text-stone-400 mb-3">
-              Google Drive の月別フォルダ名の命名規則
+              {t("config_folder_naming_help")}
             </p>
             <div className="space-y-2">
               {(["YYYY-MM", "YYYY年MM月", "custom"] as const).map((mode) => (
@@ -118,7 +135,7 @@ export default function ConfigPage() {
                     className="accent-[#2d6a4f]"
                   />
                   <span className="text-sm font-mono text-stone-700">
-                    {mode === "YYYY-MM" ? "2024-03" : mode === "YYYY年MM月" ? "2024年03月" : "カスタム"}
+                    {mode === "YYYY-MM" ? "2024-03" : mode === "YYYY年MM月" ? "2024年03月" : t("config_folder_mode_custom")}
                   </span>
                 </label>
               ))}
@@ -133,7 +150,7 @@ export default function ConfigPage() {
                   placeholder="{YYYY}年{MM}月"
                 />
                 <p className="text-xs text-stone-400 mt-1">
-                  トークン: {"{YYYY}"} {"{MM}"} {"{closingMonth}"}
+                  {t("config_tokens_label")} {"{YYYY}"} {"{MM}"} {"{closingMonth}"}
                 </p>
               </div>
             )}
@@ -142,7 +159,7 @@ export default function ConfigPage() {
           {/* Filename rule */}
           <Card title={t("config_filename_rule")}>
             <p className="text-xs text-stone-400 mb-3">
-              保存ファイル名のテンプレート（.pdf は自動付与）
+              {t("config_filename_rule_help")}
             </p>
             <input
               type="text"
@@ -152,14 +169,14 @@ export default function ConfigPage() {
               placeholder="{payerName}_{originalFilename}"
             />
             <p className="text-xs text-stone-400 mt-1">
-              トークン: {"{payerName}"} {"{originalFilename}"} {"{closingMonth}"}
+              {t("config_tokens_label")} {"{payerName}"} {"{originalFilename}"} {"{closingMonth}"}
             </p>
             <div className="mt-2 text-xs font-mono text-stone-500 bg-stone-50 px-3 py-2 rounded-lg">
-              プレビュー:{" "}
+              {t("config_preview_label")}{" "}
               {config.filenameRule
-                .replace("{payerName}", "田中 太郎")
+                .replace("{payerName}", t("config_preview_payer_sample"))
                 .replace("{originalFilename}", "invoice_march")
-                .replace("{closingMonth}", "2024年3月")}
+                .replace("{closingMonth}", t("config_preview_month_sample"))}
               .pdf
             </div>
           </Card>
@@ -179,10 +196,10 @@ export default function ConfigPage() {
                   />
                   <span className="text-sm text-stone-700">
                     {mode === "none"
-                      ? "なし（常に上書き）"
+                      ? t("config_dup_mode_none")
                       : mode === "filename"
-                      ? "ファイル名で検出"
-                      : "ハッシュで検出（より正確）"}
+                      ? t("config_dup_mode_filename")
+                      : t("config_dup_mode_hash")}
                   </span>
                 </label>
               ))}
@@ -192,7 +209,7 @@ export default function ConfigPage() {
           {/* Amount tolerance */}
           <Card title={t("config_amount_tolerance")}>
             <p className="text-xs text-stone-400 mb-3">
-              請求書金額とシート金額の許容誤差（通貨単位）
+              {t("config_amount_tolerance_help")}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -202,14 +219,112 @@ export default function ConfigPage() {
                 value={config.amountToleranceAbsolute}
                 onChange={(e) => set("amountToleranceAbsolute", Number(e.target.value))}
               />
-              <span className="text-sm text-stone-500">円 / unit</span>
+              <span className="text-sm text-stone-500">{t("config_amount_unit")}</span>
+            </div>
+          </Card>
+
+          {/* ── Phase 7: Notification settings ─────────────────────────────── */}
+          <Card title={t("config_notifications_title")}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  {t("config_teams_webhook")}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    className={inputClass + " flex-1"}
+                    value={config.teamsWebhookUrl ?? ""}
+                    onChange={(e) => set("teamsWebhookUrl", e.target.value)}
+                    placeholder={t("config_teams_webhook_placeholder")}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={testingWebhook}
+                    onClick={handleTestWebhook}
+                  >
+                    {t("config_teams_test_send")}
+                  </Button>
+                </div>
+                {webhookTestResult && (
+                  <p className={`text-xs mt-1.5 ${webhookTestResult.ok ? "text-emerald-600" : "text-red-600"}`}>
+                    {webhookTestResult.ok ? t("config_teams_test_ok") : `${t("config_teams_test_fail")}: ${webhookTestResult.message}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* ── Phase 7: Reminder settings ──────────────────────────────────── */}
+          <Card title={t("config_reminder_settings_title")}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_stale_threshold")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputClass + " w-20"}
+                      value={config.staleReviewThresholdDays ?? 3}
+                      onChange={(e) => set("staleReviewThresholdDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">{t("config_unit_days")}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_due_threshold")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputClass + " w-20"}
+                      value={config.dueDateThresholdDays ?? 5}
+                      onChange={(e) => set("dueDateThresholdDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">{t("config_unit_days_before")}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                    {t("config_payment_terms")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass + " w-20"}
+                      value={config.paymentTermsDays ?? 30}
+                      onChange={(e) => set("paymentTermsDays", Number(e.target.value))}
+                    />
+                    <span className="text-xs text-stone-400">{t("config_unit_days_after")}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  {t("config_escalation_recipient")}
+                </label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={config.escalationRecipient ?? ""}
+                  onChange={(e) => set("escalationRecipient", e.target.value)}
+                  placeholder={t("config_escalation_placeholder")}
+                />
+              </div>
             </div>
           </Card>
         </div>
 
         <div className="mt-8 pt-6 border-t border-stone-200">
           <Button variant="primary" size="lg" loading={saving} onClick={handleSave}>
-            {savedOk ? "✓ 保存しました" : t("config_save")}
+            {savedOk ? t("config_saved") : t("config_save")}
           </Button>
         </div>
       </div>
