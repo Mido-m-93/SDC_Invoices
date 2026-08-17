@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import MonthSelector from "@/components/ui/MonthSelector";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { sendExpenseToMoneyForward } from "@/lib/api/client";
 import { SHOW_SEND_TO_MF } from "@/lib/featureFlags";
+import { monthOptions } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
@@ -53,6 +55,7 @@ const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status"
 export default function ExpensesPage() {
   const { t } = useLanguage();
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
+  const [month, setMonth] = useState(monthOptions(1)[0]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -246,6 +249,9 @@ export default function ExpensesPage() {
     }
   }
 
+  const availableMonths = Array.from(new Set(claims.map((c) => c.expenseDate?.slice(0, 7)).filter(Boolean))) as string[];
+  const visibleClaims = claims.filter((c) => c.expenseDate?.slice(0, 7) === month);
+
   return (
     <AppShell>
       <PageHeader
@@ -253,6 +259,7 @@ export default function ExpensesPage() {
         subtitle={t("expenses_subtitle")}
         actions={
           <div className="flex items-center gap-3">
+            <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
             <button
               disabled={syncing}
               onClick={handleSyncForms}
@@ -318,7 +325,7 @@ export default function ExpensesPage() {
 
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
-      ) : claims.length === 0 ? (
+      ) : visibleClaims.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-500 text-sm font-medium">{t("expenses_empty_title")}</p>
           <p className="text-stone-400 text-xs mt-1">{t("expenses_empty_subtitle")}</p>
@@ -350,7 +357,7 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {claims.map((c) => (
+              {visibleClaims.map((c) => (
                 <tr key={c.id} className="hover:bg-stone-50">
                   <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{categoryLabel(c.category)}</td>
