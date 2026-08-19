@@ -169,7 +169,6 @@ export class MoneyForwardService {
     };
 
     const res = await this.apiFetch<Record<string, unknown>>(`POST`, `/invoice_template_billings`, body);
-    console.log("[MF] POST /invoice_template_billings response:", JSON.stringify(res).slice(0, 400));
 
     const record = res as { id?: string };
     const id = String(record.id ?? "");
