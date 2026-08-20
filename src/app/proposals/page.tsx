@@ -9,6 +9,7 @@ import VerificationBadge from "@/components/ui/VerificationBadge";
 import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 
 const STATUSES: Proposal["status"][] = ["draft", "submitted", "accepted", "rejected", "expired"];
 
@@ -37,6 +38,7 @@ const EMPTY: ProposalForm = {
 
 export default function ProposalsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const statusLabel = (s: Proposal["status"]) => t(`proposals_status_${s}` as TranslationKey);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -55,7 +57,14 @@ export default function ProposalsPage() {
     setVerifying(p.id);
     try {
       const res = await fetch(`/api/proposals/${p.id}/verify`, { method: "POST" });
-      if (res.ok) load();
+      if (res.ok) {
+        notify("success", `Verified proposal ${p.projectName}`, "/proposals");
+        load();
+      } else {
+        notify("error", `Failed to verify proposal ${p.projectName}`, "/proposals");
+      }
+    } catch {
+      notify("error", `Failed to verify proposal ${p.projectName}`, "/proposals");
     } finally {
       setVerifying(null);
     }
@@ -118,12 +127,15 @@ export default function ProposalsPage() {
       if (!res.ok) {
         const data = await res.json() as { error?: string };
         setError(data.error ?? t("proposals_error_save_failed"));
+        notify("error", `Failed to save proposal ${form.projectName}: ${data.error ?? t("proposals_error_save_failed")}`, "/proposals");
         return;
       }
       setShowForm(false);
+      notify("success", editing ? `Updated proposal ${form.projectName}` : `Added proposal ${form.projectName}`, "/proposals");
       load();
     } catch {
       setError(t("proposals_error_save_failed"));
+      notify("error", `Failed to save proposal ${form.projectName}`, "/proposals");
     } finally {
       setSaving(false);
     }
@@ -131,8 +143,15 @@ export default function ProposalsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("proposals_confirm_delete"))) return;
-    await fetch(`/api/proposals/${id}`, { method: "DELETE" });
-    load();
+    const target = proposals.find((p) => p.id === id);
+    try {
+      await fetch(`/api/proposals/${id}`, { method: "DELETE" });
+      notify("success", `Deleted proposal ${target?.projectName ?? id}`, "/proposals");
+      load();
+    } catch {
+      setError(t("proposals_error_save_failed"));
+      notify("error", `Failed to delete proposal ${target?.projectName ?? id}`, "/proposals");
+    }
   }
 
   async function handleAccept(p: Proposal, override = false) {
@@ -154,6 +173,7 @@ export default function ProposalsPage() {
           return;
         }
         setError(t("proposals_error_accept_failed").replace("{error}", data.error ?? t("proposals_error_unknown")));
+        notify("error", `Failed to accept proposal ${p.projectName}: ${data.error ?? t("proposals_error_unknown")}`, "/proposals");
         return;
       }
       const client = clients.find(c => c.id === p.clientId);
@@ -163,9 +183,11 @@ export default function ProposalsPage() {
         leadsAdvanced: data.leadsAdvanced,
         clientEmail: client?.contactEmail,
       });
+      notify("success", `Accepted proposal ${p.projectName}, contract ${data.contract.id} created`, "/proposals");
       load();
     } catch {
       setError(t("proposals_error_accept_generic"));
+      notify("error", `Failed to accept proposal ${p.projectName}`, "/proposals");
     } finally {
       setAccepting(null);
     }

@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import type { Vendor } from "@/types";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 
 const EMPTY_VENDOR: Omit<Vendor, "id" | "createdAt"> = {
   name: "",
@@ -19,6 +20,7 @@ const EMPTY_VENDOR: Omit<Vendor, "id" | "createdAt"> = {
 
 export default function VendorsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,9 +69,11 @@ export default function VendorsPage() {
       const method = editing ? "PUT" : "POST";
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       setShowForm(false);
+      notify("success", editing ? `Updated vendor ${form.name}` : `Added vendor ${form.name}`, "/vendors");
       load();
     } catch {
       setError(t("vendors_error_save"));
+      notify("error", `Failed to save vendor ${form.name}`, "/vendors");
     } finally {
       setSaving(false);
     }
@@ -77,8 +81,15 @@ export default function VendorsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("vendors_delete_confirm"))) return;
-    await fetch(`/api/vendors/${id}`, { method: "DELETE" });
-    load();
+    const target = vendors.find((v) => v.id === id);
+    try {
+      await fetch(`/api/vendors/${id}`, { method: "DELETE" });
+      notify("success", `Deleted vendor ${target?.name ?? id}`, "/vendors");
+      load();
+    } catch (err) {
+      setError(t("vendors_error_save"));
+      notify("error", `Failed to delete vendor ${target?.name ?? id}: ${String(err)}`, "/vendors");
+    }
   }
 
   async function handleImport() {
@@ -93,9 +104,11 @@ export default function VendorsPage() {
           .replace("{added}", String(data.added ?? 0))
           .replace("{skipped}", String(data.skipped ?? 0))
       );
+      notify("success", `Imported vendors: ${data.added ?? 0} added, ${data.skipped ?? 0} skipped`, "/vendors");
       load();
     } catch (e) {
       setError(String(e));
+      notify("error", `Failed to import vendors: ${String(e)}`, "/vendors");
     } finally {
       setImporting(false);
     }

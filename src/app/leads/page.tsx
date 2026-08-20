@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import LeadKanban from "@/components/pipeline/LeadKanban";
 import ClientPicker from "@/components/ui/ClientPicker";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { Lead, LeadStage, Client } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ const EMPTY_FORM: Omit<Lead, "id" | "createdAt" | "updatedAt" | "proposalId"> = 
 
 export default function LeadsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [stageFilter, setStageFilter] = useState<LeadStage | "all">("all");
@@ -58,13 +60,16 @@ export default function LeadsPage() {
       const data = await res.json() as { staged?: number; autoLinked?: number; needsReview?: number; error?: string };
       if (!res.ok) {
         setError(data.error ?? t("leads_sync_failed"));
+        notify("error", `Failed to sync pipeline: ${data.error ?? t("leads_sync_failed")}`, "/leads");
         return;
       }
       setSyncMsg(t("leads_sync_result")
         .replace("{staged}", String(data.staged ?? 0))
         .replace("{needsReview}", String(data.needsReview ?? 0)));
+      notify("success", `Pipeline sync staged ${data.staged ?? 0} lead(s)`, "/leads");
     } catch {
       setError(t("leads_sync_failed"));
+      notify("error", "Failed to sync pipeline", "/leads");
     } finally {
       setSyncing(false);
     }
@@ -134,9 +139,11 @@ export default function LeadsPage() {
         });
       }
       setShowForm(false);
+      notify("success", editing ? `Updated lead ${form.title}` : `Added lead ${form.title}`, "/leads");
       load();
     } catch {
       setError(t("leads_save_failed"));
+      notify("error", `Failed to save lead ${form.title}`, "/leads");
     } finally {
       setSaving(false);
     }
@@ -144,11 +151,19 @@ export default function LeadsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("leads_delete_confirm"))) return;
-    await fetch(`/api/leads/${id}`, { method: "DELETE" });
-    load();
+    const target = leads.find((l) => l.id === id);
+    try {
+      await fetch(`/api/leads/${id}`, { method: "DELETE" });
+      notify("success", `Deleted lead ${target?.title ?? id}`, "/leads");
+      load();
+    } catch (err) {
+      setError(t("leads_save_failed"));
+      notify("error", `Failed to delete lead ${target?.title ?? id}: ${String(err)}`, "/leads");
+    }
   }
 
   async function handleStageChange(id: string, stage: LeadStage) {
+    const target = leads.find((l) => l.id === id);
     try {
       await fetch(`/api/leads/${id}/stage`, {
         method: "PUT",
@@ -156,8 +171,10 @@ export default function LeadsPage() {
         body: JSON.stringify({ stage }),
       });
       setLeads(ls => ls.map(l => l.id === id ? { ...l, stage } : l));
+      notify("success", `Moved lead ${target?.title ?? id} to ${stageLabel(stage)}`, "/leads");
     } catch {
       setError(t("leads_stage_update_failed"));
+      notify("error", `Failed to update stage for lead ${target?.title ?? id}`, "/leads");
     }
   }
 

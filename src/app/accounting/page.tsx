@@ -12,6 +12,7 @@ import type {
 import { generateId } from "@/lib/utils";
 import { useLanguage } from "@/translations";
 import type { TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,7 @@ const EMPTY_FORM: Omit<AccountingEntry, "id" | "month" | "createdAt" | "updatedA
 
 export default function AccountingPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [activeTab, setActiveTab] = useState<Tab>("journal");
 
   // Journal state
@@ -180,40 +182,51 @@ export default function AccountingPage() {
         });
       }
       setShowForm(false);
+      notify("success", editing ? `Updated accounting entry${form.category ? ` for ${form.category}` : ""}` : `Created accounting entry${form.category ? ` for ${form.category}` : ""}`, "/accounting");
       loadEntries();
     } catch {
       setError(t("accounting_save_failed"));
+      notify("error", t("accounting_save_failed"), "/accounting");
     } finally {
       setSaving(false);
     }
   }
 
   async function handlePost(id: string) {
+    const entry = entries.find((e) => e.id === id) ?? null;
     try {
       await fetch(`/api/accounting/${id}/post`, { method: "POST" });
+      notify("success", `Posted accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
       loadEntries();
     } catch {
       setError(t("accounting_post_failed"));
+      notify("error", `Failed to post accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
     }
   }
 
   async function handleVoid(id: string) {
     if (!confirm(t("accounting_void_confirm"))) return;
+    const entry = entries.find((e) => e.id === id) ?? null;
     try {
       await fetch(`/api/accounting/${id}/void`, { method: "POST" });
+      notify("info", `Voided accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
       loadEntries();
     } catch {
       setError(t("accounting_void_failed"));
+      notify("error", `Failed to void accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
     }
   }
 
   async function handleDelete(id: string) {
     if (!confirm(t("accounting_delete_confirm"))) return;
+    const entry = entries.find((e) => e.id === id) ?? null;
     try {
       await fetch(`/api/accounting/${id}`, { method: "DELETE" });
+      notify("info", `Deleted accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
       loadEntries();
     } catch {
       setError(t("accounting_delete_failed"));
+      notify("error", `Failed to delete accounting entry${entry ? ` for ${entry.category || entry.description}` : ""}`, "/accounting");
     }
   }
 
