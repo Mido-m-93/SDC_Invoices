@@ -129,7 +129,15 @@ export default function LogsPage() {
                       <span className="text-xs font-mono text-stone-400 truncate">{run.id}</span>
                       <RunStatusPill status={run.status} />
                     </div>
-                    <p className="text-sm font-medium text-stone-800 mb-1">{run.month}</p>
+                    <p className="text-sm font-medium text-stone-800 mb-1 flex items-center gap-1.5">
+                      {run.month}
+                      <span className={clsx(
+                        "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                        run.entityType === "expense" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"
+                      )}>
+                        {run.entityType === "expense" ? t("nav_expenses") : t("nav_invoices")}
+                      </span>
+                    </p>
                     <p className="text-xs text-stone-400">{formatTimestamp(run.startedAt, language)}</p>
                     <div className="mt-2 flex gap-3 text-xs">
                       <span className="text-emerald-600">✓ {run.saved}</span>
@@ -170,12 +178,14 @@ export default function LogsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50 font-mono text-xs">
-                      {logs.map((log) => (
+                      {logs.map((log) => {
+                        const dest = selectedRun?.entityType === "expense" ? "/expenses" : "/invoices";
+                        return (
                         <tr
                           key={log.id}
-                          onClick={() => router.push("/invoices")}
+                          onClick={() => router.push(dest)}
                           className="cursor-pointer hover:bg-stone-50"
-                          title={t("logs_row_goto_invoices")}
+                          title={dest === "/expenses" ? t("logs_row_goto_expenses") : t("logs_row_goto_invoices")}
                         >
                           <td className="px-4 py-2.5 text-stone-400 whitespace-nowrap">
                             {formatTimestamp(log.timestamp, language)}
@@ -189,7 +199,8 @@ export default function LogsPage() {
                           </td>
                           <td className="px-4 py-2.5 text-stone-600 max-w-xs">{log.message}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="px-4 py-2.5 border-t border-stone-100 bg-stone-50">
