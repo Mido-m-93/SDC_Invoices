@@ -101,8 +101,6 @@ let _vendor: IVendorService | undefined;
 let _contract: IContractService | undefined;
 let _proposal: IProposalService | undefined;
 let _paymentRecord: IPaymentRecordService | undefined;
-let _notification: INotificationService | undefined;
-let _reminder: IReminderService | undefined;
 let _expense: IExpenseService | undefined;
 let _outboundInvoice: IOutboundInvoiceService | undefined;
 let _closeChecklist: ICloseChecklistService | undefined;
@@ -193,33 +191,30 @@ export function getContractService(): IContractService {
 }
 
 // ── Notification (Phase 7) ────────────────────────────────────────────────────
-export function getNotificationService(): INotificationService {
-  if (!_notification) {
-    if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
-      _notification = new MockNotificationService();
-    } else {
-      const webhookUrl = process.env.TEAMS_WEBHOOK_URL ?? "";
-      if (!webhookUrl) {
-        console.warn("[NotificationService] TEAMS_WEBHOOK_URL not set — falling back to mock");
-        _notification = new MockNotificationService();
-      } else {
-        _notification = new TeamsNotificationService(webhookUrl);
-      }
-    }
+// Webhook URL comes from Settings (app_config.teamsWebhookUrl, same source the
+// Config page's "Test Send" button uses), falling back to TEAMS_WEBHOOK_URL for
+// environments that still set it that way. Read fresh each call — not cached —
+// so a Settings update takes effect without a redeploy.
+export async function getNotificationService(): Promise<INotificationService> {
+  if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
+    return new MockNotificationService();
   }
-  return _notification;
+  const config = await getStorageService().loadConfig();
+  const webhookUrl = config.teamsWebhookUrl || process.env.TEAMS_WEBHOOK_URL || "";
+  if (!webhookUrl) {
+    console.warn("[NotificationService] No Teams webhook configured (Settings > Teams Webhook, or TEAMS_WEBHOOK_URL) — falling back to mock");
+    return new MockNotificationService();
+  }
+  return new TeamsNotificationService(webhookUrl);
 }
 
 // ── Reminder (Phase 7) ────────────────────────────────────────────────────────
-export function getReminderService(): IReminderService {
-  if (!_reminder) {
-    const notif = getNotificationService();
-    const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
-    _reminder = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
-      ? new MockReminderService(notif)
-      : new SupabaseReminderService(notif, paymentTermsDays);
-  }
-  return _reminder;
+export async function getReminderService(): Promise<IReminderService> {
+  const notif = await getNotificationService();
+  const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
+  return isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    ? new MockReminderService(notif)
+    : new SupabaseReminderService(notif, paymentTermsDays);
 }
 
 // ── Expense (Phase 8) ────────────────────────────────────────────────────────

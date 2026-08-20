@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get("type") ?? "missing_invoice";
 
   try {
-    const svc = getReminderService();
+    const svc = await getReminderService();
     let data: unknown;
 
     if (type === "missing_invoice") {
