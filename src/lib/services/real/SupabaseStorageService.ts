@@ -387,6 +387,11 @@ export class SupabaseStorageService implements IStorageService {
         default_language: config.defaultLanguage,
         duplicate_detection_mode: config.duplicateDetectionMode,
         amount_tolerance_absolute: config.amountToleranceAbsolute,
+        teams_webhook_url: config.teamsWebhookUrl,
+        stale_review_threshold_days: config.staleReviewThresholdDays,
+        due_date_threshold_days: config.dueDateThresholdDays,
+        escalation_recipient: config.escalationRecipient,
+        payment_terms_days: config.paymentTermsDays,
       },
       { onConflict: "id" }
     );
