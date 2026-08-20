@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     saved: 0,
     errors: 0,
     status: "RUNNING",
+    entityType: "invoice",
   };
   await storageSvc.saveRun(run);
 

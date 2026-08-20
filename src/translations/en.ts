@@ -304,6 +304,7 @@ const en = {
   logs_col_submission: "Submission",
   logs_entries: "entries",
   logs_row_goto_invoices: "Click to view in Invoices",
+  logs_row_goto_expenses: "Click to view in Expenses",
 
   // ── Logs ──────────────────────────────────────────────────────────────────
   logs_title: "Processing Logs",

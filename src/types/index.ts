@@ -159,6 +159,7 @@ export interface ProcessingRun {
   saved: number;
   errors: number;
   status: "RUNNING" | "COMPLETE" | "FAILED";
+  entityType?: "invoice" | "expense";  // absent = legacy invoice run
 }
 
 // ── App configuration (stored in Firestore / config file) ────────────────────
