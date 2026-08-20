@@ -66,7 +66,7 @@ export default function PipelineSyncPage() {
     setSyncing(source);
     setError(null);
     setSyncDetail(null);
-    notify("info", t("pipeline_sync_notify_syncing").replace("{source}", SOURCE_LABEL[source]));
+    notify("info", t("pipeline_sync_notify_syncing").replace("{source}", SOURCE_LABEL[source]), "/pipeline-sync");
     try {
       const res = await fetch("/api/pipeline-sync", {
         method: "POST",
@@ -77,7 +77,7 @@ export default function PipelineSyncPage() {
       if (!res.ok) {
         const message = data.error ?? t("pipeline_sync_error_sync_failed");
         setError(message);
-        notify("error", message);
+        notify("error", message, "/pipeline-sync");
         return;
       }
       await load();
@@ -88,7 +88,8 @@ export default function PipelineSyncPage() {
           .replace("{source}", SOURCE_LABEL[source])
           .replace("{staged}", String(data.staged ?? 0))
           .replace("{autoLinked}", String(data.autoLinked ?? 0))
-          .replace("{needsReview}", String(data.needsReview ?? 0))
+          .replace("{needsReview}", String(data.needsReview ?? 0)),
+        "/pipeline-sync"
       );
     } catch {
       const message = t("pipeline_sync_error_sync_failed");
@@ -126,11 +127,11 @@ export default function PipelineSyncPage() {
       if (!res.ok) {
         const message = data.error ?? t("pipeline_sync_error_approve_failed");
         setError(message);
-        notify("error", message);
+        notify("error", message, "/pipeline-sync");
         return;
       }
       await load();
-      notify("success", t("pipeline_sync_notify_approved").replace("{name}", r.rawClientName));
+      notify("success", t("pipeline_sync_notify_approved").replace("{name}", r.rawClientName), "/pipeline-sync");
     } catch {
       const message = t("pipeline_sync_error_approve_failed");
       setError(message);
@@ -155,11 +156,11 @@ export default function PipelineSyncPage() {
       if (!res.ok) {
         const message = data.error ?? t("pipeline_sync_error_reject_failed");
         setError(message);
-        notify("error", message);
+        notify("error", message, "/pipeline-sync");
         return;
       }
       await load();
-      notify("info", t("pipeline_sync_notify_rejected").replace("{name}", r.rawClientName));
+      notify("info", t("pipeline_sync_notify_rejected").replace("{name}", r.rawClientName), "/pipeline-sync");
     } catch {
       const message = t("pipeline_sync_error_reject_failed");
       setError(message);

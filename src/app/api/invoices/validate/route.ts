@@ -326,7 +326,8 @@ export async function POST(req: NextRequest) {
       const sub = targets[i];
       const payerNorm = sub.payerName.toLowerCase().replace(/\s+/g, "");
       const fromStore = allStoredForMonth.filter(
-        (s) => s.payerName.toLowerCase().replace(/\s+/g, "") === payerNorm
+        (s) => s.id !== sub.id && s.submissionRowNumber !== sub.submissionRowNumber
+          && s.payerName.toLowerCase().replace(/\s+/g, "") === payerNorm
       );
       const fromBatch = targets.filter(
         (t, j) => j !== i && t.payerName.toLowerCase().replace(/\s+/g, "") === payerNorm

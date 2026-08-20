@@ -9,6 +9,7 @@ import MonthSelector from "@/components/ui/MonthSelector";
 import StatusBadge from "@/components/ui/StatusBadge";
 import InvoiceDetailPanel from "@/components/invoice/InvoiceDetailPanel";
 import { useLanguage } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser, userColor, userInitials } from "@/lib/hooks/useCurrentUser";
 import {
   fetchInvoices,
@@ -33,6 +34,7 @@ const STATUS_FILTERS: Array<"ALL" | InvoiceStatusCode> = [
 
 export default function InvoicesPage() {
   const { t, language } = useLanguage();
+  const { notify } = useNotifications();
   const { user } = useCurrentUser();
   const [month, setMonth] = useState(monthOptions(1)[0]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -109,8 +111,10 @@ export default function InvoicesPage() {
       setAvailableMonths([]);
       setSelectedItem(null);
       setConfirmClear(false);
+      notify("info", t("invoices_clear_all"), "/invoices");
     } catch (err) {
       setError(String(err));
+      notify("error", `Failed to clear invoices: ${String(err)}`, "/invoices");
     } finally {
       setClearing(false);
     }
@@ -135,8 +139,10 @@ export default function InvoicesPage() {
           ? { ...prev, validation: result }
           : prev
       );
+      notify("success", `Validated invoice for ${submission.payerName}`, "/invoices");
     } catch (err) {
       setError(String(err));
+      notify("error", `Validation failed for ${submission.payerName}: ${String(err)}`, "/invoices");
     } finally {
       setValidating(null);
     }
@@ -157,8 +163,10 @@ export default function InvoicesPage() {
         prev?.submission.id === item.submission.id ? updated : prev
       );
       setSavedMsg(t("invoices_save_success").replace("{name}", item.submission.payerName).replace("{filename}", fd.newFilename));
+      notify("success", `Filed invoice for ${item.submission.payerName} (${fd.newFilename})`, "/invoices");
     } catch (err) {
       setError(String(err));
+      notify("error", `Failed to file invoice for ${item.submission.payerName}: ${String(err)}`, "/invoices");
     } finally {
       setSaving(null);
     }
@@ -179,6 +187,7 @@ export default function InvoicesPage() {
     setSelectedItem((prev) =>
       prev?.submission.id === item.submission.id ? updated : prev
     );
+    notify("info", `Approved invoice for ${item.submission.payerName}`, "/invoices");
   };
 
   const handleSendToMF = async (item: InvoiceListItem) => {
@@ -202,8 +211,10 @@ export default function InvoicesPage() {
       setSelectedItem((prev) =>
         prev?.submission.id === item.submission.id ? updated : prev
       );
+      notify("success", `Sent invoice for ${item.submission.payerName} to MoneyForward`, "/invoices");
     } catch (err) {
       setError(String(err));
+      notify("error", `Failed to send invoice for ${item.submission.payerName} to MoneyForward: ${String(err)}`, "/invoices");
     } finally {
       setSendingToMF(null);
     }
@@ -227,8 +238,10 @@ export default function InvoicesPage() {
         setHeaderMapping(mapping);
         setSavedMsg(null);
         setError(t("invoices_no_headers_matched"));
+        notify("error", `Uploaded ${file.name} but no columns matched`, "/invoices");
       } else {
         setSavedMsg(t("invoices_loaded_msg").replace("{count}", String(submissions.length)).replace("{file}", file.name));
+        notify("success", `Loaded ${submissions.length} invoice row(s) from ${file.name}`, "/invoices");
         if (snapshotMonth && snapshotMonth !== "unknown") {
           setAvailableMonths((prev) =>
             prev.includes(snapshotMonth) ? prev : [snapshotMonth, ...prev]
@@ -244,6 +257,7 @@ export default function InvoicesPage() {
       }
     } catch (err) {
       setError(String(err));
+      notify("error", `Failed to upload ${file.name}: ${String(err)}`, "/invoices");
     } finally {
       setUploading(false);
     }

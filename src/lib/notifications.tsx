@@ -14,12 +14,13 @@ export interface Notification {
   message: string;
   timestamp: string;
   read: boolean;
+  href?: string;
 }
 
 interface NotificationsContextValue {
   notifications: Notification[];
   unreadCount: number;
-  notify: (kind: NotificationKind, message: string) => void;
+  notify: (kind: NotificationKind, message: string, href?: string) => void;
   markAllRead: () => void;
 }
 
@@ -30,10 +31,10 @@ const MAX_NOTIFICATIONS = 50;
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const notify = useCallback((kind: NotificationKind, message: string) => {
+  const notify = useCallback((kind: NotificationKind, message: string, href?: string) => {
     setNotifications((prev) => {
       const id = prev.length > 0 ? prev[0].id + 1 : 0;
-      const next: Notification = { id, kind, message, timestamp: new Date().toISOString(), read: false };
+      const next: Notification = { id, kind, message, timestamp: new Date().toISOString(), read: false, href };
       return [next, ...prev].slice(0, MAX_NOTIFICATIONS);
     });
   }, []);
