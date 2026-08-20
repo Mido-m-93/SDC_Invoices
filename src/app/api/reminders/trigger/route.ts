@@ -50,7 +50,8 @@ export async function POST(req: NextRequest) {
   const type = VALID_TYPES.has(rawType) ? rawType : "all";
 
   try {
-    const result = await getReminderService().sendReminders(
+    const svc = await getReminderService();
+    const result = await svc.sendReminders(
       month,
       type as ReminderType | "all"
     );

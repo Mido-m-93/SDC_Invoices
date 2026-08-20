@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   try {
     const storage      = getStorageService();
-    const notification = getNotificationService();
+    const notification = await getNotificationService();
     const escalation   = new EscalationService(storage, notification);
 
     const months = await storage.listAvailableMonths();

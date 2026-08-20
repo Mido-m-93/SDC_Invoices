@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month") ?? monthOptions(1)[0];
 
   try {
-    const summary = await getReminderService().getSummary(month);
+    const svc = await getReminderService();
+    const summary = await svc.getSummary(month);
     return NextResponse.json(summary);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
