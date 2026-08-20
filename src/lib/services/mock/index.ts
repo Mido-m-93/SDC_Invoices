@@ -58,6 +58,7 @@ import {
   loadFiledDocuments,
   saveRun,
   loadRuns,
+  clearAllRuns,
   appendLog,
   loadLogs,
   loadVendors,
@@ -288,6 +289,10 @@ export class MockStorageService implements IStorageService {
 
   async saveRun(run: ProcessingRun): Promise<void> {
     saveRun(run);
+  }
+
+  async clearAllRuns(): Promise<void> {
+    clearAllRuns();
   }
 
   async appendLog(log: ProcessingLog): Promise<void> {

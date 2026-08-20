@@ -226,6 +226,14 @@ export function loadRuns(): ProcessingRun[] {
   return readStore().runs;
 }
 
+export function clearAllRuns(): void {
+  const store = readStore();
+  const runIds = new Set(store.runs.map((r) => r.id));
+  store.runs = [];
+  store.logs = store.logs.filter((l) => !runIds.has(l.runId));
+  writeStore(store);
+}
+
 // ── Processing logs ───────────────────────────────────────────────────────────
 
 export function appendLog(log: ProcessingLog): void {

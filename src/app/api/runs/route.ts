@@ -17,3 +17,16 @@ export async function GET() {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    await getStorageService().clearAllRuns();
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[DELETE /api/runs]", err);
+    return NextResponse.json(
+      { error: "Failed to clear runs", detail: String(err) },
+      { status: 500 }
+    );
+  }
+}
