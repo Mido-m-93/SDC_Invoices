@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary, Contract } from "@/types";
 
 const STATUS_COLORS: Record<OutboundInvoiceStatus, string> = {
@@ -42,6 +43,7 @@ function fmt(n: number, currency = "JPY") {
 
 function OutboundInvoicesPageInner() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const searchParams = useSearchParams();
   const statusLabel = (s: OutboundInvoiceStatus | "all") => t(`outbound_status_${s}` as TranslationKey);
 
@@ -114,7 +116,14 @@ function OutboundInvoicesPageInner() {
     setVerifying(inv.id);
     try {
       const res = await fetch(`/api/outbound-invoices/${inv.id}/verify`, { method: "POST" });
-      if (res.ok) load();
+      if (res.ok) {
+        load();
+        notify("success", `Verified invoice ${inv.invoiceNumber || inv.id}`, "/outbound-invoices");
+      } else {
+        notify("error", `Failed to verify invoice ${inv.invoiceNumber || inv.id}`, "/outbound-invoices");
+      }
+    } catch (err) {
+      notify("error", `Failed to verify invoice ${inv.invoiceNumber || inv.id}: ${String(err)}`, "/outbound-invoices");
     } finally {
       setVerifying(null);
     }
@@ -167,29 +176,46 @@ function OutboundInvoicesPageInner() {
       if (!res.ok) {
         const data = await res.json() as { error?: string };
         setError(data.error ?? t("outbound_invoices_save_failed"));
+        notify("error", `Failed to save invoice ${form.invoiceNumber || form.clientName}: ${data.error ?? t("outbound_invoices_save_failed")}`, "/outbound-invoices");
         return;
       }
       setShowForm(false);
       load();
-    } catch { setError(t("outbound_invoices_save_failed")); }
+      notify("success", `${editing ? "Updated" : "Created"} invoice ${form.invoiceNumber || form.clientName}`, "/outbound-invoices");
+    } catch (err) {
+      setError(t("outbound_invoices_save_failed"));
+      notify("error", `Failed to save invoice ${form.invoiceNumber || form.clientName}: ${String(err)}`, "/outbound-invoices");
+    }
     finally { setSaving(false); }
   }
 
   async function handleStatusChange(id: string, status: OutboundInvoiceStatus) {
     try {
-      await fetch(`/api/outbound-invoices/${id}`, {
+      const res = await fetch(`/api/outbound-invoices/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, actorName: "system" }),
       });
+      if (!res.ok) throw new Error(`status ${res.status}`);
       load();
-    } catch { setError(t("outbound_invoices_status_update_failed")); }
+      notify("success", `Marked invoice as ${statusLabel(status)}`, "/outbound-invoices");
+    } catch (err) {
+      setError(t("outbound_invoices_status_update_failed"));
+      notify("error", `Failed to update invoice status: ${String(err)}`, "/outbound-invoices");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm(t("outbound_invoices_delete_confirm"))) return;
-    await fetch(`/api/outbound-invoices/${id}`, { method: "DELETE" });
-    load();
+    try {
+      const res = await fetch(`/api/outbound-invoices/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      load();
+      notify("success", "Deleted invoice", "/outbound-invoices");
+    } catch (err) {
+      setError(`Failed to delete invoice: ${String(err)}`);
+      notify("error", `Failed to delete invoice: ${String(err)}`, "/outbound-invoices");
+    }
   }
 
   const set = (k: keyof typeof form, v: unknown) => setForm((f) => {

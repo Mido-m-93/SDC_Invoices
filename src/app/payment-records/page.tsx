@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { PaymentRecord, PaymentRecordStatus } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const EMPTY: Omit<PaymentRecord, "id" | "createdAt"> = {
 
 export default function PaymentRecordsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const statusLabel = (s: PaymentRecordStatus) => t(`payment_records_status_${s}` as TranslationKey);
 
   const [records, setRecords] = useState<PaymentRecord[]>([]);
@@ -76,9 +78,11 @@ export default function PaymentRecordsPage() {
         : { ...form, id: generateId("pay"), createdAt: new Date().toISOString() };
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       setShowForm(false);
+      notify("success", editing ? `Updated payment record for ${form.vendorId || form.invoiceId}` : `Created payment record for ${form.vendorId || form.invoiceId}`, "/payment-records");
       load();
-    } catch {
+    } catch (err) {
       setError(t("payment_records_save_failed"));
+      notify("error", `Failed to save payment record: ${String(err)}`, "/payment-records");
     } finally {
       setSaving(false);
     }
@@ -86,8 +90,14 @@ export default function PaymentRecordsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("payment_records_delete_confirm"))) return;
-    await fetch(`/api/payment-records/${id}`, { method: "DELETE" });
-    load();
+    try {
+      await fetch(`/api/payment-records/${id}`, { method: "DELETE" });
+      notify("success", `Deleted payment record ${id}`, "/payment-records");
+      load();
+    } catch (err) {
+      setError(t("payment_records_save_failed"));
+      notify("error", `Failed to delete payment record ${id}: ${String(err)}`, "/payment-records");
+    }
   }
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>

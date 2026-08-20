@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import type { Member, MemberRole, MemberStatus } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 
 const EMPTY_MEMBER: Omit<Member, "id" | "createdAt" | "updatedAt" | "avatarUrl"> = {
   displayName: "",
@@ -38,6 +39,7 @@ const STATUS_COLORS: Record<MemberStatus, string> = {
 
 export default function MembersPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -97,9 +99,11 @@ export default function MembersPage() {
         });
       }
       setShowForm(false);
+      notify("success", editing ? `Updated member ${form.displayName}` : `Added member ${form.displayName}`, "/members");
       load();
-    } catch {
+    } catch (e) {
       setError(t("members_error_save"));
+      notify("error", `Failed to save member ${form.displayName}: ${e instanceof Error ? e.message : String(e)}`, "/members");
     } finally {
       setSaving(false);
     }
@@ -107,8 +111,15 @@ export default function MembersPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("members_delete_confirm"))) return;
-    await fetch(`/api/members/${id}`, { method: "DELETE" });
-    load();
+    const target = members.find((m) => m.id === id);
+    try {
+      await fetch(`/api/members/${id}`, { method: "DELETE" });
+      notify("success", `Deleted member ${target?.displayName ?? id}`, "/members");
+      load();
+    } catch (e) {
+      setError(t("members_error_save"));
+      notify("error", `Failed to delete member ${target?.displayName ?? id}: ${e instanceof Error ? e.message : String(e)}`, "/members");
+    }
   }
 
   async function handleSync() {
@@ -120,9 +131,11 @@ export default function MembersPage() {
       const data = await res.json() as { ok: boolean; added: number; skipped: number; total: number; error?: string };
       if (!data.ok) throw new Error(data.error ?? t("members_sync_error_fallback"));
       setSyncResult({ added: data.added, skipped: data.skipped, total: data.total });
+      notify("success", `Synced members: ${data.added} added, ${data.skipped} skipped, ${data.total} scanned`, "/members");
       load();
     } catch (e) {
       setError(String(e));
+      notify("error", `Failed to sync members: ${e instanceof Error ? e.message : String(e)}`, "/members");
     } finally {
       setSyncing(false);
     }

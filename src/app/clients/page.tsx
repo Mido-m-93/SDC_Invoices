@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { Client } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const EMPTY_CLIENT: Omit<Client, "id" | "createdAt" | "updatedAt"> = {
 
 export default function ClientsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,9 +75,11 @@ export default function ClientsPage() {
         body: JSON.stringify(body),
       });
       setShowForm(false);
+      notify("success", editing ? `Updated client ${form.name}` : `Added client ${form.name}`, "/clients");
       load();
     } catch {
       setError(t("clients_save_failed"));
+      notify("error", `Failed to save client ${form.name}`, "/clients");
     } finally {
       setSaving(false);
     }
@@ -83,8 +87,15 @@ export default function ClientsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("clients_delete_confirm"))) return;
-    await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    load();
+    const target = clients.find((c) => c.id === id);
+    try {
+      await fetch(`/api/clients/${id}`, { method: "DELETE" });
+      notify("success", `Deleted client ${target?.name ?? id}`, "/clients");
+      load();
+    } catch (err) {
+      setError(t("clients_save_failed"));
+      notify("error", `Failed to delete client ${target?.name ?? id}: ${String(err)}`, "/clients");
+    }
   }
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>

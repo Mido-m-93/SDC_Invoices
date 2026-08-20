@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import { useLanguage } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { Contract, Vendor, Client, Proposal } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const EMPTY_CONTRACT: ContractForm = {
 
 export default function ContractsPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -48,6 +50,7 @@ export default function ContractsPage() {
       const data = await res.json() as { matched?: number; updated?: number; skipped?: number; total?: number; error?: string; details?: typeof syncDetails };
       if (!res.ok) {
         setError(data.error ?? t("contracts_sync_failed"));
+        notify("error", `Contract sync failed: ${data.error ?? t("contracts_sync_failed")}`, "/contracts");
         return;
       }
       setSyncMsg(t("contracts_sync_result")
@@ -55,9 +58,11 @@ export default function ContractsPage() {
         .replace("{matched}", String(data.matched ?? 0))
         .replace("{total}", String(data.total ?? 0)));
       setSyncDetails(data.details ?? []);
+      notify("success", `Synced contracts: ${data.updated ?? 0} updated of ${data.total ?? 0} total`, "/contracts");
       load();
     } catch {
       setError(t("contracts_sync_failed"));
+      notify("error", "Contract sync failed", "/contracts");
     } finally {
       setSyncing(false);
     }
@@ -67,7 +72,16 @@ export default function ContractsPage() {
     setVerifying(c.id);
     try {
       const res = await fetch(`/api/contracts/${c.id}/verify`, { method: "POST" });
-      if (res.ok) load();
+      if (res.ok) {
+        notify("success", `Verified contract for ${c.projectName || c.id}`, "/contracts");
+        load();
+      } else {
+        setError(t("contracts_sync_failed"));
+        notify("error", `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
+      }
+    } catch {
+      setError(t("contracts_sync_failed"));
+      notify("error", `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
     } finally {
       setVerifying(null);
     }
@@ -148,12 +162,15 @@ export default function ContractsPage() {
       if (!res.ok) {
         const data = await res.json() as { error?: string };
         setError(data.error ?? t("contracts_save_failed"));
+        notify("error", `Failed to save contract ${form.projectName}: ${data.error ?? t("contracts_save_failed")}`, "/contracts");
         return;
       }
       setShowForm(false);
+      notify("success", editing ? `Updated contract ${form.projectName}` : `Added contract ${form.projectName}`, "/contracts");
       load();
     } catch {
       setError(t("contracts_save_failed"));
+      notify("error", `Failed to save contract ${form.projectName}`, "/contracts");
     } finally {
       setSaving(false);
     }
@@ -161,8 +178,15 @@ export default function ContractsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm(t("contracts_delete_confirm"))) return;
-    await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-    load();
+    const target = contracts.find((c) => c.id === id);
+    try {
+      await fetch(`/api/contracts/${id}`, { method: "DELETE" });
+      notify("success", `Deleted contract ${target?.projectName ?? id}`, "/contracts");
+      load();
+    } catch (err) {
+      setError(t("contracts_save_failed"));
+      notify("error", `Failed to delete contract ${target?.projectName ?? id}: ${String(err)}`, "/contracts");
+    }
   }
 
   const set = <K extends keyof ContractForm>(k: K, v: ContractForm[K]) =>

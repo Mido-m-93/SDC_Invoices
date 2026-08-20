@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import clsx from "clsx";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { MonthlyChecklistItem, BankSyncStatus, ChecklistItemStatus } from "@/types";
 
 const CATEGORIES = ["invoices", "expenses", "outbound", "bank", "tax", "payroll", "reporting"];
@@ -45,6 +46,7 @@ function monthOptions(): string[] {
 
 export default function ClosePage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const months = monthOptions();
   const [month, setMonth]         = useState(months[0]);
   const [checklist, setChecklist] = useState<MonthlyChecklistItem[]>([]);
@@ -69,31 +71,43 @@ export default function ClosePage() {
     const nextStatus: ChecklistItemStatus =
       item.status === "pending" ? "done" : item.status === "done" ? "skipped" : "pending";
     setSaving(item.id);
-    await fetch("/api/close", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: item.id,
-        month: item.month,
-        status: nextStatus,
-        completedAt: nextStatus === "done" ? new Date().toISOString() : undefined,
-        completedBy: nextStatus === "done" ? "reviewer" : undefined,
-      }),
-    });
-    setSaving(null);
-    await load();
+    try {
+      await fetch("/api/close", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: item.id,
+          month: item.month,
+          status: nextStatus,
+          completedAt: nextStatus === "done" ? new Date().toISOString() : undefined,
+          completedBy: nextStatus === "done" ? "reviewer" : undefined,
+        }),
+      });
+      notify("success", `Marked "${item.title}" as ${nextStatus} for ${item.month}`, "/close");
+      await load();
+    } catch (err) {
+      notify("error", `Failed to update "${item.title}" for ${item.month}: ${String(err)}`, "/close");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function saveNote(item: MonthlyChecklistItem) {
     setSaving(item.id);
-    await fetch("/api/close", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: item.id, month: item.month, notes: noteValue }),
-    });
-    setNoteEditing(null);
-    setSaving(null);
-    await load();
+    try {
+      await fetch("/api/close", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, month: item.month, notes: noteValue }),
+      });
+      notify("success", `Saved note for "${item.title}" (${item.month})`, "/close");
+      await load();
+    } catch (err) {
+      notify("error", `Failed to save note for "${item.title}": ${String(err)}`, "/close");
+    } finally {
+      setNoteEditing(null);
+      setSaving(null);
+    }
   }
 
   const completedCount = checklist.filter((i) => i.status === "done").length;

@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import type { MonthlyCloseChecklist, CloseChecklistItem, CloseChecklistItemStatus } from "@/types";
 
 const STATUS_CONFIG: Record<CloseChecklistItemStatus, { color: string; bg: string }> = {
@@ -29,6 +30,7 @@ const CATEGORY_LABEL_KEYS: Record<string, TranslationKey> = {
 
 export default function CloseChecklistPage() {
   const { t, language } = useLanguage();
+  const { notify } = useNotifications();
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [checklist, setChecklist] = useState<MonthlyCloseChecklist | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,12 +60,17 @@ export default function CloseChecklistPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, completedBy: actorName || undefined }),
       });
+      notify("success", `Updated "${item.title}" to ${status}`, "/close-checklist");
       load();
-    } catch { setError(t("close_checklist_update_failed")); }
+    } catch {
+      setError(t("close_checklist_update_failed"));
+      notify("error", `Failed to update "${item.title}" to ${status}`, "/close-checklist");
+    }
     finally { setUpdatingId(null); }
   }
 
   async function saveNotes(id: string) {
+    const item = checklist?.items.find((i) => i.id === id);
     try {
       await fetch(`/api/close-checklist/${id}`, {
         method: "PATCH",
@@ -71,14 +78,24 @@ export default function CloseChecklistPage() {
         body: JSON.stringify({ notes: notesValue }),
       });
       setNotesEditing(null);
+      notify("success", `Saved notes for "${item?.title ?? id}"`, "/close-checklist");
       load();
-    } catch { setError(t("close_checklist_notes_failed")); }
+    } catch {
+      setError(t("close_checklist_notes_failed"));
+      notify("error", `Failed to save notes for "${item?.title ?? id}"`, "/close-checklist");
+    }
   }
 
   async function handleReset() {
     if (!confirm(t("close_checklist_reset_confirm").replace("{month}", month))) return;
-    await fetch(`/api/close-checklist?month=${month}`, { method: "DELETE" });
-    load();
+    try {
+      await fetch(`/api/close-checklist?month=${month}`, { method: "DELETE" });
+      notify("success", `Reset close checklist for ${month}`, "/close-checklist");
+      load();
+    } catch (err) {
+      setError(t("close_checklist_load_failed"));
+      notify("error", `Failed to reset close checklist for ${month}: ${String(err)}`, "/close-checklist");
+    }
   }
 
   const itemsByCategory = checklist
