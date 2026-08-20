@@ -6,7 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useLanguage } from "@/translations";
-import { fetchRuns, fetchLogs } from "@/lib/api/client";
+import { fetchRuns, fetchLogs, clearAllRuns } from "@/lib/api/client";
 import { formatTimestamp, logResultColor } from "@/lib/utils";
 import type { ProcessingRun, ProcessingLog } from "@/types";
 import clsx from "clsx";
@@ -19,6 +19,8 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadRuns = useCallback(async () => {
     setLoading(true);
@@ -53,6 +55,22 @@ export default function LogsPage() {
   useEffect(() => { loadRuns(); }, [loadRuns]);
   useEffect(() => { if (selectedRunId) loadLogs(selectedRunId); }, [selectedRunId, loadLogs]);
 
+  const handleClearAll = async () => {
+    setClearing(true);
+    setError(null);
+    try {
+      await clearAllRuns();
+      setRuns([]);
+      setLogs([]);
+      setSelectedRunId(null);
+      setConfirmClear(false);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const selectedRun = runs.find((r) => r.id === selectedRunId);
 
   return (
@@ -61,9 +79,18 @@ export default function LogsPage() {
         <PageHeader
           title={t("logs_title")}
           actions={
-            <Button variant="secondary" size="md" onClick={loadRuns} loading={loading} icon={<RefreshIcon />}>
-              {t("load_invoices")}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" size="md" onClick={loadRuns} loading={loading} icon={<RefreshIcon />}>
+                {t("logs_refresh")}
+              </Button>
+              <button
+                onClick={() => setConfirmClear(true)}
+                disabled={runs.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t("logs_clear_all")}
+              </button>
+            </div>
           }
         />
 
@@ -169,6 +196,33 @@ export default function LogsPage() {
           </div>
         )}
       </div>
+
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-semibold text-stone-900">{t("logs_clear_all_confirm_title")}</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              {t("logs_clear_all_confirm_body")}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmClear(false)}
+                disabled={clearing}
+                className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {clearing ? t("logs_clear_all_deleting") : t("logs_clear_all_confirm_action")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

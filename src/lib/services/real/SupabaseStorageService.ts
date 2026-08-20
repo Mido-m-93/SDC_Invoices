@@ -342,6 +342,12 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`saveRun: ${error.message}`);
   }
 
+  async clearAllRuns(): Promise<void> {
+    // processing_logs.run_id references processing_runs(id) on delete cascade
+    const { error } = await this.db.from("processing_runs").delete().neq("id", "");
+    if (error) throw new Error(`clearAllRuns: ${error.message}`);
+  }
+
   async appendLog(log: ProcessingLog): Promise<void> {
     const { error } = await this.db
       .from("processing_logs")

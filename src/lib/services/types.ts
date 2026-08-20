@@ -143,6 +143,9 @@ export interface IStorageService {
   /** Save a processing run */
   saveRun(run: ProcessingRun): Promise<void>;
 
+  /** Delete ALL processing runs (and their logs, via cascade) */
+  clearAllRuns(): Promise<void>;
+
   /** Append a log entry */
   appendLog(log: ProcessingLog): Promise<void>;
 

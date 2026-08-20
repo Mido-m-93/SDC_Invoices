@@ -226,6 +226,10 @@ export async function fetchRuns(): Promise<ProcessingRun[]> {
   return data.runs;
 }
 
+export async function clearAllRuns(): Promise<void> {
+  await apiFetch<{ success: boolean }>("/api/runs", { method: "DELETE" });
+}
+
 export async function fetchLogs(runId: string): Promise<ProcessingLog[]> {
   const data = await apiFetch<{ logs: ProcessingLog[] }>(
     `/api/logs?runId=${encodeURIComponent(runId)}`
