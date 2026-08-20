@@ -26,6 +26,7 @@ import {
 } from "@/lib/api/client";
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import { SHOW_DASHBOARD_NO_DATA_BANNER } from "@/lib/featureFlags";
 import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Lead } from "@/types";
 import type { TranslationKey } from "@/translations";
 import clsx from "clsx";
@@ -446,7 +447,7 @@ export default function DashboardPage() {
         ) : stats ? (
           <>
             {/* Empty state — no invoices loaded yet */}
-            {stats.totalRows === 0 && !loading && (
+            {SHOW_DASHBOARD_NO_DATA_BANNER && stats.totalRows === 0 && !loading && (
               <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-6 py-5 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-amber-800">

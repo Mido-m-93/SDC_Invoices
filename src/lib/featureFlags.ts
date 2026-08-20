@@ -2,3 +2,4 @@
 export const SHOW_SEND_TO_MF = false;
 export const SHOW_EXPENSES_UPLOAD_EXCEL = false;
 export const SHOW_EXPENSES_NEW_CLAIM = false;
+export const SHOW_DASHBOARD_NO_DATA_BANNER = false;
