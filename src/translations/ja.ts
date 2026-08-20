@@ -303,6 +303,7 @@ const ja = {
   logs_col_time: "時刻",
   logs_col_submission: "対象ID",
   logs_entries: "エントリ",
+  logs_row_goto_invoices: "クリックして請求書一覧を表示",
 
   // ── Logs ──────────────────────────────────────────────────────────────────
   logs_title: "処理ログ",

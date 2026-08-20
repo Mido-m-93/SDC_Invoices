@@ -2,6 +2,7 @@
 // src/app/logs/page.tsx
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
@@ -13,6 +14,7 @@ import clsx from "clsx";
 
 export default function LogsPage() {
   const { t, language } = useLanguage();
+  const router = useRouter();
   const [runs, setRuns] = useState<ProcessingRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [logs, setLogs] = useState<ProcessingLog[]>([]);
@@ -169,7 +171,12 @@ export default function LogsPage() {
                     </thead>
                     <tbody className="divide-y divide-stone-50 font-mono text-xs">
                       {logs.map((log) => (
-                        <tr key={log.id} className="hover:bg-stone-50">
+                        <tr
+                          key={log.id}
+                          onClick={() => router.push("/invoices")}
+                          className="cursor-pointer hover:bg-stone-50"
+                          title={t("logs_row_goto_invoices")}
+                        >
                           <td className="px-4 py-2.5 text-stone-400 whitespace-nowrap">
                             {formatTimestamp(log.timestamp, language)}
                           </td>

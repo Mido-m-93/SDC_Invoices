@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useNotifications } from "@/lib/notifications";
 import { sendExpenseToMoneyForward } from "@/lib/api/client";
 import { SHOW_SEND_TO_MF, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
 import { monthOptions } from "@/lib/utils";
@@ -54,6 +55,7 @@ const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status"
 
 export default function ExpensesPage() {
   const { t } = useLanguage();
+  const { notify } = useNotifications();
   const [claims, setClaims] = useState<ExpenseClaim[]>([]);
   const [month, setMonth] = useState(monthOptions(1)[0]);
   const [loading, setLoading] = useState(false);
@@ -108,12 +110,15 @@ export default function ExpensesPage() {
       const data = await res.json() as { count?: number; error?: string; detectedHeaders?: string[] };
       if (!res.ok) {
         setError(data.error ?? t("expenses_upload_failed"));
+        notify("error", `Failed to upload ${file.name}: ${data.error ?? t("expenses_upload_failed")}`, "/expenses");
       } else {
         setUploadMsg(t("expenses_imported_msg").replace("{count}", String(data.count ?? 0)).replace("{file}", file.name));
+        notify("success", `Imported ${data.count ?? 0} expense claim(s) from ${file.name}`, "/expenses");
         load();
       }
     } catch {
       setError(t("expenses_upload_failed_format"));
+      notify("error", `Failed to upload ${file.name}`, "/expenses");
     } finally {
       setUploading(false);
     }
@@ -151,8 +156,12 @@ export default function ExpensesPage() {
       const method = editing ? "PUT" : "POST";
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       setShowForm(false);
+      notify("success", editing ? `Updated expense claim for ${form.submittedBy}` : `Created expense claim for ${form.submittedBy}`, "/expenses");
       load();
-    } catch { setError(t("expenses_save_failed")); }
+    } catch {
+      setError(t("expenses_save_failed"));
+      notify("error", t("expenses_save_failed"), "/expenses");
+    }
     finally { setSaving(false); }
   }
 
@@ -166,12 +175,17 @@ export default function ExpensesPage() {
       if (data.result && claim) {
         setValidationPanel({ claim, result: data.result, receiptUrl: data._debug?.receiptUrl ?? null });
       }
-    } catch { setError(t("expenses_validation_failed")); }
+      notify("success", `Validated expense claim${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
+    } catch {
+      setError(t("expenses_validation_failed"));
+      notify("error", `Validation failed${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
+    }
     finally { setValidating(null); }
   }
 
   async function handleApprove() {
     if (!approvingId || !approveAction) return;
+    const claim = claims.find((c) => c.id === approvingId) ?? null;
     try {
       await fetch(`/api/expenses/${approvingId}/approve`, {
         method: "POST",
@@ -181,24 +195,34 @@ export default function ExpensesPage() {
       setApprovingId(null);
       setApproveAction(null);
       setApproveComment("");
+      notify("info", `${approveAction === "approve" ? "Approved" : "Rejected"} expense claim${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
       load();
-    } catch { setError(t("expenses_status_update_failed")); }
+    } catch {
+      setError(t("expenses_status_update_failed"));
+      notify("error", t("expenses_status_update_failed"), "/expenses");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm(t("expenses_delete_confirm"))) return;
+    const claim = claims.find((c) => c.id === id) ?? null;
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    notify("info", `Deleted expense claim${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
     load();
   }
 
   async function handleSendToMF(id: string) {
     setSendingToMF(id);
     setError(null);
+    const claim = claims.find((c) => c.id === id) ?? null;
     try {
       await sendExpenseToMoneyForward(id);
+      notify("success", `Sent expense claim${claim ? ` for ${claim.submittedBy}` : ""} to MoneyForward`, "/expenses");
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      notify("error", `Failed to send expense claim${claim ? ` for ${claim.submittedBy}` : ""} to MoneyForward: ${msg}`, "/expenses");
     } finally {
       setSendingToMF(null);
     }
@@ -215,16 +239,19 @@ export default function ExpensesPage() {
       const data = await res.json() as { count?: number; synced?: number; totalRows?: number; skipped?: number; error?: string };
       if (!res.ok) {
         setError(data.error ?? t("expenses_sync_failed"));
+        notify("error", data.error ?? t("expenses_sync_failed"), "/expenses");
       } else {
         const n = data.count ?? data.synced ?? 0;
         const total = data.totalRows ?? n;
         const skipped = data.skipped ?? 0;
         const skipNote = skipped > 0 ? t("expenses_skipped_rows").replace("{skipped}", String(skipped)) : "";
         setUploadMsg(t("expenses_synced_msg").replace("{n}", String(n)).replace("{total}", String(total)) + skipNote);
+        notify("success", `Synced ${n} expense claim(s) from forms`, "/expenses");
         load();
       }
     } catch {
       setError(t("expenses_sync_failed_logs"));
+      notify("error", t("expenses_sync_failed_logs"), "/expenses");
     } finally {
       setSyncing(false);
     }
@@ -238,12 +265,15 @@ export default function ExpensesPage() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
         setError(data.error ?? t("expenses_sync_failed"));
+        notify("error", data.error ?? t("expenses_sync_failed"), "/expenses");
       } else {
         setClaims([]);
         setConfirmCleanAll(false);
+        notify("info", "Cleared all expense claims", "/expenses");
       }
     } catch {
       setError(t("expenses_sync_failed_logs"));
+      notify("error", t("expenses_sync_failed_logs"), "/expenses");
     } finally {
       setCleaningAll(false);
     }

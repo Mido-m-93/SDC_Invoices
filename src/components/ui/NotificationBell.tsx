@@ -2,6 +2,7 @@
 // src/components/ui/NotificationBell.tsx
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useNotifications, type NotificationKind } from "@/lib/notifications";
 import { useLanguage } from "@/translations";
 import { formatTimestamp } from "@/lib/utils";
@@ -17,6 +18,7 @@ export default function NotificationBell() {
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +64,15 @@ export default function NotificationBell() {
               </p>
             ) : (
               notifications.map((n) => (
-                <div key={n.id} className="flex items-start gap-2.5 border-b border-stone-50 px-4 py-3 last:border-0">
+                <div
+                  key={n.id}
+                  onClick={() => {
+                    if (!n.href) return;
+                    setOpen(false);
+                    router.push(n.href);
+                  }}
+                  className={`flex items-start gap-2.5 border-b border-stone-50 px-4 py-3 last:border-0 ${n.href ? "cursor-pointer hover:bg-stone-50" : ""}`}
+                >
                   <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASSES[n.kind]}`} />
                   <div className="min-w-0">
                     <p className="text-xs text-stone-700">{n.message}</p>
