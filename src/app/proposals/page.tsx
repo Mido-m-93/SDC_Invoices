@@ -52,6 +52,28 @@ export default function ProposalsPage() {
   const [accepting, setAccepting] = useState<string | null>(null);
   const [acceptedResult, setAcceptedResult] = useState<AcceptedResult | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; savedNames: string[] } | null>(null);
+
+  async function handleSyncFromSharePoint() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/proposals/sync", { method: "POST" });
+      const data = await res.json() as { saved: number; failed: number; savedNames: string[]; error?: string };
+      if (!res.ok) {
+        notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/proposals");
+        return;
+      }
+      setSyncResult(data);
+      notify("success", `Synced ${data.saved} proposal(s) from SharePoint`, "/proposals");
+      load();
+    } catch {
+      notify("error", "SharePoint sync failed", "/proposals");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleVerify(p: Proposal) {
     setVerifying(p.id);
@@ -219,7 +241,14 @@ export default function ProposalsPage() {
       <PageHeader
         title={t("proposals_title")}
         subtitle={t("proposals_subtitle")}
-        actions={<Button variant="primary" onClick={openNew}>{t("proposals_add_button")}</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handleSyncFromSharePoint} disabled={syncing}>
+              {syncing ? "Syncing…" : "Sync from SharePoint"}
+            </Button>
+            <Button variant="primary" onClick={openNew}>{t("proposals_add_button")}</Button>
+          </div>
+        }
       />
 
       {/* Summary */}
@@ -238,6 +267,17 @@ export default function ProposalsPage() {
           <div className="text-xs text-stone-400 mt-0.5">{t("proposals_summary_accepted_count").replace("{count}", String(proposals.filter(p => p.status === "accepted").length))}</div>
         </div>
       </div>
+
+      {syncResult && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
+          <span>
+            Synced <strong>{syncResult.saved}</strong> proposal(s) from SharePoint
+            {syncResult.failed > 0 && ` (${syncResult.failed} failed)`}
+            {syncResult.savedNames.length > 0 && `: ${syncResult.savedNames.join(", ")}`}
+          </span>
+          <button onClick={() => setSyncResult(null)} className="text-emerald-400 hover:text-emerald-600">×</button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex justify-between">
