@@ -32,7 +32,6 @@ const NAV_ITEMS = [
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
-  { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
