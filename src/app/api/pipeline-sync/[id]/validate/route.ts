@@ -89,6 +89,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const bestProposal = proposalsByName[0] ?? null;
   const proposalAmount = amountClose(estimatedAmount, bestProposal?.proposal.estimatedAmount ?? null);
 
+  // ── Stage 4: Proposal ↔ Contract cross-check ──────────────────────────────
+  const crossCheck = bestContract && bestProposal
+    ? amountClose(bestProposal.proposal.estimatedAmount, bestContract.contract.expectedMonthlyAmount)
+    : null;
+
   return NextResponse.json({
     recordId: params.id,
     rawClientName,
@@ -127,6 +132,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           score: Math.round(bestProposal.score * 100),
         } : null,
         amountClose: proposalAmount,
+      },
+      proposalContractCross: {
+        applicable: !!(bestContract && bestProposal),
+        amountClose: crossCheck,
+        proposalAmount: bestProposal?.proposal.estimatedAmount ?? null,
+        contractAmount: bestContract?.contract.expectedMonthlyAmount ?? null,
+        currency: bestContract?.contract.currency ?? bestProposal?.proposal.currency ?? "JPY",
       },
     },
   });

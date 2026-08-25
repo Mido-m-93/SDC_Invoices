@@ -59,6 +59,13 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
     };
+    proposalContractCross: {
+      applicable: boolean;
+      amountClose: { close: boolean; diffPct: number | null } | null;
+      proposalAmount: number | null;
+      contractAmount: number | null;
+      currency: string;
+    };
   };
 }
 
@@ -492,8 +499,46 @@ export default function PipelineSyncPage() {
                     })()}
                     link={panelResult.stages.proposalMatch.proposal?.folderUrl ?? null}
                     linkLabel="View Proposal"
-                    isLast
                   />
+
+                  {/* Stage 4: Proposal ↔ Contract cross-check */}
+                  {(() => {
+                    const cross = panelResult.stages.proposalContractCross;
+                    if (!cross.applicable) {
+                      return (
+                        <ValidationStage
+                          number={4}
+                          title="Proposal ↔ Contract amount match"
+                          subtitle="Cross-check: do proposal and contract agree?"
+                          pass={false}
+                          warn={false}
+                          lines={["Skipped — need both a matched contract and proposal to compare"]}
+                          isLast
+                        />
+                      );
+                    }
+                    const close = cross.amountClose?.close ?? false;
+                    const diffPct = cross.amountClose?.diffPct ?? null;
+                    return (
+                      <ValidationStage
+                        number={4}
+                        title="Proposal ↔ Contract amount match"
+                        subtitle="Cross-check: do proposal and contract agree?"
+                        pass={close}
+                        warn={!close && diffPct !== null}
+                        lines={[
+                          `Proposal: ${cross.currency} ${cross.proposalAmount?.toLocaleString() ?? "—"}`,
+                          `Contract: ${cross.currency} ${cross.contractAmount?.toLocaleString() ?? "—"}`,
+                          diffPct !== null
+                            ? close
+                              ? `✓ Amounts match within ${diffPct}%`
+                              : `⚠ Amounts differ by ${diffPct}% — review before proceeding`
+                            : "Could not compare amounts",
+                        ]}
+                        isLast
+                      />
+                    );
+                  })()}
                 </div>
               ) : (
                 <p className="text-sm text-red-600">Could not run validation. You can still create the lead below.</p>
