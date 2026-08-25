@@ -40,8 +40,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
   const { user, signOut } = useCurrentUser();
-  const salesActive = SALES_HREFS.some((href) => pathname.startsWith(href));
-  const membersActive = MEMBERS_HREFS.some((href) => pathname.startsWith(href));
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
@@ -80,12 +78,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             })}
 
             {/* Sales group */}
-            <div
-              className={clsx(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
-                salesActive ? "text-white" : "text-white/60",
-              )}
-            >
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
               <BriefcaseIcon size={15} />
               <span>Sales</span>
             </div>
@@ -112,12 +105,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             {/* Members group */}
-            <div
-              className={clsx(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
-                membersActive ? "text-white" : "text-white/60",
-              )}
-            >
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
               <MemberIcon size={15} />
               <span>Members</span>
             </div>
