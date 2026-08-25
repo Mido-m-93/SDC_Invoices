@@ -18,15 +18,20 @@ const SALES_ITEMS = [
   { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
 ];
 
+const MEMBERS_HREFS = ["/members", "/invoices", "/expenses"];
+
+const MEMBERS_ITEMS = [
+  { key: "nav_members" as const, href: "/members", icon: MemberIcon },
+  { key: "nav_invoices" as const, href: "/invoices", icon: FileIcon },
+  { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
+];
+
 const NAV_ITEMS = [
   { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
   { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
-  { key: "nav_members" as const, href: "/members", icon: MemberIcon },
-  { key: "nav_invoices" as const, href: "/invoices", icon: FileIcon },
-  { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
   { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
@@ -38,6 +43,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, signOut } = useCurrentUser();
   const salesActive = SALES_HREFS.some((href) => pathname.startsWith(href));
+  const membersActive = MEMBERS_HREFS.some((href) => pathname.startsWith(href));
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
@@ -88,6 +94,38 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
             <div className="ml-3 border-l border-white/10 pl-2">
               {SALES_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Members group */}
+            <div
+              className={clsx(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                membersActive ? "text-white" : "text-white/60",
+              )}
+            >
+              <MemberIcon size={15} />
+              <span>Members</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {MEMBERS_ITEMS.map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
