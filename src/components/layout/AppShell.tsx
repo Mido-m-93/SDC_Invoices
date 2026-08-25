@@ -8,7 +8,7 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-const SALES_HREFS = ["/clients", "/leads", "/proposals", "/contracts", "/pipeline-sync"];
+const SALES_HREFS = ["/clients", "/leads", "/proposals", "/contracts", "/pipeline-sync", "/outbound-invoices"];
 
 const SALES_ITEMS = [
   { key: "nav_clients" as const, href: "/clients", icon: ClientIcon },
@@ -16,6 +16,7 @@ const SALES_ITEMS = [
   { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
   { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
   { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
+  { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
 ];
 
 const MEMBERS_HREFS = ["/members", "/invoices", "/expenses"];
@@ -28,7 +29,6 @@ const MEMBERS_ITEMS = [
 
 const NAV_ITEMS = [
   { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
-  { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
