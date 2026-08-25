@@ -20,13 +20,13 @@ const SALES_ITEMS = [
 
 const NAV_ITEMS = [
   { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
-  { key: "nav_invoices" as const, href: "/invoices", icon: FileIcon },
-  { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
   { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
   { key: "nav_members" as const, href: "/members", icon: MemberIcon },
+  { key: "nav_invoices" as const, href: "/invoices", icon: FileIcon },
+  { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
   { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
