@@ -8,7 +8,7 @@ const ja = {
   app_name_short: "請求書ツール",
   language_toggle: "EN",
   nav_dashboard: "ダッシュボード",
-  nav_proposals: "提案・見積",
+  nav_proposals: "提案",
   nav_invoices: "請求書一覧",
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",

@@ -8,7 +8,7 @@ const en = {
   app_name_short: "Invoice Tool",
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
-  nav_proposals: "Proposals",
+  nav_proposals: "Proposal",
   nav_invoices: "Invoices",
   nav_payment_records: "Payments",
   nav_logs: "Logs",

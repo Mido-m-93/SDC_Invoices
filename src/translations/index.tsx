@@ -8,6 +8,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   ReactNode,
   useCallback,
 } from "react";
@@ -39,6 +40,10 @@ export function LanguageProvider({
   defaultLanguage?: Language;
 }) {
   const [language, setLanguage] = useState<Language>(defaultLanguage);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   const t = useCallback(
     (key: TranslationKey): string => {
