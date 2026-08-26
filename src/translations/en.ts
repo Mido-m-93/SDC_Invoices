@@ -13,6 +13,9 @@ const en = {
   nav_payment_records: "Payments",
   nav_logs: "Logs",
   nav_config: "Settings",
+  nav_group_sales: "Sales",
+  nav_group_members: "Members",
+  nav_group_finance: "Finance",
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "Dashboard",

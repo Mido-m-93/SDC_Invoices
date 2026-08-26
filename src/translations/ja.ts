@@ -13,6 +13,9 @@ const ja = {
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",
   nav_config: "設定",
+  nav_group_sales: "営業",
+  nav_group_members: "メンバー",
+  nav_group_finance: "財務",
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "ダッシュボード",

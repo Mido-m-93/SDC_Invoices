@@ -85,7 +85,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {/* Sales group */}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
               <BriefcaseIcon size={15} />
-              <span>Sales</span>
+              <span>{t("nav_group_sales")}</span>
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
@@ -112,7 +112,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {/* Members group */}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
               <MemberIcon size={15} />
-              <span>Members</span>
+              <span>{t("nav_group_members")}</span>
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
@@ -139,7 +139,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {/* Finance group */}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
               <AccountingIcon size={15} />
-              <span>Finance</span>
+              <span>{t("nav_group_finance")}</span>
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
