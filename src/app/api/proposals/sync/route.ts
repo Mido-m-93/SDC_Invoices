@@ -16,12 +16,20 @@ export async function POST() {
   const { user, response } = await requireAuth();
   if (!user) return response!;
 
-  const { fetchSharePointProposals } = await import("@/lib/services/real/proposalSharePointSource");
+  const { fetchSharePointProposals, fetchClientFolderProposals } = await import("@/lib/services/real/proposalSharePointSource");
   const service = getProposalService();
 
   let result: Awaited<ReturnType<typeof fetchSharePointProposals>>;
   try {
-    result = await fetchSharePointProposals();
+    const [flatScan, clientFolderScan] = await Promise.all([
+      fetchSharePointProposals(),
+      fetchClientFolderProposals(),
+    ]);
+    const seenFileIds = new Set(flatScan.items.map((i) => i.fileId));
+    result = {
+      items: [...flatScan.items, ...clientFolderScan.items.filter((i) => !seenFileIds.has(i.fileId))],
+      scan: [...flatScan.scan, ...clientFolderScan.scan],
+    };
   } catch (err) {
     console.error("[proposals/sync] SharePoint scan failed:", err);
     return NextResponse.json({ error: String(err) }, { status: 502 });
