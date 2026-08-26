@@ -20,6 +20,61 @@ const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
 
 type Override = { clientId: string; clientName: string };
 
+interface ValidationResult {
+  recordId: string;
+  rawClientName: string;
+  projectName: string;
+  estimatedAmount: number | null;
+  stages: {
+    clientExists: {
+      pass: boolean;
+      contractCount: number;
+      proposalCount: number;
+    };
+    contractMatch: {
+      found: boolean;
+      contract: {
+        id: string;
+        projectName: string;
+        clientName: string | null;
+        expectedMonthlyAmount: number;
+        currency: string;
+        status: string;
+        folderUrl: string | null;
+        score: number;
+      } | null;
+      amountClose: { close: boolean; diffPct: number | null };
+    };
+    proposalMatch: {
+      found: boolean;
+      proposal: {
+        id: string;
+        projectName: string;
+        clientName: string | null;
+        estimatedAmount: number;
+        currency: string;
+        status: string;
+        folderUrl: string | null;
+        score: number;
+      } | null;
+      amountClose: { close: boolean; diffPct: number | null };
+    };
+    proposalContractCross: {
+      applicable: boolean;
+      amountClose: { close: boolean; diffPct: number | null } | null;
+      proposalAmount: number | null;
+      contractAmount: number | null;
+      currency: string;
+    };
+  };
+}
+
+interface ValidationPanel {
+  record: StagedPipelineRecord;
+  result: ValidationResult | null;
+  loading: boolean;
+}
+
 export default function PipelineSyncPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
@@ -39,6 +94,7 @@ export default function PipelineSyncPage() {
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
   const [sourceStatus, setSourceStatus] = useState<Record<PipelineSourceType, "real" | "mock"> | null>(null);
+  const [validationPanel, setValidationPanel] = useState<ValidationPanel | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,11 +165,27 @@ export default function PipelineSyncPage() {
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
       setSyncDetail(last ? last.detail : null);
     } catch {
-      // best-effort diagnostic only — don't surface a fetch error here
+      // best-effort diagnostic only
     }
   }
 
-  async function approve(r: StagedPipelineRecord) {
+  // Open validation panel and run the 3-stage check
+  async function openValidation(r: StagedPipelineRecord) {
+    setValidationPanel({ record: r, result: null, loading: true });
+    try {
+      const res = await fetch(`/api/pipeline-sync/${r.id}/validate`, { method: "POST" });
+      const data = (await res.json()) as ValidationResult & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Validation failed");
+      setValidationPanel({ record: r, result: data, loading: false });
+    } catch (err) {
+      setValidationPanel({ record: r, result: null, loading: false });
+      setError(err instanceof Error ? err.message : "Validation failed");
+    }
+  }
+
+  async function confirmApprove() {
+    if (!validationPanel) return;
+    const r = validationPanel.record;
     setBusyId(r.id);
     setError(null);
     try {
@@ -130,6 +202,7 @@ export default function PipelineSyncPage() {
         notify("error", message, "/pipeline-sync");
         return;
       }
+      setValidationPanel(null);
       await load();
       notify("success", t("pipeline_sync_notify_approved").replace("{name}", r.rawClientName), "/pipeline-sync");
     } catch {
@@ -184,6 +257,11 @@ export default function PipelineSyncPage() {
     rejected: records.filter((r) => r.status === "rejected").length,
   };
 
+  // Determine overall panel result for the summary badge
+  const panelResult = validationPanel?.result;
+  const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found;
+  const hasFlag = panelResult && (!panelResult.stages.clientExists.pass || !panelResult.stages.contractMatch.found || !panelResult.stages.proposalMatch.found);
+
   return (
     <AppShell>
       <PageHeader
@@ -216,9 +294,7 @@ export default function PipelineSyncPage() {
 
       {syncDetail && (
         <div className="mb-4 flex justify-between gap-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-800">
-          <span>
-            <strong>{t("pipeline_sync_last_run_label")}</strong> {syncDetail}
-          </span>
+          <span><strong>{t("pipeline_sync_last_run_label")}</strong> {syncDetail}</span>
           <button onClick={() => setSyncDetail(null)} className="shrink-0 text-sky-400 hover:text-sky-600">×</button>
         </div>
       )}
@@ -300,7 +376,7 @@ export default function PipelineSyncPage() {
                     <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
                       {t("pipeline_sync_reject")}
                     </Button>
-                    <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => approve(r)}>
+                    <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
                       {t("pipeline_sync_approve")}
                     </Button>
                   </div>
@@ -310,6 +386,240 @@ export default function PipelineSyncPage() {
           })}
         </div>
       )}
+
+      {/* ── Validation panel (right-side drawer) ── */}
+      {validationPanel && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+            onClick={() => setValidationPanel(null)}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 flex w-[420px] flex-col bg-white shadow-2xl">
+            {/* Panel header */}
+            <div className="flex items-start justify-between border-b border-stone-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-stone-400 mb-0.5">AI Validation</p>
+                <h2 className="text-base font-semibold text-stone-900">{validationPanel.record.rawClientName}</h2>
+                <p className="text-xs text-stone-500 mt-0.5">{validationPanel.record.projectName || "—"}</p>
+              </div>
+              <button onClick={() => setValidationPanel(null)} className="mt-1 text-stone-400 hover:text-stone-600 text-lg leading-none">×</button>
+            </div>
+
+            {/* Summary badge */}
+            {panelResult && (
+              <div className={`mx-6 mt-4 rounded-xl border px-4 py-2.5 text-sm font-medium ${
+                allGreen
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}>
+                {allGreen
+                  ? "✓ All checks passed — safe to create lead"
+                  : "⚠ Some checks need review — lead can still be created"}
+              </div>
+            )}
+
+            {/* Stage cards */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {validationPanel.loading ? (
+                <div className="flex items-center justify-center py-16 text-sm text-stone-400">
+                  Running AI checks…
+                </div>
+              ) : panelResult ? (
+                <div>
+                  {/* Stage 1 */}
+                  <ValidationStage
+                    number={1}
+                    title="Client exists in system?"
+                    subtitle="Matched against contracts and proposals"
+                    pass={panelResult.stages.clientExists.pass}
+                    warn={false}
+                    lines={
+                      panelResult.stages.clientExists.pass
+                        ? [
+                            panelResult.stages.clientExists.contractCount > 0
+                              ? `✓ Found in ${panelResult.stages.clientExists.contractCount} contract(s)`
+                              : "",
+                            panelResult.stages.clientExists.proposalCount > 0
+                              ? `✓ Found in ${panelResult.stages.clientExists.proposalCount} proposal(s)`
+                              : "",
+                          ].filter(Boolean)
+                        : ["No matching client found in contracts or proposals"]
+                    }
+                  />
+
+                  {/* Stage 2 */}
+                  <ValidationStage
+                    number={2}
+                    title="Contract exists for this client?"
+                    subtitle="Name match + amount comparison"
+                    pass={panelResult.stages.contractMatch.found && (panelResult.stages.contractMatch.amountClose.close || panelResult.stages.contractMatch.amountClose.diffPct === null)}
+                    warn={panelResult.stages.contractMatch.found && panelResult.stages.contractMatch.amountClose.diffPct !== null && !panelResult.stages.contractMatch.amountClose.close}
+                    lines={(() => {
+                      const c = panelResult.stages.contractMatch;
+                      if (!c.found) return ["No contract found for this client"];
+                      const lines = [
+                        `✓ Matched: "${c.contract!.projectName}" (${c.contract!.score}% name match)`,
+                        c.contract!.expectedMonthlyAmount
+                          ? `Expected: ${c.contract!.currency} ${c.contract!.expectedMonthlyAmount.toLocaleString()}/mo`
+                          : "",
+                        c.amountClose.diffPct !== null
+                          ? c.amountClose.close
+                            ? `✓ Amount within ${c.amountClose.diffPct}% of contract`
+                            : `⚠ Amount differs by ${c.amountClose.diffPct}% from contract`
+                          : "",
+                      ].filter(Boolean);
+                      return lines;
+                    })()}
+                    link={panelResult.stages.contractMatch.contract?.folderUrl ?? null}
+                    linkLabel="View Contract"
+                  />
+
+                  {/* Stage 3 */}
+                  <ValidationStage
+                    number={3}
+                    title="Proposal exists for this client?"
+                    subtitle="Name match + amount comparison"
+                    pass={panelResult.stages.proposalMatch.found && (panelResult.stages.proposalMatch.amountClose.close || panelResult.stages.proposalMatch.amountClose.diffPct === null)}
+                    warn={panelResult.stages.proposalMatch.found && panelResult.stages.proposalMatch.amountClose.diffPct !== null && !panelResult.stages.proposalMatch.amountClose.close}
+                    lines={(() => {
+                      const p = panelResult.stages.proposalMatch;
+                      if (!p.found) return ["No proposal found for this client"];
+                      const lines = [
+                        `✓ Matched: "${p.proposal!.projectName}" (${p.proposal!.score}% name match)`,
+                        p.proposal!.estimatedAmount
+                          ? `Proposed: ${p.proposal!.currency} ${p.proposal!.estimatedAmount.toLocaleString()}`
+                          : "",
+                        p.amountClose.diffPct !== null
+                          ? p.amountClose.close
+                            ? `✓ Amount within ${p.amountClose.diffPct}% of proposal`
+                            : `⚠ Amount differs by ${p.amountClose.diffPct}% from proposal`
+                          : "",
+                      ].filter(Boolean);
+                      return lines;
+                    })()}
+                    link={panelResult.stages.proposalMatch.proposal?.folderUrl ?? null}
+                    linkLabel="View Proposal"
+                  />
+
+                  {/* Stage 4: Proposal ↔ Contract cross-check */}
+                  {(() => {
+                    const cross = panelResult.stages.proposalContractCross;
+                    if (!cross.applicable) {
+                      return (
+                        <ValidationStage
+                          number={4}
+                          title="Proposal ↔ Contract amount match"
+                          subtitle="Cross-check: do proposal and contract agree?"
+                          pass={false}
+                          warn={false}
+                          lines={["Skipped — need both a matched contract and proposal to compare"]}
+                          isLast
+                        />
+                      );
+                    }
+                    const close = cross.amountClose?.close ?? false;
+                    const diffPct = cross.amountClose?.diffPct ?? null;
+                    return (
+                      <ValidationStage
+                        number={4}
+                        title="Proposal ↔ Contract amount match"
+                        subtitle="Cross-check: do proposal and contract agree?"
+                        pass={close}
+                        warn={!close && diffPct !== null}
+                        lines={[
+                          `Proposal: ${cross.currency} ${cross.proposalAmount?.toLocaleString() ?? "—"}`,
+                          `Contract: ${cross.currency} ${cross.contractAmount?.toLocaleString() ?? "—"}`,
+                          diffPct !== null
+                            ? close
+                              ? `✓ Amounts match within ${diffPct}%`
+                              : `⚠ Amounts differ by ${diffPct}% — review before proceeding`
+                            : "Could not compare amounts",
+                        ]}
+                        isLast
+                      />
+                    );
+                  })()}
+                </div>
+              ) : (
+                <p className="text-sm text-red-600">Could not run validation. You can still create the lead below.</p>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="border-t border-stone-100 px-6 py-4 flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setValidationPanel(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={!!busyId}
+                onClick={confirmApprove}
+              >
+                {hasFlag ? "Create Lead (Needs Review)" : "Confirm & Create Lead"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </AppShell>
+  );
+}
+
+// ── Validation stage card ─────────────────────────────────────────────────────
+
+function ValidationStage({
+  number, title, subtitle, pass, warn, lines, link, linkLabel, isLast,
+}: {
+  number: number;
+  title: string;
+  subtitle: string;
+  pass: boolean;
+  warn: boolean;
+  lines: string[];
+  link?: string | null;
+  linkLabel?: string;
+  isLast?: boolean;
+}) {
+  const status = warn ? "warn" : pass ? "pass" : "fail";
+  const colors = {
+    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: "Passed" },
+    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: "Review" },
+    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: "Not found" },
+  }[status];
+
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm ${colors.num}`}>
+          {number}
+        </div>
+        {!isLast && <div className="mt-1 h-full w-px bg-stone-200" />}
+      </div>
+      <div className={`mb-3 flex-1 rounded-xl border px-4 py-3 ${colors.card}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-stone-800">{title}</p>
+            <p className="text-xs text-stone-500">{subtitle}</p>
+          </div>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${colors.badge}`}>
+            {colors.icon} {colors.label}
+          </span>
+        </div>
+        <div className={`mt-2 space-y-0.5 text-xs leading-relaxed ${colors.text}`}>
+          {lines.map((l, i) => <p key={i}>{l}</p>)}
+        </div>
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a3d2b] underline underline-offset-2 hover:opacity-75"
+          >
+            {linkLabel ?? "View"} →
+          </a>
+        )}
+      </div>
+    </div>
   );
 }

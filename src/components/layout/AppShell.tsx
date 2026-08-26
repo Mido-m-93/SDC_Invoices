@@ -8,22 +8,30 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-const NAV_ITEMS = [
-  { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
-  { key: "nav_clients" as const, href: "/clients", icon: ClientIcon },
+const SALES_HREFS = ["/leads", "/proposals", "/contracts", "/pipeline-sync", "/outbound-invoices"];
+
+const SALES_ITEMS = [
+  { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_leads" as const, href: "/leads", icon: LeadIcon },
   { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
+  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
+  { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
+];
+
+const MEMBERS_HREFS = ["/members", "/invoices", "/expenses"];
+
+const MEMBERS_ITEMS = [
+  { key: "nav_members" as const, href: "/members", icon: MemberIcon },
   { key: "nav_invoices" as const, href: "/invoices", icon: FileIcon },
   { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
-  { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
+];
+
+const NAV_ITEMS = [
+  { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
-  { key: "nav_members" as const, href: "/members", icon: MemberIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
-  { key: "nav_vendors" as const, href: "/vendors", icon: UsersIcon },
-  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
-  { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
@@ -49,7 +57,82 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {/* Nav + footer scroll together; footer pinned to bottom via mt-auto */}
         <div className="flex flex-1 flex-col overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
           <nav className="px-3 py-3">
-            {NAV_ITEMS.map(({ key, href, icon: Icon }) => {
+            {/* Dashboard */}
+            {NAV_ITEMS.slice(0, 1).map(({ key, href, icon: Icon }) => {
+              const active = pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                    active
+                      ? "bg-white/10 text-white"
+                      : "text-white/60 hover:bg-white/5 hover:text-white",
+                  )}
+                >
+                  <Icon size={15} />
+                  <span>{t(key)}</span>
+                </Link>
+              );
+            })}
+
+            {/* Sales group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <BriefcaseIcon size={15} />
+              <span>Sales</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {SALES_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Members group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <MemberIcon size={15} />
+              <span>Members</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {MEMBERS_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Remaining nav items */}
+            {NAV_ITEMS.slice(1).map(({ key, href, icon: Icon }) => {
               const active = pathname.startsWith(href);
               return (
                 <Link
@@ -285,4 +368,7 @@ function ChartIcon({ size = 18 }: { size?: number }) {
 }
 function SyncIcon({ size = 18 }: { size?: number }) {
   return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><polyline points="23,4 23,10 17,10"/><polyline points="1,20 1,14 7,14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
+}
+function BriefcaseIcon({ size = 18 }: { size?: number }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="12"/><path d="M2 12h20"/></svg>);
 }

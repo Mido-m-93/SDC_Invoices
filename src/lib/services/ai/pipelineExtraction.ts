@@ -59,7 +59,7 @@ export async function extractPipelineRecordsFromText(
     messages: [
       {
         role: "user",
-        content: `The text below is a freeform Notion page tracking a sales/client pipeline (leads, proposals, deals). Extract every distinct deal/client entry you can find and return ONLY a valid JSON array — no markdown, no explanation.
+        content: `The text below is a freeform Notion page or SharePoint file tracking a sales/client pipeline (leads, proposals, deals). Extract every distinct deal/client entry and return ONLY a valid JSON array — no markdown, no explanation.
 
 ${rawText.slice(0, 12000)}
 
@@ -68,9 +68,9 @@ Return exactly this JSON shape (array):
   {
     "rawClientName": "client or company name exactly as written",
     "projectName": "deal/project title or short description",
-    "stageOrStatus": "whatever stage/status label is used in the text (e.g. 'new', 'in talks', 'proposal sent', 'won')",
+    "stageOrStatus": "whatever stage/status label is used (e.g. 'new', 'in talks', 'proposal sent', 'won')",
     "estimatedAmount": number or null,
-    "currency": "JPY, USD, etc — guess JPY if unclear",
+    "currency": "JPY, USD, etc — default JPY if unclear",
     "contactName": "contact person name or null",
     "contactEmail": "contact email or null",
     "notes": "any other relevant free text or null"
@@ -78,9 +78,10 @@ Return exactly this JSON shape (array):
 ]
 
 Rules:
-- One object per distinct client/deal mentioned.
-- rawClientName is required; skip entries where no client/company name can be identified.
-- Do not invent data that is not present in the text.`,
+- One object per distinct client/deal.
+- rawClientName is required; skip entries with no identifiable client/company.
+- For estimatedAmount: look hard — check for any monetary value, budget, fee, contract amount, or price mentioned near the client/deal (e.g. "¥500,000", "$10,000", "500K", "monthly fee: 200,000"). Strip currency symbols and parse as a plain number. Only return null if truly no amount appears anywhere in the entry.
+- Do not invent data not present in the text.`,
       },
     ],
   });
