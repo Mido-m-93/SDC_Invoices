@@ -26,12 +26,17 @@ const MEMBERS_ITEMS = [
   { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
 ];
 
-const NAV_ITEMS = [
-  { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
+const FINANCE_HREFS = ["/payment-records", "/accounting", "/close-checklist", "/reporting"];
+
+const FINANCE_ITEMS = [
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
+];
+
+const NAV_ITEMS = [
+  { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
@@ -112,6 +117,33 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
             <div className="ml-3 border-l border-white/10 pl-2">
               {MEMBERS_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Finance group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <AccountingIcon size={15} />
+              <span>Finance</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {FINANCE_ITEMS.map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
