@@ -63,7 +63,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         {/* Nav + footer scroll together; footer pinned to bottom via mt-auto */}
-        <div className="flex flex-1 flex-col overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10">
+        <div className="flex flex-1 flex-col overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb:hover]:bg-white/45">
           <nav className="px-3 py-3">
             {/* Dashboard */}
             {NAV_ITEMS.slice(0, 1).map(({ key, href, icon: Icon }) => {
