@@ -35,11 +35,14 @@ const FINANCE_ITEMS = [
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
 ];
 
-const NAV_ITEMS = [
-  { key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon },
+const SYSTEM_HREFS = ["/logs", "/config"];
+
+const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
+
+const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon }];
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
@@ -163,25 +166,32 @@ export default function AppShell({ children }: { children: ReactNode }) {
               })}
             </div>
 
-            {/* Remaining nav items */}
-            {NAV_ITEMS.slice(1).map(({ key, href, icon: Icon }) => {
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={clsx(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-                    active
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:bg-white/5 hover:text-white",
-                  )}
-                >
-                  <Icon size={15} />
-                  <span>{t(key)}</span>
-                </Link>
-              );
-            })}
+            {/* System group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <CogIcon size={15} />
+              <span>{t("nav_group_system")}</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {SYSTEM_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           <div className="mt-auto space-y-2 border-t border-white/10 px-4 py-4">

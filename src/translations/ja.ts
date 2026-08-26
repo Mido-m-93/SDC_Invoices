@@ -16,6 +16,7 @@ const ja = {
   nav_group_sales: "営業",
   nav_group_members: "メンバー",
   nav_group_finance: "財務",
+  nav_group_system: "システム",
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "ダッシュボード",

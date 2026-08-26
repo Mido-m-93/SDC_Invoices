@@ -16,6 +16,7 @@ const en = {
   nav_group_sales: "Sales",
   nav_group_members: "Members",
   nav_group_finance: "Finance",
+  nav_group_system: "System",
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "Dashboard",
