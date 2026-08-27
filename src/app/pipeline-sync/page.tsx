@@ -7,9 +7,25 @@ import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry } from "@/types";
+import { similarity } from "@/lib/services/ai/pipelineMatching";
+import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry, Proposal, Contract } from "@/types";
 
 const SOURCE_LABEL: Record<PipelineSourceType, string> = { notion: "Notion", sharepoint: "SharePoint" };
+
+// Same threshold as /api/pipeline-sync/[id]/validate's "does anything
+// plausibly related exist?" check (looser than the 0.85 auto-link bar) —
+// kept in sync so the at-a-glance badge agrees with the validation panel.
+const EXISTENCE_THRESHOLD = 0.45;
+
+function existenceCounts(rawClientName: string, contracts: Contract[], proposals: Proposal[]) {
+  const contractCount = contracts.filter(
+    (c) => Math.max(similarity(rawClientName, c.clientName ?? ""), similarity(rawClientName, c.projectName)) >= EXISTENCE_THRESHOLD
+  ).length;
+  const proposalCount = proposals.filter(
+    (p) => Math.max(similarity(rawClientName, p.clientName ?? ""), similarity(rawClientName, p.projectName)) >= EXISTENCE_THRESHOLD
+  ).length;
+  return { contractCount, proposalCount };
+}
 
 const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
   auto_linked: "bg-emerald-50 text-emerald-700",
@@ -86,6 +102,8 @@ export default function PipelineSyncPage() {
   };
   const [records, setRecords] = useState<StagedPipelineRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineRecordStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -100,12 +118,21 @@ export default function PipelineSyncPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rRes, cRes] = await Promise.all([fetch("/api/pipeline-sync"), fetch("/api/pipeline-sync/clients")]);
+      const [rRes, cRes, conRes, propRes] = await Promise.all([
+        fetch("/api/pipeline-sync"),
+        fetch("/api/pipeline-sync/clients"),
+        fetch("/api/contracts"),
+        fetch("/api/proposals"),
+      ]);
       const rData = (await rRes.json()) as { records: StagedPipelineRecord[]; sourceStatus?: Record<PipelineSourceType, "real" | "mock"> };
       const cData = (await cRes.json()) as { clients: Client[] };
+      const conData = (await conRes.json()) as { contracts: Contract[] };
+      const propData = (await propRes.json()) as { proposals: Proposal[] };
       setRecords(rData.records ?? []);
       setSourceStatus(rData.sourceStatus ?? null);
       setClients(cData.clients ?? []);
+      setContracts(conData.contracts ?? []);
+      setProposals(propData.proposals ?? []);
     } catch {
       setError(t("pipeline_sync_error_load"));
     } finally {
@@ -362,6 +389,7 @@ export default function PipelineSyncPage() {
           {filtered.map((r) => {
             const override = overrideFor(r);
             const pending = r.status === "auto_linked" || r.status === "needs_review";
+            const { contractCount, proposalCount } = existenceCounts(r.rawClientName, contracts, proposals);
             return (
               <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -374,6 +402,16 @@ export default function PipelineSyncPage() {
                       {pending && (
                         <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
                       )}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          proposalCount > 0 || contractCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
+                        }`}
+                        title="Existing proposals/contracts fuzzy-matched by client name"
+                      >
+                        {proposalCount > 0 || contractCount > 0
+                          ? `${proposalCount} proposal${proposalCount === 1 ? "" : "s"} · ${contractCount} contract${contractCount === 1 ? "" : "s"}`
+                          : "No proposal or contract yet"}
+                      </span>
                     </div>
                     <p className="mt-1 font-medium text-stone-900">{r.rawClientName}</p>
                     <p className="text-sm text-stone-500">{r.projectName || "—"} · {r.stageOrStatus}</p>
