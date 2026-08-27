@@ -21,6 +21,7 @@ import type {
   ExpenseClaim,
   StagedPipelineRecord,
   PipelineSyncAuditEntry,
+  StagedProposalRecord,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -46,6 +47,7 @@ interface MockStore {
   expenseClaims: ExpenseClaim[];
   stagedPipelineRecords: StagedPipelineRecord[];
   pipelineAuditLog: PipelineSyncAuditEntry[];
+  stagedProposalRecords: StagedProposalRecord[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -106,6 +108,7 @@ export function readStore(): MockStore {
     expenseClaims: [],
     stagedPipelineRecords: [],
     pipelineAuditLog: [],
+    stagedProposalRecords: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -130,6 +133,7 @@ export function readStore(): MockStore {
       expenseClaims:     store.expenseClaims?.length ? store.expenseClaims : SEED_EXPENSES,
       stagedPipelineRecords: store.stagedPipelineRecords ?? [],
       pipelineAuditLog:      store.pipelineAuditLog ?? [],
+      stagedProposalRecords: store.stagedProposalRecords ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -465,4 +469,22 @@ export function appendPipelineAuditEntry(entry: PipelineSyncAuditEntry): void {
 export function loadPipelineAuditLog(recordId?: string): PipelineSyncAuditEntry[] {
   const all = readStore().pipelineAuditLog;
   return recordId ? all.filter((e) => e.recordId === recordId) : all;
+}
+
+// ── Proposal sync — staged records ────────────────────────────────────────────
+
+export function loadStagedProposalRecords(): StagedProposalRecord[] {
+  return readStore().stagedProposalRecords;
+}
+
+export function findStagedProposalRecordByFileId(fileId: string): StagedProposalRecord | null {
+  return readStore().stagedProposalRecords.find((r) => r.fileId === fileId) ?? null;
+}
+
+export function saveStagedProposalRecord(record: StagedProposalRecord): void {
+  const store = readStore();
+  const idx = store.stagedProposalRecords.findIndex((r) => r.id === record.id);
+  if (idx >= 0) store.stagedProposalRecords[idx] = record;
+  else store.stagedProposalRecords.push(record);
+  writeStore(store);
 }

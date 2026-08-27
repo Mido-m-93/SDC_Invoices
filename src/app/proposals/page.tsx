@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import VerificationBadge from "@/components/ui/VerificationBadge";
-import type { Proposal, Client, Lead } from "@/types";
+import type { Proposal, Client, Lead, StagedProposalRecord } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -53,25 +53,85 @@ export default function ProposalsPage() {
   const [acceptedResult, setAcceptedResult] = useState<AcceptedResult | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; savedNames: string[] } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; staged: number; savedNames: string[] } | null>(null);
+  const [staged, setStaged] = useState<StagedProposalRecord[]>([]);
+  const [stagedPicks, setStagedPicks] = useState<Record<string, { clientId: string; clientName: string }>>({});
+  const [resolvingStaged, setResolvingStaged] = useState<string | null>(null);
+
+  const loadStaged = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proposals/staged");
+      const data = await res.json() as { records: StagedProposalRecord[] };
+      setStaged(data.records ?? []);
+    } catch {
+      // Review queue is a secondary panel — a failed load here shouldn't block the page.
+    }
+  }, []);
+
+  useEffect(() => { loadStaged(); }, [loadStaged]);
 
   async function handleSyncFromSharePoint() {
     setSyncing(true);
     setSyncResult(null);
     try {
       const res = await fetch("/api/proposals/sync", { method: "POST" });
-      const data = await res.json() as { saved: number; failed: number; savedNames: string[]; error?: string };
+      const data = await res.json() as { saved: number; failed: number; staged: number; savedNames: string[]; error?: string };
       if (!res.ok) {
         notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/proposals");
         return;
       }
       setSyncResult(data);
-      notify("success", `Synced ${data.saved} proposal(s) from SharePoint`, "/proposals");
+      notify("success", `Synced ${data.saved} proposal(s) from SharePoint${data.staged > 0 ? `, ${data.staged} need client review` : ""}`, "/proposals");
       load();
+      loadStaged();
     } catch {
       notify("error", "SharePoint sync failed", "/proposals");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  function pickForStaged(id: string, clientId: string, clientName: string) {
+    setStagedPicks((p) => ({ ...p, [id]: { clientId, clientName } }));
+  }
+
+  async function handleApproveStaged(record: StagedProposalRecord) {
+    const pick = stagedPicks[record.id];
+    setResolvingStaged(record.id);
+    try {
+      const res = await fetch(`/api/proposals/staged/${record.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: pick?.clientId || undefined }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        notify("error", `Failed to approve "${record.projectName}": ${data.error ?? "unknown error"}`, "/proposals");
+        return;
+      }
+      notify("success", `Added proposal "${record.projectName}"`, "/proposals");
+      setStaged((s) => s.filter((r) => r.id !== record.id));
+      load();
+    } catch {
+      notify("error", `Failed to approve "${record.projectName}"`, "/proposals");
+    } finally {
+      setResolvingStaged(null);
+    }
+  }
+
+  async function handleRejectStaged(record: StagedProposalRecord) {
+    setResolvingStaged(record.id);
+    try {
+      const res = await fetch(`/api/proposals/staged/${record.id}/reject`, { method: "POST" });
+      if (!res.ok) {
+        notify("error", `Failed to discard "${record.projectName}"`, "/proposals");
+        return;
+      }
+      setStaged((s) => s.filter((r) => r.id !== record.id));
+    } catch {
+      notify("error", `Failed to discard "${record.projectName}"`, "/proposals");
+    } finally {
+      setResolvingStaged(null);
     }
   }
 
@@ -272,10 +332,63 @@ export default function ProposalsPage() {
         <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
           <span>
             Synced <strong>{syncResult.saved}</strong> proposal(s) from SharePoint
-            {syncResult.failed > 0 && ` (${syncResult.failed} failed)`}
+            {syncResult.staged > 0 && `, ${syncResult.staged} added to the review queue below (no confident client match)`}
             {syncResult.savedNames.length > 0 && `: ${syncResult.savedNames.join(", ")}`}
           </span>
           <button onClick={() => setSyncResult(null)} className="text-emerald-400 hover:text-emerald-600">×</button>
+        </div>
+      )}
+
+      {staged.length > 0 && (
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-200">
+            <h2 className="text-sm font-semibold text-amber-800">Needs client review ({staged.length})</h2>
+            <p className="text-xs text-amber-700 mt-0.5">
+              These SharePoint proposals couldn&apos;t be matched to an existing client with enough confidence. Pick the right client (or leave blank to create a new one) then approve, or discard.
+            </p>
+          </div>
+          <div className="divide-y divide-amber-200">
+            {staged.map((record) => {
+              const pick = stagedPicks[record.id] ?? { clientId: "", clientName: record.rawClientName };
+              return (
+                <div key={record.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate">{record.projectName}</p>
+                    <p className="text-xs text-stone-500 truncate">
+                      {record.fileName} · raw client: &ldquo;{record.rawClientName || "—"}&rdquo;
+                      {record.estimatedAmount ? ` · ${record.currency} ${record.estimatedAmount.toLocaleString()}` : ""}
+                    </p>
+                  </div>
+                  <div className="w-64">
+                    <ClientPicker
+                      clients={clients}
+                      clientId={pick.clientId}
+                      clientName={pick.clientName}
+                      onChange={(clientId, clientName) => pickForStaged(record.id, clientId, clientName)}
+                      onClientCreated={(c) => setClients((cs) => [...cs, c])}
+                      className={input}
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={resolvingStaged === record.id}
+                    onClick={() => handleApproveStaged(record)}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={resolvingStaged === record.id}
+                    onClick={() => handleRejectStaged(record)}
+                  >
+                    Discard
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -765,3 +765,24 @@ export interface PipelineSyncAuditEntry {
   source: PipelineSourceType | null;
   detail: string;
 }
+
+// ── Proposal Sync (SharePoint → matching → review queue) ─────────────────────
+export type StagedProposalStatus = "needs_review" | "approved" | "rejected";
+
+export interface StagedProposalRecord {
+  id: string;
+  fileId: string;
+  fileName: string;
+  folder: string;
+  rawClientName: string;
+  projectName: string;
+  proposalDate: string | null;
+  estimatedAmount: number | null;
+  currency: string;
+  matchCandidates: PipelineMatchCandidate[];
+  status: StagedProposalStatus;
+  reviewerComment: string | null;
+  createdProposalId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
