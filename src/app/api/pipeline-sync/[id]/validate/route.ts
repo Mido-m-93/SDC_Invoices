@@ -5,31 +5,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { getContractService, getProposalService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
+import { similarity } from "@/lib/services/ai/pipelineMatching";
 import type { Contract, Proposal } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 // ── Fuzzy name matching ───────────────────────────────────────────────────────
-
-function normalize(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function nameSimilarity(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (na === nb) return 1;
-  if (na.includes(nb) || nb.includes(na)) return 0.85;
-  const wordsA = new Set(na.split(" ").filter((w) => w.length > 2));
-  const wordsB = new Set(nb.split(" ").filter((w) => w.length > 2));
-  const shared = [...wordsA].filter((w) => wordsB.has(w)).length;
-  const union = new Set([...wordsA, ...wordsB]).size;
-  return union === 0 ? 0 : shared / union;
-}
+// Uses the same scorer as proposal sync and contract sync (pipelineMatching's
+// `similarity`) so a client name that matches in one place matches everywhere —
+// previously this route had its own separate word-overlap matcher, which could
+// disagree with the app's other matchers on the same raw client name.
 
 function bestNameScore(candidate: string, targets: string[]): number {
-  return Math.max(0, ...targets.filter(Boolean).map((t) => nameSimilarity(candidate, t)));
+  return Math.max(0, ...targets.filter(Boolean).map((t) => similarity(candidate, t)));
 }
 
 function amountClose(a: number | null, b: number | null): { close: boolean; diffPct: number | null } {
@@ -38,6 +26,9 @@ function amountClose(a: number | null, b: number | null): { close: boolean; diff
   return { close: diffPct <= 20, diffPct };
 }
 
+// Looser than AUTO_LINK_THRESHOLD (0.85, used to auto-link without review) —
+// this just answers "does anything plausibly related already exist?" for the
+// pre-approval checklist, so a lower bar is intentional, not a mismatch.
 const NAME_THRESHOLD = 0.45;
 
 // ── Route ─────────────────────────────────────────────────────────────────────
