@@ -87,6 +87,7 @@ export default function PipelineSyncPage() {
   const [records, setRecords] = useState<StagedPipelineRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineRecordStatus | "all">("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState<PipelineSourceType | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -248,7 +249,14 @@ export default function PipelineSyncPage() {
     sourceStatus?.sharepoint === "mock" ? "SharePoint" : null,
   ].filter((label): label is string => label !== null);
 
-  const filtered = statusFilter === "all" ? records : records.filter((r) => r.status === statusFilter);
+  const byStatus = statusFilter === "all" ? records : records.filter((r) => r.status === statusFilter);
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? byStatus.filter((r) =>
+        [r.rawClientName, r.projectName, r.contactName ?? "", r.contactEmail ?? "", r.notes ?? ""]
+          .some((field) => field.toLowerCase().includes(query))
+      )
+    : byStatus;
   const counts = {
     all: records.length,
     auto_linked: records.filter((r) => r.status === "auto_linked").length,
@@ -299,20 +307,49 @@ export default function PipelineSyncPage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(["all", "needs_review", "auto_linked", "approved", "rejected"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              statusFilter === s ? "border-[#1a3d2b] bg-[#1a3d2b] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
-            }`}
-          >
-            {s === "all" ? t("pipeline_sync_filter_all") : STATUS_LABELS[s]}
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === s ? "bg-white/20" : "bg-stone-100"}`}>{counts[s]}</span>
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {(["all", "needs_review", "auto_linked", "approved", "rejected"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === s ? "border-[#1a3d2b] bg-[#1a3d2b] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
+              }`}
+            >
+              {s === "all" ? t("pipeline_sync_filter_all") : STATUS_LABELS[s]}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === s ? "bg-white/20" : "bg-stone-100"}`}>{counts[s]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full max-w-xs sm:w-64">
+          <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search client, project, contact…"
+            className="w-full rounded-lg border border-stone-200 py-1.5 pl-8 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
+
+      {query && (
+        <p className="mb-3 text-xs text-stone-400">
+          {filtered.length} result{filtered.length === 1 ? "" : "s"} for &ldquo;{search.trim()}&rdquo;
+        </p>
+      )}
 
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
