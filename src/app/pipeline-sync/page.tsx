@@ -581,7 +581,9 @@ export default function PipelineSyncPage() {
             {/* Panel header */}
             <div className="flex items-start justify-between border-b border-stone-100 px-6 py-5">
               <div>
-                <p className="text-xs font-mono uppercase tracking-widest text-stone-400 mb-0.5">AI Validation</p>
+                <p className="text-xs font-mono uppercase tracking-widest text-stone-400 mb-0.5">
+                  AI Validation · {SOURCE_LABEL[validationPanel.record.source]}
+                </p>
                 <h2 className="text-base font-semibold text-stone-900">{validationPanel.record.rawClientName}</h2>
                 <p className="text-xs text-stone-500 mt-0.5">{validationPanel.record.projectName || "—"}</p>
               </div>
