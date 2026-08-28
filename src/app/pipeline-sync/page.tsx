@@ -521,7 +521,10 @@ export default function PipelineSyncPage() {
                           : "No proposal or contract yet"}
                       </span>
                     </div>
-                    <p className="mt-1 font-medium text-stone-900">{r.rawClientName}</p>
+                    <p className="mt-1 font-medium text-stone-900">
+                      <span className="mr-1 font-normal text-stone-400">Client:</span>
+                      {r.rawClientName}
+                    </p>
                     <p className="text-sm text-stone-500">{r.projectName || "—"} · {r.stageOrStatus}</p>
                     <p className="text-xs text-stone-400 mt-0.5">
                       {r.estimatedAmount ? `${r.currency} ${r.estimatedAmount.toLocaleString()}` : t("pipeline_sync_no_amount")}
@@ -584,7 +587,10 @@ export default function PipelineSyncPage() {
                 <p className="text-xs font-mono uppercase tracking-widest text-stone-400 mb-0.5">
                   AI Validation · {SOURCE_LABEL[validationPanel.record.source]}
                 </p>
-                <h2 className="text-base font-semibold text-stone-900">{validationPanel.record.rawClientName}</h2>
+                <h2 className="text-base font-semibold text-stone-900">
+                  <span className="mr-1 font-normal text-stone-400">Client:</span>
+                  {validationPanel.record.rawClientName}
+                </h2>
                 <p className="text-xs text-stone-500 mt-0.5">{validationPanel.record.projectName || "—"}</p>
               </div>
               <button onClick={() => setValidationPanel(null)} className="mt-1 text-stone-400 hover:text-stone-600 text-lg leading-none">×</button>
