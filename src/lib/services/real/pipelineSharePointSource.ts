@@ -21,7 +21,7 @@ import {
   downloadFileById,
   type GraphDriveItem,
 } from "./graphClient";
-import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "../ai/pipelineExtraction";
+import { extractPipelineRecordsFromText, extractPipelineRecordsFromPdf, type ExtractedPipelineItem } from "../ai/pipelineExtraction";
 
 // Scope the crawl explicitly — an unbounded recursive scan of the whole
 // SharePoint site would be slow, expensive (AI extraction per file), and
@@ -88,11 +88,38 @@ async function fileToText(siteId: string, token: string, item: GraphDriveItem): 
     if (lower.endsWith(".csv") || lower.endsWith(".txt")) {
       return Buffer.from(bytes).toString("utf-8");
     }
-    return null; // unsupported type (docx/pdf/etc.) — skip rather than guess-parse
+    if (lower.endsWith(".docx") || lower.endsWith(".doc")) {
+      const mammoth = await import("mammoth");
+      const { value } = await mammoth.extractRawText({ buffer: Buffer.from(bytes) });
+      return value || null;
+    }
+    return null; // pdf handled separately (extractItemsFromFile) — everything else unsupported
   } catch (err) {
     console.warn(`[pipelineSharePointSource] Failed to read "${item.name}":`, err);
     return null;
   }
+}
+
+// PDFs go straight to OpenAI's native file understanding (extractItemsFromFile
+// below), bypassing the text step entirely — see extractPipelineRecordsFromPdf's
+// header comment for why pdfjs-dist-based text extraction is avoided here.
+async function extractItemsFromFile(siteId: string, token: string, item: GraphDriveItem): Promise<ExtractedPipelineItem[] | null> {
+  const lower = item.name.toLowerCase();
+  if (lower.endsWith(".pdf")) {
+    try {
+      const bytes = await downloadFileById(siteId, item.id, token);
+      return await extractPipelineRecordsFromPdf(bytes);
+    } catch (err) {
+      console.warn(`[pipelineSharePointSource] PDF extraction failed for "${item.name}":`, err);
+      return [];
+    }
+  }
+  const text = await fileToText(siteId, token, item);
+  if (!text) return null; // unsupported type
+  return extractPipelineRecordsFromText(text).catch((err) => {
+    console.warn(`[pipelineSharePointSource] Extraction failed for "${item.name}":`, err);
+    return [];
+  });
 }
 
 export interface PipelineSourceScanDetail {
@@ -141,15 +168,11 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
     }
 
     for (const file of files) {
-      const text = await fileToText(siteId, token, file);
-      if (!text) {
+      const extracted = await extractItemsFromFile(siteId, token, file);
+      if (extracted === null) {
         scan.push({ folder: folderPath, file: file.name, extracted: 0, skipped: "unsupported file type" });
         continue;
       }
-      const extracted = await extractPipelineRecordsFromText(text).catch((err) => {
-        console.warn(`[pipelineSharePointSource] Extraction failed for "${file.name}":`, err);
-        return [];
-      });
       items.push(...extracted);
       scan.push({ folder: folderPath, file: file.name, extracted: extracted.length });
     }
@@ -158,12 +181,17 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
   return { items, scan };
 }
 
-// Only the file types fileToText() can actually read — xlsx/csv/txt. docx/pdf
-// client documents in these folders are already covered by the proposal sync
-// path; re-reading them here would just double-extract the same content.
+// Client folders in practice hold almost entirely PDF/docx proposal
+// documents, not spreadsheets (confirmed by a real scan: 106 files, nearly
+// all skipped as "no supported documents found" when this only covered
+// xlsx/csv/txt) — narrowing to those types made this scan find almost
+// nothing. Proposal sync already reads the same files for proposal-specific
+// fields (amount, date), but pipeline extraction pulls different signal
+// (deal stage, contact, notes) that proposals don't capture, so re-reading
+// them here is intentional, not duplicate work.
 function hasSupportedExtension(name: string): boolean {
   const lower = name.toLowerCase();
-  return [".xlsx", ".xls", ".csv", ".txt"].some((ext) => lower.endsWith(ext));
+  return [".xlsx", ".xls", ".csv", ".txt", ".docx", ".doc", ".pdf"].some((ext) => lower.endsWith(ext));
 }
 
 /**
@@ -222,15 +250,11 @@ export async function fetchClientFolderPipelineItems(): Promise<{
     });
 
     await mapWithConcurrency(pending, 4, async ({ file, clientName, folderLabel }) => {
-      const text = await fileToText(siteId, token, file);
-      if (!text) {
+      const extracted = await extractItemsFromFile(siteId, token, file);
+      if (extracted === null) {
         scan.push({ folder: folderLabel, file: file.name, extracted: 0, skipped: "unsupported file type" });
         return;
       }
-      const extracted = await extractPipelineRecordsFromText(text).catch((err) => {
-        console.warn(`[pipelineSharePointSource] Extraction failed for "${file.name}":`, err);
-        return [];
-      });
       // Folder name is authoritative per client-folder structure — override
       // whatever AI extracted (or guessed) from the document content.
       const withFolderClientName = extracted.map((item) => ({ ...item, rawClientName: clientName }));

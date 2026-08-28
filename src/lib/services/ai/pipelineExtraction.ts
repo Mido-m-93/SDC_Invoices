@@ -26,6 +26,43 @@ function getClient(): OpenAI {
   return _client;
 }
 
+const PIPELINE_EXTRACT_PROMPT_HEADER = `The attached document is a client/deal document from a sales pipeline (a proposal, deal sheet, or similar). Extract every distinct deal/client entry it describes and return ONLY a valid JSON array — no markdown, no explanation.`;
+
+const PIPELINE_EXTRACT_PROMPT_SHAPE = `Return exactly this JSON shape (array):
+[
+  {
+    "rawClientName": "client or company name exactly as written",
+    "projectName": "deal/project title or short description",
+    "stageOrStatus": "whatever stage/status label is used (e.g. 'new', 'in talks', 'proposal sent', 'won')",
+    "estimatedAmount": number or null,
+    "currency": "JPY, USD, etc — default JPY if unclear",
+    "contactName": "contact person name or null",
+    "contactEmail": "contact email or null",
+    "notes": "any other relevant free text or null"
+  }
+]
+
+Rules:
+- One object per distinct client/deal.
+- rawClientName is required; skip entries with no identifiable client/company.
+- For estimatedAmount: look hard — check for any monetary value, budget, fee, contract amount, or price mentioned near the client/deal (e.g. "¥500,000", "$10,000", "500K", "monthly fee: 200,000"). Strip currency symbols and parse as a plain number. Only return null if truly no amount appears anywhere in the entry.
+- Do not invent data not present in the document.`;
+
+function parseItemsResponse(text: string): ExtractedPipelineItem[] {
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as unknown[];
+    return parsed
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .map(coerceItem)
+      .filter((item): item is ExtractedPipelineItem => item !== null);
+  } catch (err) {
+    console.warn("[pipelineExtraction] Failed to parse GPT response:", err);
+    return [];
+  }
+}
+
 function coerceItem(raw: Record<string, unknown>): ExtractedPipelineItem | null {
   const rawClientName = typeof raw.rawClientName === "string" ? raw.rawClientName.trim() : "";
   if (!rawClientName) return null;
@@ -63,41 +100,43 @@ export async function extractPipelineRecordsFromText(
 
 ${rawText.slice(0, 12000)}
 
-Return exactly this JSON shape (array):
-[
-  {
-    "rawClientName": "client or company name exactly as written",
-    "projectName": "deal/project title or short description",
-    "stageOrStatus": "whatever stage/status label is used (e.g. 'new', 'in talks', 'proposal sent', 'won')",
-    "estimatedAmount": number or null,
-    "currency": "JPY, USD, etc — default JPY if unclear",
-    "contactName": "contact person name or null",
-    "contactEmail": "contact email or null",
-    "notes": "any other relevant free text or null"
-  }
-]
-
-Rules:
-- One object per distinct client/deal.
-- rawClientName is required; skip entries with no identifiable client/company.
-- For estimatedAmount: look hard — check for any monetary value, budget, fee, contract amount, or price mentioned near the client/deal (e.g. "¥500,000", "$10,000", "500K", "monthly fee: 200,000"). Strip currency symbols and parse as a plain number. Only return null if truly no amount appears anywhere in the entry.
-- Do not invent data not present in the text.`,
+${PIPELINE_EXTRACT_PROMPT_SHAPE}`,
       },
     ],
   });
 
-  const text = response.choices[0]?.message?.content?.trim() ?? "[]";
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
+  return parseItemsResponse(response.choices[0]?.message?.content?.trim() ?? "[]");
+}
 
+// PDF client/deal documents (proposals, deal sheets) found while scanning
+// each client's own WorkTogether folder — deliberately NOT routed through
+// pdfExtractor.ts's pdfjs-dist text extraction. That module can crash at
+// import time in this serverless runtime ("DOMMatrix is not defined" — see
+// contractExtractor.ts's header comment for the same reasoning), so PDFs use
+// OpenAI's native file understanding instead, same pattern as
+// extractProposalFromPdf in proposalExtractor.ts.
+export async function extractPipelineRecordsFromPdf(pdfBytes: Uint8Array): Promise<ExtractedPipelineItem[]> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set — required for pipeline extraction");
+  }
+  const client = getClient();
+  const plainBuffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+  const fileBlob = new File([plainBuffer], "pipeline-doc.pdf", { type: "application/pdf" });
+  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
   try {
-    const parsed = JSON.parse(jsonMatch[0]) as unknown[];
-    return parsed
-      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
-      .map(coerceItem)
-      .filter((item): item is ExtractedPipelineItem => item !== null);
-  } catch (err) {
-    console.warn("[pipelineExtraction] Failed to parse GPT response:", err);
-    return [];
+    const response = await client.responses.create({
+      model: "gpt-4o",
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_file", file_id: uploadedFile.id },
+          { type: "input_text", text: `${PIPELINE_EXTRACT_PROMPT_HEADER}\n\n${PIPELINE_EXTRACT_PROMPT_SHAPE}` },
+        ],
+      }],
+      max_output_tokens: 2048,
+    });
+    return parseItemsResponse(response.output_text ?? "[]");
+  } finally {
+    await client.files.delete(uploadedFile.id).catch((e: unknown) => console.warn("[pipelineExtraction] File cleanup failed:", e));
   }
 }
