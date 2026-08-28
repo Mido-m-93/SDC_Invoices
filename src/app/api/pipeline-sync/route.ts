@@ -4,10 +4,10 @@ import { runPipelineSync, listStagedRecords, getSourceConnectionStatus } from "@
 import type { PipelineSourceType, PipelineRecordStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
-// Notion/SharePoint sync runs a Graph/Notion fetch plus AI extraction per
-// batch — matches the timeout headroom used elsewhere for AI-heavy syncs
-// (see src/app/api/members/sync/route.ts).
-export const maxDuration = 60;
+// SharePoint sync now also walks every client's own WorkTogether folder
+// (fetchClientFolderPipelineItems), same shape of work as /api/proposals/sync
+// — matches its 300s budget rather than the lighter single-tracker-folder scan.
+export const maxDuration = 300;
 
 const VALID_SOURCES: PipelineSourceType[] = ["notion", "sharepoint"];
 const VALID_STATUSES: PipelineRecordStatus[] = ["auto_linked", "needs_review", "approved", "rejected"];

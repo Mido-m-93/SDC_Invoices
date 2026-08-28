@@ -27,7 +27,7 @@ import { getClientService, getLeadService } from "@/lib/services";
 import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/lib/services/ai/pipelineExtraction";
 import { rankClientCandidates, AUTO_LINK_THRESHOLD, similarity } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
-import { fetchRealSharePointPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
+import { fetchRealSharePointPipelineItems, fetchClientFolderPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
 import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
 import {
   loadStagedPipelineRecords,
@@ -96,7 +96,17 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
     return getMockSharePointPipelineRecords();
   }
 
-  const { items, scan } = await fetchRealSharePointPipelineItems();
+  // The dedicated pipeline tracker folder (fetchRealSharePointPipelineItems)
+  // is scanned alongside each client's own WorkTogether folder
+  // (fetchClientFolderPipelineItems) — the tracker turned out to hold
+  // nothing usable (a shortcut, not real data) in practice, so client
+  // folders are the resilient source. Same pattern as /api/proposals/sync.
+  const [trackerResult, clientFolderResult] = await Promise.all([
+    fetchRealSharePointPipelineItems(),
+    fetchClientFolderPipelineItems(),
+  ]);
+  const items = dedupeExtractedItems([...trackerResult.items, ...clientFolderResult.items]);
+  const scan = [...trackerResult.scan, ...clientFolderResult.scan];
   await audit({
     actor: "system",
     action: "extract",
@@ -160,6 +170,20 @@ function matchExistingRecords(
     if (best) claimed.add(best.id);
     return best;
   });
+}
+
+// SharePoint pipeline items now come from two scans merged together (the
+// tracker folder + each client's own project folder) — collapse items that
+// clearly describe the same client before they ever reach matchExistingRecords,
+// so a client showing up in both scans doesn't stage as two new records in
+// the same run (matchExistingRecords only guards against *prior* runs).
+function dedupeExtractedItems(items: ExtractedPipelineItem[]): ExtractedPipelineItem[] {
+  const kept: ExtractedPipelineItem[] = [];
+  for (const item of items) {
+    const isDuplicate = kept.some((k) => similarity(item.rawClientName, k.rawClientName) >= CLIENT_MATCH_THRESHOLD);
+    if (!isDuplicate) kept.push(item);
+  }
+  return kept;
 }
 
 /** Pull, extract (if needed), match, score, and stage records from one source. */
