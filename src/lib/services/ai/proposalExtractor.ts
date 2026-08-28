@@ -22,7 +22,7 @@ Return exactly this JSON:
 
 Rules:
 - clientName: the recipient / client / customer this proposal is for
-- estimatedAmount: the total proposed fee or budget (look for 見積, 金額, fee, amount, total, 合計, 月額, contract value)
+- estimatedAmount: search the ENTIRE document, not just text near the client/title — a total or fee is often stated elsewhere (a summary line, a pricing table, a signature block). Look for both English cues (fee, amount, total, budget, quote, contract value) and Japanese cues (見積, 見積金額, 金額, 合計, 月額, 予算, 費用, 契約金額). Only return null if truly no monetary figure appears anywhere in the document.
 - estimatedAmount must be a plain number with no currency symbols or commas
 - currency: infer from ¥/￥/円 → JPY, $ → USD; default JPY
 - proposalDate: the document date or issue date
