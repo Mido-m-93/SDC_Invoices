@@ -98,6 +98,49 @@ export async function listItemsByFolderId(
   return toDriveItems(data.value);
 }
 
+export interface GraphSearchResult {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  webUrl: string;
+  /** Folder path this item lives in, e.g. "/30_WorkTogether/03_Project/12_Acme" */
+  parentPath: string;
+}
+
+/**
+ * Live filename/folder-name search across the whole site's default drive,
+ * via Graph's per-drive search endpoint (fast — an index lookup, not a
+ * recursive folder crawl or file download). Used for on-demand "does
+ * anything in SharePoint match this name" lookups, distinct from the
+ * scheduled sync paths (pipelineSharePointSource.ts, proposalSharePointSource.ts)
+ * which download and AI-extract file contents.
+ */
+export async function searchDriveItems(siteId: string, query: string, token: string): Promise<GraphSearchResult[]> {
+  // OData string literals escape an embedded ' by doubling it — a raw
+  // apostrophe in the query (e.g. a company name like "O'Brien K.K.") would
+  // otherwise break out of the q='...' literal and 400 the request.
+  const escaped = encodeURIComponent(query.replace(/'/g, "''"));
+  const data = await graphGet<{
+    value?: Array<{
+      id: string;
+      name: string;
+      file?: object;
+      folder?: object;
+      webUrl?: string;
+      parentReference?: { path?: string };
+    }>;
+  }>(`/sites/${siteId}/drive/root/search(q='${escaped}')?$top=25&$select=id,name,file,folder,webUrl,parentReference`, token);
+
+  return (data.value ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    isFolder: !!item.folder,
+    webUrl: item.webUrl ?? "",
+    // parentReference.path looks like "/drive/root:/30_WorkTogether/03_Project" — strip the drive prefix
+    parentPath: (item.parentReference?.path ?? "").replace(/^\/drive\/root:/, "") || "/",
+  }));
+}
+
 export async function downloadFileById(siteId: string, fileId: string, token: string): Promise<Uint8Array> {
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${fileId}/content`,

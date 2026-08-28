@@ -91,6 +91,14 @@ interface ValidationPanel {
   loading: boolean;
 }
 
+interface SharePointSearchResult {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  webUrl: string;
+  parentPath: string;
+}
+
 export default function PipelineSyncPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
@@ -114,6 +122,9 @@ export default function PipelineSyncPage() {
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
   const [sourceStatus, setSourceStatus] = useState<Record<PipelineSourceType, "real" | "mock"> | null>(null);
   const [validationPanel, setValidationPanel] = useState<ValidationPanel | null>(null);
+  const [sharePointResults, setSharePointResults] = useState<SharePointSearchResult[] | null>(null);
+  const [sharePointSearching, setSharePointSearching] = useState(false);
+  const [sharePointError, setSharePointError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,6 +184,40 @@ export default function PipelineSyncPage() {
       }
     })();
   }, [load]);
+
+  // Live SharePoint filename/folder search, separate from the local filter
+  // above (which only searches records already staged in this list) — lets
+  // a reviewer check "does this client actually have anything in
+  // WorkTogether" without waiting for or triggering a full sync. Debounced
+  // so every keystroke doesn't fire a Graph API call.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) {
+      setSharePointResults(null);
+      setSharePointError(null);
+      return;
+    }
+    setSharePointSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/pipeline-sync/sharepoint-search?q=${encodeURIComponent(q)}`);
+        const data = (await res.json().catch(() => ({}))) as { results?: SharePointSearchResult[]; error?: string };
+        if (!res.ok) {
+          setSharePointError(data.error ?? "SharePoint search failed");
+          setSharePointResults(null);
+          return;
+        }
+        setSharePointError(null);
+        setSharePointResults(data.results ?? []);
+      } catch {
+        setSharePointError("SharePoint search failed");
+        setSharePointResults(null);
+      } finally {
+        setSharePointSearching(false);
+      }
+    }, 400);
+    return () => { clearTimeout(timer); setSharePointSearching(false); };
+  }, [search]);
 
   function overrideFor(r: StagedPipelineRecord): Override {
     return overrides[r.id] ?? { clientId: r.matchedClientId ?? "", clientName: r.matchedClientName ?? r.rawClientName };
@@ -408,6 +453,37 @@ export default function PipelineSyncPage() {
         <p className="mb-3 text-xs text-stone-400">
           {filtered.length} result{filtered.length === 1 ? "" : "s"} for &ldquo;{search.trim()}&rdquo;
         </p>
+      )}
+
+      {query.length >= 2 && (
+        <div className="mb-4 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
+          <p className="mb-2 text-xs font-semibold text-stone-500">
+            Live SharePoint search {sharePointSearching && "— searching…"}
+          </p>
+          {sharePointError ? (
+            <p className="text-xs text-red-600">{sharePointError}</p>
+          ) : sharePointResults === null ? (
+            <p className="text-xs text-stone-400">…</p>
+          ) : sharePointResults.length === 0 ? (
+            <p className="text-xs text-stone-400">Nothing in SharePoint matches &ldquo;{search.trim()}&rdquo;.</p>
+          ) : (
+            <ul className="space-y-1">
+              {sharePointResults.map((r) => (
+                <li key={r.id} className="flex items-center gap-2 text-xs">
+                  <span>{r.isFolder ? "📁" : "📄"}</span>
+                  {r.webUrl ? (
+                    <a href={r.webUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-700 hover:underline">
+                      {r.name}
+                    </a>
+                  ) : (
+                    <span className="font-medium text-stone-700">{r.name}</span>
+                  )}
+                  <span className="text-stone-400">{r.parentPath}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {loading ? (
