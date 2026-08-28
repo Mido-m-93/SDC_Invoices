@@ -44,7 +44,9 @@ const PIPELINE_EXTRACT_PROMPT_SHAPE = `Return exactly this JSON shape (array):
 
 Rules:
 - One object per distinct client/deal.
-- rawClientName is required; skip entries with no identifiable client/company.
+- rawClientName MUST be an actual external client/company/organization name — the counterparty this deal is with. Look specifically for a field or label like "Client", "Company", "Customer", "顧客", "会社名", "クライアント", "取引先", or the recipient/addressee of a proposal.
+- Do NOT use a page title, deal title, or project/initiative name as rawClientName just because no clearer field exists (e.g. titles like "Finance & Sales Automation", "PowerAutomate", "POS", "Digital Transformation" are project/tool names, not clients — internal automation projects and case-study/tool names are not clients either). If you cannot find an actual company/organization name distinct from the deal title, skip the entry entirely rather than guessing.
+- projectName is the deal/project title (this is where "PowerAutomate"-style names belong, not rawClientName).
 - For estimatedAmount: look hard — check for any monetary value, budget, fee, contract amount, or price mentioned near the client/deal (e.g. "¥500,000", "$10,000", "500K", "monthly fee: 200,000"). Strip currency symbols and parse as a plain number. Only return null if truly no amount appears anywhere in the entry.
 - Do not invent data not present in the document.`;
 
