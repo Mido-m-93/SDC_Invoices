@@ -7,6 +7,8 @@ function toRow(c: Contract): Record<string, unknown> {
   return {
     id: c.id,
     vendor_id: c.vendorId || null,  // null for client-only contracts (no vendor)
+    client_id: c.clientId ?? null,
+    client_name: c.clientName ?? null,
     project_name: c.projectName,
     start_date: c.startDate,
     end_date: c.endDate,
@@ -18,7 +20,6 @@ function toRow(c: Contract): Record<string, unknown> {
     contract_folder_url: c.contractFolderUrl ?? null,
     verification: c.verification ?? null,
     created_at: c.createdAt,
-    // client_id and client_name added by migration 011 — omitted until migration is run
   };
 }
 
