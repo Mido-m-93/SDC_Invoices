@@ -114,17 +114,22 @@ export interface RunSyncResult {
   needsReview: number;
 }
 
-// Bar for "this re-extraction is the same pipeline item seen before" — both
-// the client name AND the project name have to independently clear this, so
-// a coincidental one-field match can't merge two genuinely different deals.
-const RESYNC_MATCH_THRESHOLD = 0.6;
+// Client identity is the anchor — a company's name extracts consistently
+// run to run. Project/description text is free-form and the LLM reworks it
+// more (e.g. "RPA開発支援" vs a slightly different phrasing next run), so
+// requiring it to *also* clear a similarity bar (as this used to) let a
+// client name match get dragged below threshold by project wording alone,
+// causing the same client to restage as "new" on almost every re-sync.
+const CLIENT_MATCH_THRESHOLD = 0.75;
+// Only consulted to disambiguate when a client genuinely has more than one
+// open deal staged — kept low since it's a tiebreaker, not a gate.
+const PROJECT_TIEBREAK_THRESHOLD = 0.3;
 
 // Extraction has no stable per-item id to key off, and re-running the same
-// source through the LLM doesn't reproduce byte-identical text — a page's
-// client/project name can come back with a stray space, a different
-// full/half-width character, or reworded slightly on every run. Exact-string
-// keys missed those near-duplicates, so identity is fuzzy: the best-scoring
-// existing record (same source) above RESYNC_MATCH_THRESHOLD on both fields.
+// source through the LLM doesn't reproduce byte-identical text. Identity is
+// fuzzy: find existing records (same source) whose client name is a strong
+// match: one such record and no other consideration needed, multiple such
+// records fall back to project-name similarity to pick the right one.
 // Matching runs synchronously and up front (not inside the concurrent save
 // loop below) so two new items can't both claim the same existing record.
 function matchExistingRecords(
@@ -135,19 +140,23 @@ function matchExistingRecords(
   const candidates = existing.filter((r) => r.source === source);
   const claimed = new Set<string>();
   return items.map((item) => {
+    const clientMatches = candidates
+      .filter((r) => !claimed.has(r.id) && similarity(item.rawClientName, r.rawClientName) >= CLIENT_MATCH_THRESHOLD);
+
     let best: StagedPipelineRecord | undefined;
-    let bestScore = 0;
-    for (const r of candidates) {
-      if (claimed.has(r.id)) continue;
-      const combined = Math.min(
-        similarity(item.rawClientName, r.rawClientName),
-        similarity(item.projectName, r.projectName)
-      );
-      if (combined >= RESYNC_MATCH_THRESHOLD && combined > bestScore) {
-        bestScore = combined;
-        best = r;
+    if (clientMatches.length === 1) {
+      best = clientMatches[0];
+    } else if (clientMatches.length > 1) {
+      let bestScore = 0;
+      for (const r of clientMatches) {
+        const projectScore = similarity(item.projectName, r.projectName);
+        if (projectScore >= PROJECT_TIEBREAK_THRESHOLD && projectScore > bestScore) {
+          bestScore = projectScore;
+          best = r;
+        }
       }
     }
+
     if (best) claimed.add(best.id);
     return best;
   });
