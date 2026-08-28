@@ -229,6 +229,7 @@ export interface Proposal {
   contractId?: string;
   folderUrl?: string;
   verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
+  sourceFileId?: string;   // SharePoint Graph item id, when synced from WorkTogether — used to dedup re-syncs
   createdAt: string;
 }
 

@@ -19,6 +19,7 @@ function toRow(p: Proposal): Record<string, unknown> {
     contract_id: p.contractId ?? null,
     folder_url: p.folderUrl ?? null,
     verification: p.verification ?? null,
+    source_file_id: p.sourceFileId ?? null,
     created_at: p.createdAt,
   };
 }
@@ -39,6 +40,7 @@ function fromRow(row: Record<string, unknown>): Proposal {
     contractId: (row.contract_id as string | null) ?? undefined,
     folderUrl: (row.folder_url as string | null) ?? undefined,
     verification: (row.verification as Proposal["verification"]) ?? undefined,
+    sourceFileId: (row.source_file_id as string | null) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

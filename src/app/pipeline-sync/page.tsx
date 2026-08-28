@@ -142,6 +142,38 @@ export default function PipelineSyncPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Keep the existence badge's Supabase snapshot from drifting too far behind
+  // WorkTogether without re-running the (multi-minute) SharePoint sync on
+  // every page visit. Throttled client-side rather than blocking the initial
+  // load — the badge just shows last-synced data until this catches up.
+  useEffect(() => {
+    const SHAREPOINT_AUTO_SYNC_KEY = "pipelineSync:lastSharePointSync";
+    const SHAREPOINT_AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+    let lastSync = 0;
+    try {
+      lastSync = Number(window.localStorage.getItem(SHAREPOINT_AUTO_SYNC_KEY) ?? 0);
+    } catch {
+      // localStorage unavailable (private mode, etc.) — fall through and sync anyway
+    }
+    if (Date.now() - lastSync < SHAREPOINT_AUTO_SYNC_INTERVAL_MS) return;
+    try {
+      window.localStorage.setItem(SHAREPOINT_AUTO_SYNC_KEY, String(Date.now()));
+    } catch {
+      // best-effort throttle only
+    }
+    (async () => {
+      try {
+        await Promise.allSettled([
+          fetch("/api/proposals/sync", { method: "POST" }),
+          fetch("/api/contracts/sync", { method: "POST" }),
+        ]);
+        await load();
+      } catch {
+        // background refresh is best-effort; existing data just stays as-is
+      }
+    })();
+  }, [load]);
+
   function overrideFor(r: StagedPipelineRecord): Override {
     return overrides[r.id] ?? { clientId: r.matchedClientId ?? "", clientName: r.matchedClientName ?? r.rawClientName };
   }

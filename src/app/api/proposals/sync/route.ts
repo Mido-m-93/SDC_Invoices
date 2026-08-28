@@ -38,13 +38,24 @@ export async function POST() {
   }
 
   const clients = await getClientService().listClients();
+  const existingFileIds = new Set(
+    (await service.listProposals()).map((p) => p.sourceFileId).filter((id): id is string => !!id)
+  );
 
   const saved: string[] = [];
   const failed: string[] = [];
+  let skipped = 0;
   let staged = 0;
 
   for (const item of result.items) {
     const { fields, fileName, folder, fileId } = item;
+
+    // Already imported this exact SharePoint file in a prior sync — skip so
+    // re-running sync doesn't create a duplicate proposal every time.
+    if (existingFileIds.has(fileId)) {
+      skipped++;
+      continue;
+    }
 
     // proposals.client_id is a NOT NULL foreign key into clients(id) — an
     // unresolved "" clientId fails that constraint on every insert, so a
@@ -98,6 +109,7 @@ export async function POST() {
       status: "submitted",
       contractId: undefined,
       folderUrl: undefined,
+      sourceFileId: fileId,
       createdAt: new Date().toISOString(),
     };
     try {
@@ -112,6 +124,7 @@ export async function POST() {
   return NextResponse.json({
     saved: saved.length,
     failed: failed.length,
+    skipped,
     staged,
     savedNames: saved,
     failedNames: failed,

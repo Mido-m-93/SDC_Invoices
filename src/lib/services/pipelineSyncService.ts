@@ -25,7 +25,7 @@ import type {
 import { generateId } from "@/lib/utils";
 import { getClientService, getLeadService } from "@/lib/services";
 import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/lib/services/ai/pipelineExtraction";
-import { rankClientCandidates, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
+import { rankClientCandidates, AUTO_LINK_THRESHOLD, similarity } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
 import { fetchRealSharePointPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
 import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
@@ -114,6 +114,45 @@ export interface RunSyncResult {
   needsReview: number;
 }
 
+// Bar for "this re-extraction is the same pipeline item seen before" — both
+// the client name AND the project name have to independently clear this, so
+// a coincidental one-field match can't merge two genuinely different deals.
+const RESYNC_MATCH_THRESHOLD = 0.6;
+
+// Extraction has no stable per-item id to key off, and re-running the same
+// source through the LLM doesn't reproduce byte-identical text — a page's
+// client/project name can come back with a stray space, a different
+// full/half-width character, or reworded slightly on every run. Exact-string
+// keys missed those near-duplicates, so identity is fuzzy: the best-scoring
+// existing record (same source) above RESYNC_MATCH_THRESHOLD on both fields.
+// Matching runs synchronously and up front (not inside the concurrent save
+// loop below) so two new items can't both claim the same existing record.
+function matchExistingRecords(
+  source: PipelineSourceType,
+  items: ExtractedPipelineItem[],
+  existing: StagedPipelineRecord[]
+): Array<StagedPipelineRecord | undefined> {
+  const candidates = existing.filter((r) => r.source === source);
+  const claimed = new Set<string>();
+  return items.map((item) => {
+    let best: StagedPipelineRecord | undefined;
+    let bestScore = 0;
+    for (const r of candidates) {
+      if (claimed.has(r.id)) continue;
+      const combined = Math.min(
+        similarity(item.rawClientName, r.rawClientName),
+        similarity(item.projectName, r.projectName)
+      );
+      if (combined >= RESYNC_MATCH_THRESHOLD && combined > bestScore) {
+        bestScore = combined;
+        best = r;
+      }
+    }
+    if (best) claimed.add(best.id);
+    return best;
+  });
+}
+
 /** Pull, extract (if needed), match, score, and stage records from one source. */
 export async function runPipelineSync(
   source: PipelineSourceType,
@@ -121,6 +160,8 @@ export async function runPipelineSync(
 ): Promise<RunSyncResult> {
   const items = await getSourceItems(source);
   const clients = await getClientService().listClients();
+  const existing = await loadStagedPipelineRecords();
+  const itemMatches = matchExistingRecords(source, items, existing);
   const now = new Date().toISOString();
 
   // Each record's match + stage + audit-log write is independent of every
@@ -130,15 +171,23 @@ export async function runPipelineSync(
   // bottleneck even after extraction itself was already fixed).
   const statuses = await Promise.all(
     items.map(async (item, index) => {
+      const match = itemMatches[index];
+
+      // Already a human decision on this one (lead created, or explicitly
+      // rejected) — leave it alone instead of restaging or overwriting it.
+      if (match && (match.status === "approved" || match.status === "rejected")) {
+        return match.status;
+      }
+
       const candidates = rankClientCandidates(item.rawClientName, clients);
       const top = candidates[0];
       const status: PipelineRecordStatus =
         top && top.score >= AUTO_LINK_THRESHOLD ? "auto_linked" : "needs_review";
 
       const record: StagedPipelineRecord = {
-        id: generateId("pipe"),
+        id: match?.id ?? generateId("pipe"),
         source,
-        sourceRef: `${source}-${index}`,
+        sourceRef: match?.sourceRef ?? `${source}-${index}`,
         rawClientName: item.rawClientName,
         projectName: item.projectName,
         stageOrStatus: item.stageOrStatus,
@@ -154,7 +203,7 @@ export async function runPipelineSync(
         status,
         reviewerComment: null,
         createdLeadId: null,
-        createdAt: now,
+        createdAt: match?.createdAt ?? now,
         updatedAt: now,
       };
       await saveStagedPipelineRecord(record);
@@ -165,7 +214,7 @@ export async function runPipelineSync(
         recordId: record.id,
         source,
         detail: top
-          ? `Matched "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
+          ? `${match ? "Re-matched" : "Matched"} "${item.rawClientName}" → "${top.clientName}" (score ${top.score.toFixed(2)}) → ${status}`
           : `No candidate match for "${item.rawClientName}" → needs_review`,
       });
 

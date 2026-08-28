@@ -28,8 +28,34 @@ function normalizeExact(name: string): string {
   return normalizeTokens(name).join(" ");
 }
 
-// Jaccard similarity over normalized token sets, plus a bonus for exact
-// substring containment (handles "Acme" vs "Acme Japan K.K.").
+// Character bigrams over the token-joined string with spaces stripped.
+// Whitespace-token Jaccard alone is nearly useless for CJK names — Japanese
+// text has no spaces, so e.g. "島根県" collapses into a single token and can
+// only ever score 0 or 1 against another single-token string. Bigrams give
+// partial credit for shared substrings regardless of script, the same way
+// word-token Jaccard does for space-delimited languages.
+function charBigrams(compact: string): Set<string> {
+  if (compact.length < 2) return compact.length === 1 ? new Set([compact]) : new Set();
+  const grams = new Set<string>();
+  for (let i = 0; i < compact.length - 1; i++) grams.add(compact.slice(i, i + 2));
+  return grams;
+}
+
+function bigramJaccard(a: string, b: string): number {
+  const bigramsA = charBigrams(a.replace(/\s+/g, ""));
+  const bigramsB = charBigrams(b.replace(/\s+/g, ""));
+  if (bigramsA.size === 0 || bigramsB.size === 0) return 0;
+  let intersection = 0;
+  for (const g of bigramsA) if (bigramsB.has(g)) intersection++;
+  const union = new Set([...bigramsA, ...bigramsB]).size;
+  return intersection / union;
+}
+
+// Best of: word-token Jaccard (handles space-delimited names, e.g. "Acme"
+// vs "Acme Japan K.K."), a containment bonus scaled by how much of the
+// longer string the shorter one covers, and character-bigram Jaccard
+// (carries CJK and other non-space-delimited names, where the token
+// approach degenerates to one token per string).
 // Exported so other name-matching call sites (e.g. contract sync) share this
 // scorer instead of hand-rolling their own fuzzy matcher.
 export function similarity(a: string, b: string): number {
@@ -46,12 +72,19 @@ export function similarity(a: string, b: string): number {
   const union = new Set([...tokensA, ...tokensB]).size;
   const jaccard = intersection / union;
 
-  const substringBonus =
-    normA.length > 0 && normB.length > 0 && (normA.includes(normB) || normB.includes(normA))
-      ? 0.25
-      : 0;
+  const isContained = normA.length > 0 && normB.length > 0 && (normA.includes(normB) || normB.includes(normA));
+  const containmentScore = isContained
+    ? (() => {
+        const shorterLen = Math.min(normA.length, normB.length);
+        const longerLen = Math.max(normA.length, normB.length);
+        const coverage = shorterLen / longerLen;
+        return 0.5 + 0.45 * coverage; // full containment -> 0.95, a sliver -> ~0.5
+      })()
+    : 0;
 
-  return Math.min(1, jaccard + substringBonus);
+  const bigramScore = bigramJaccard(normA, normB);
+
+  return Math.min(1, Math.max(jaccard, containmentScore, bigramScore));
 }
 
 /**
