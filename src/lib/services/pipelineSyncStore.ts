@@ -23,6 +23,18 @@ export async function saveStagedPipelineRecord(record: StagedPipelineRecord): Pr
   return isMock() ? mockStore.saveStagedPipelineRecord(record) : supabaseStore.saveStagedPipelineRecord(record);
 }
 
+export async function loadDeletedPipelineRecords(): Promise<StagedPipelineRecord[]> {
+  return isMock() ? mockStore.loadDeletedPipelineRecords() : supabaseStore.loadDeletedPipelineRecords();
+}
+
+export async function softDeletePipelineRecord(id: string, deletedBy?: string): Promise<void> {
+  return isMock() ? mockStore.softDeletePipelineRecord(id, deletedBy) : supabaseStore.softDeletePipelineRecord(id, deletedBy);
+}
+
+export async function restorePipelineRecordFromDelete(id: string): Promise<void> {
+  return isMock() ? mockStore.restorePipelineRecordFromDelete(id) : supabaseStore.restorePipelineRecordFromDelete(id);
+}
+
 export async function appendPipelineAuditEntry(entry: PipelineSyncAuditEntry): Promise<void> {
   return isMock() ? mockStore.appendPipelineAuditEntry(entry) : supabaseStore.appendPipelineAuditEntry(entry);
 }

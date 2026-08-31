@@ -31,7 +31,10 @@ import { fetchRealSharePointPipelineItems, fetchClientFolderPipelineItems } from
 import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
 import {
   loadStagedPipelineRecords,
+  loadDeletedPipelineRecords,
   saveStagedPipelineRecord,
+  softDeletePipelineRecord,
+  restorePipelineRecordFromDelete,
   appendPipelineAuditEntry,
   loadPipelineAuditLog,
 } from "@/lib/services/pipelineSyncStore";
@@ -464,6 +467,43 @@ export async function restoreRejectedRecord(id: string, actorName: string): Prom
   });
 
   return updated;
+}
+
+// Soft delete — distinct from rejectStagedRecord: reject is a matching
+// decision ("this isn't a real lead"), delete is a housekeeping action
+// ("remove this from the list"). Both land in Archives via deletedAt, but
+// only rejected records get skipped by future syncs — a deleted-but-not-
+// rejected record can still be re-synced fresh if desired.
+export async function deleteStagedRecord(id: string, actorName: string): Promise<void> {
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
+  if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
+  await softDeletePipelineRecord(id, actorName);
+  await audit({
+    actor: actorName,
+    action: "delete",
+    recordId: id,
+    source: record.source,
+    detail: "Moved to Archives.",
+  });
+}
+
+export async function restoreDeletedRecord(id: string, actorName: string): Promise<StagedPipelineRecord> {
+  const record = (await loadDeletedPipelineRecords()).find((r) => r.id === id);
+  if (!record) throw new Error(`Deleted staged pipeline record "${id}" not found`);
+  await restorePipelineRecordFromDelete(id);
+  await audit({
+    actor: actorName,
+    action: "undelete",
+    recordId: id,
+    source: record.source,
+    detail: "Restored from Archives.",
+  });
+  return { ...record, deletedAt: null, deletedBy: null };
+}
+
+export async function listDeletedStagedRecords(): Promise<StagedPipelineRecord[]> {
+  const all = await loadDeletedPipelineRecords();
+  return all.sort((a, b) => (a.deletedAt ?? "") < (b.deletedAt ?? "") ? 1 : -1);
 }
 
 export async function getAuditLog(recordId?: string): Promise<PipelineSyncAuditEntry[]> {

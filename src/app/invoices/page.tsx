@@ -190,6 +190,27 @@ export default function InvoicesPage() {
     notify("info", `Approved invoice for ${item.submission.payerName}`, "/invoices");
   };
 
+  const [deletingSubmission, setDeletingSubmission] = useState<string | null>(null);
+
+  const handleDeleteSubmission = async (item: InvoiceListItem) => {
+    if (!confirm(`Delete the invoice for ${item.submission.payerName}? You can restore it from Archives.`)) return;
+    setDeletingSubmission(item.submission.id);
+    try {
+      const res = await fetch(`/api/invoices/${item.submission.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        notify("error", `Failed to delete invoice for ${item.submission.payerName}`, "/invoices");
+        return;
+      }
+      setItems((prev) => prev.filter((i) => i.submission.id !== item.submission.id));
+      setSelectedItem((prev) => (prev?.submission.id === item.submission.id ? null : prev));
+      notify("info", `Deleted invoice for ${item.submission.payerName} — restore from Archives if needed`, "/invoices");
+    } catch {
+      notify("error", `Failed to delete invoice for ${item.submission.payerName}`, "/invoices");
+    } finally {
+      setDeletingSubmission(null);
+    }
+  };
+
   const handleSendToMF = async (item: InvoiceListItem) => {
     if (!item.validation) return;
     setSendingToMF(item.submission.id);
@@ -591,6 +612,14 @@ export default function InvoicesPage() {
                             {item.filedDocument && (
                               <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              loading={deletingSubmission === s.id}
+                              onClick={() => handleDeleteSubmission(item)}
+                            >
+                              Delete
+                            </Button>
                           </div>
                         </td>
                       </tr>

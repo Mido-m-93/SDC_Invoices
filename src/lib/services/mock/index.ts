@@ -52,6 +52,9 @@ import {
   writeStore,
   loadUploadedSubmissions,
   saveUploadedSubmissions,
+  deleteUploadedSubmission,
+  restoreUploadedSubmission,
+  loadDeletedUploadedSubmissions,
   saveValidationResult,
   loadValidationResults,
   saveFiledDocument,
@@ -68,8 +71,10 @@ import {
   saveContract,
   deleteContract,
   loadProposals,
+  loadDeletedProposals,
   saveProposal,
   deleteProposal,
+  restoreProposal,
   loadPaymentRecords,
   savePaymentRecord,
   deletePaymentRecord,
@@ -257,6 +262,18 @@ export class MockStorageService implements IStorageService {
     return loadUploadedSubmissions(month);
   }
 
+  async deleteSubmission(id: string, deletedBy?: string): Promise<void> {
+    deleteUploadedSubmission(id, deletedBy);
+  }
+
+  async restoreSubmission(id: string): Promise<void> {
+    restoreUploadedSubmission(id);
+  }
+
+  async listDeletedSubmissions(): Promise<InvoiceSubmission[]> {
+    return loadDeletedUploadedSubmissions();
+  }
+
   async listAvailableMonths(): Promise<string[]> {
     const all = loadUploadedSubmissions();
     const seen = new Set<string>();
@@ -366,8 +383,14 @@ export class MockProposalService implements IProposalService {
   async saveProposal(proposal: Proposal): Promise<void> {
     saveProposal(proposal);
   }
-  async deleteProposal(id: string): Promise<void> {
-    deleteProposal(id);
+  async deleteProposal(id: string, deletedBy?: string): Promise<void> {
+    deleteProposal(id, deletedBy);
+  }
+  async restoreProposal(id: string): Promise<void> {
+    restoreProposal(id);
+  }
+  async listDeletedProposals(): Promise<Proposal[]> {
+    return loadDeletedProposals();
   }
 }
 

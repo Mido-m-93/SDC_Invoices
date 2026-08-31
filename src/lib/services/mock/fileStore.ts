@@ -190,6 +190,26 @@ export function loadUploadedSubmissions(month?: string): InvoiceSubmission[] {
   return all.filter((s) => deriveMonth(s) === month);
 }
 
+// Soft delete — mirrors SupabaseStorageService so mock/real storage behave
+// the same for the Delete + Undo + Archives flow.
+export function deleteUploadedSubmission(id: string, deletedBy?: string): void {
+  const store = readStore();
+  const s = store.submissions.find((s) => s.id === id);
+  if (s) { s.deletedAt = new Date().toISOString(); s.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restoreUploadedSubmission(id: string): void {
+  const store = readStore();
+  const s = store.submissions.find((s) => s.id === id);
+  if (s) { s.deletedAt = null; s.deletedBy = null; }
+  writeStore(store);
+}
+
+export function loadDeletedUploadedSubmissions(): InvoiceSubmission[] {
+  return (readStore().submissions ?? []).filter((s) => !!s.deletedAt);
+}
+
 // ── Validation results ────────────────────────────────────────────────────────
 
 export function saveValidationResult(result: InvoiceValidationResult): void {
@@ -293,7 +313,11 @@ export function deleteContract(id: string): void {
 // ── Proposals ─────────────────────────────────────────────────────────────────
 
 export function loadProposals(): Proposal[] {
-  return readStore().proposals;
+  return readStore().proposals.filter((p) => !p.deletedAt);
+}
+
+export function loadDeletedProposals(): Proposal[] {
+  return readStore().proposals.filter((p) => !!p.deletedAt);
 }
 
 export function saveProposal(proposal: Proposal): void {
@@ -304,9 +328,19 @@ export function saveProposal(proposal: Proposal): void {
   writeStore(store);
 }
 
-export function deleteProposal(id: string): void {
+// Soft delete — mirrors SupabaseProposalService so mock/real storage behave
+// the same for the Delete + Undo + Archives flow.
+export function deleteProposal(id: string, deletedBy?: string): void {
   const store = readStore();
-  store.proposals = store.proposals.filter((p) => p.id !== id);
+  const p = store.proposals.find((p) => p.id === id);
+  if (p) { p.deletedAt = new Date().toISOString(); p.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restoreProposal(id: string): void {
+  const store = readStore();
+  const p = store.proposals.find((p) => p.id === id);
+  if (p) { p.deletedAt = null; p.deletedBy = null; }
   writeStore(store);
 }
 
@@ -393,7 +427,11 @@ export function deleteMember(id: string): void {
 // ── Expense Claims ────────────────────────────────────────────────────────────
 
 export function loadExpenseClaims(): ExpenseClaim[] {
-  return readStore().expenseClaims;
+  return readStore().expenseClaims.filter((c) => !c.deletedAt);
+}
+
+export function loadDeletedExpenseClaims(): ExpenseClaim[] {
+  return readStore().expenseClaims.filter((c) => !!c.deletedAt);
 }
 
 export function saveExpenseClaim(claim: ExpenseClaim): void {
@@ -404,9 +442,19 @@ export function saveExpenseClaim(claim: ExpenseClaim): void {
   writeStore(store);
 }
 
-export function deleteExpenseClaim(id: string): void {
+// Soft delete — mirrors SupabaseExpenseService so mock/real storage behave
+// the same for the Delete + Undo + Archives flow.
+export function deleteExpenseClaim(id: string, deletedBy?: string): void {
   const store = readStore();
-  store.expenseClaims = store.expenseClaims.filter((c) => c.id !== id);
+  const c = store.expenseClaims.find((c) => c.id === id);
+  if (c) { c.deletedAt = new Date().toISOString(); c.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restoreExpenseClaim(id: string): void {
+  const store = readStore();
+  const c = store.expenseClaims.find((c) => c.id === id);
+  if (c) { c.deletedAt = null; c.deletedBy = null; }
   writeStore(store);
 }
 
@@ -449,7 +497,11 @@ export function updateExpenseClaimStatus(
 // ── Pipeline sync — staged records + audit log ────────────────────────────────
 
 export function loadStagedPipelineRecords(): StagedPipelineRecord[] {
-  return readStore().stagedPipelineRecords;
+  return readStore().stagedPipelineRecords.filter((r) => !r.deletedAt);
+}
+
+export function loadDeletedPipelineRecords(): StagedPipelineRecord[] {
+  return readStore().stagedPipelineRecords.filter((r) => !!r.deletedAt);
 }
 
 export function saveStagedPipelineRecord(record: StagedPipelineRecord): void {
@@ -457,6 +509,22 @@ export function saveStagedPipelineRecord(record: StagedPipelineRecord): void {
   const idx = store.stagedPipelineRecords.findIndex((r) => r.id === record.id);
   if (idx >= 0) store.stagedPipelineRecords[idx] = record;
   else store.stagedPipelineRecords.push(record);
+  writeStore(store);
+}
+
+// Soft delete — mirrors SupabasePipelineSyncStore so mock/real storage
+// behave the same for the Delete + Undo + Archives flow.
+export function softDeletePipelineRecord(id: string, deletedBy?: string): void {
+  const store = readStore();
+  const r = store.stagedPipelineRecords.find((r) => r.id === id);
+  if (r) { r.deletedAt = new Date().toISOString(); r.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restorePipelineRecordFromDelete(id: string): void {
+  const store = readStore();
+  const r = store.stagedPipelineRecords.find((r) => r.id === id);
+  if (r) { r.deletedAt = null; r.deletedBy = null; }
   writeStore(store);
 }
 

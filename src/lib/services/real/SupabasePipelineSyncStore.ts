@@ -29,6 +29,8 @@ function toStagedRow(r: StagedPipelineRecord): Record<string, unknown> {
     created_lead_id: r.createdLeadId,
     created_at: r.createdAt,
     updated_at: r.updatedAt,
+    deleted_at: r.deletedAt ?? null,
+    deleted_by: r.deletedBy ?? null,
   };
 }
 
@@ -54,6 +56,8 @@ function fromStagedRow(row: Record<string, unknown>): StagedPipelineRecord {
     createdLeadId: (row.created_lead_id as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -85,8 +89,19 @@ export async function loadStagedPipelineRecords(): Promise<StagedPipelineRecord[
   const { data, error } = await getSupabaseClient()
     .from("staged_pipeline_records")
     .select("*")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`loadStagedPipelineRecords: ${error.message}`);
+  return (data ?? []).map((r) => fromStagedRow(r as Record<string, unknown>));
+}
+
+export async function loadDeletedPipelineRecords(): Promise<StagedPipelineRecord[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("staged_pipeline_records")
+    .select("*")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) throw new Error(`loadDeletedPipelineRecords: ${error.message}`);
   return (data ?? []).map((r) => fromStagedRow(r as Record<string, unknown>));
 }
 
@@ -95,6 +110,24 @@ export async function saveStagedPipelineRecord(record: StagedPipelineRecord): Pr
     .from("staged_pipeline_records")
     .upsert(toStagedRow(record), { onConflict: "id" });
   if (error) throw new Error(`saveStagedPipelineRecord: ${error.message}`);
+}
+
+// Soft delete — sets deleted_at/deleted_by instead of removing the row, so
+// it can be restored from the Archives page instead of being lost.
+export async function softDeletePipelineRecord(id: string, deletedBy?: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("staged_pipeline_records")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+    .eq("id", id);
+  if (error) throw new Error(`softDeletePipelineRecord: ${error.message}`);
+}
+
+export async function restorePipelineRecordFromDelete(id: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("staged_pipeline_records")
+    .update({ deleted_at: null, deleted_by: null })
+    .eq("id", id);
+  if (error) throw new Error(`restorePipelineRecordFromDelete: ${error.message}`);
 }
 
 export async function appendPipelineAuditEntry(entry: PipelineSyncAuditEntry): Promise<void> {

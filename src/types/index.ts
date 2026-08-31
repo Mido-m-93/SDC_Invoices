@@ -57,6 +57,8 @@ export interface InvoiceSubmission {
   paymentStatus: string;
   paymentAmount: string;
   paymentProcessingStatus: string;
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 // ── Extracted fields from the actual invoice PDF/document ────────────────────
@@ -231,6 +233,8 @@ export interface Proposal {
   verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
   sourceFileId?: string;   // SharePoint Graph item id, when synced from WorkTogether — used to dedup re-syncs
   createdAt: string;
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 // ── Contract master ───────────────────────────────────────────────────────────
@@ -413,6 +417,8 @@ export interface ExpenseClaim {
   mfBillingId?: string;
   mfBillingUrl?: string;
   mfSentAt?: string;
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 export interface ExpenseValidationResult {
@@ -477,6 +483,8 @@ export interface OutboundInvoice {
   driveFileId?: string;
   driveFileUrl?: string;
   verification?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 export interface OutboundInvoiceSummary {
@@ -755,13 +763,15 @@ export interface StagedPipelineRecord {
   createdLeadId: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 export interface PipelineSyncAuditEntry {
   id: string;
   timestamp: string;
   actor: string;
-  action: "sync" | "extract" | "match" | "approve" | "reject" | "restore";
+  action: "sync" | "extract" | "match" | "approve" | "reject" | "restore" | "delete" | "undelete";
   recordId: string | null;
   source: PipelineSourceType | null;
   detail: string;

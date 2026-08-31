@@ -2,8 +2,10 @@ import type { IExpenseService } from "../types";
 import type { ExpenseClaim, ExpenseStatus, ExpenseValidationResult } from "@/types";
 import {
   loadExpenseClaims,
+  loadDeletedExpenseClaims,
   saveExpenseClaim,
   deleteExpenseClaim,
+  restoreExpenseClaim,
   deleteAllExpenseClaims,
   updateExpenseClaimStatus,
 } from "./fileStore";
@@ -24,8 +26,16 @@ export class MockExpenseService implements IExpenseService {
     saveExpenseClaim(claim);
   }
 
-  async deleteClaim(id: string): Promise<void> {
-    deleteExpenseClaim(id);
+  async deleteClaim(id: string, deletedBy?: string): Promise<void> {
+    deleteExpenseClaim(id, deletedBy);
+  }
+
+  async restoreClaim(id: string): Promise<void> {
+    restoreExpenseClaim(id);
+  }
+
+  async listDeletedClaims(): Promise<ExpenseClaim[]> {
+    return loadDeletedExpenseClaims();
   }
 
   async deleteAllClaims(): Promise<void> {

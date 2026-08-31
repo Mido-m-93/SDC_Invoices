@@ -35,10 +35,11 @@ const FINANCE_ITEMS = [
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
 ];
 
-const SYSTEM_HREFS = ["/logs", "/config"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
+  { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
 
@@ -284,6 +285,23 @@ function LogIcon({ size = 18 }: { size?: number }) {
       <line x1="3" y1="6" x2="3.01" y2="6" />
       <line x1="3" y1="12" x2="3.01" y2="12" />
       <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  );
+}
+
+function ArchiveIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+    >
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8" />
+      <line x1="10" y1="12" x2="14" y2="12" />
     </svg>
   );
 }

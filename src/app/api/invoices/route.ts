@@ -58,14 +58,20 @@ export async function GET(req: NextRequest) {
 
     const withDates = (rows: typeof stored) =>
       rows.map((s) => ({ ...s, submittedAt: submittedAtByRow.get(s.submissionRowNumber) ?? s.submittedAt }));
+    // loadSubmissionsFromStore() deliberately includes soft-deleted rows (see
+    // its own comment) so they survive the save-back below — strip them out
+    // only for what actually gets sent to the frontend.
+    const visible = (rows: typeof stored) => withDates(rows).filter((s) => !s.deletedAt);
 
     if (newRows.length === 0) {
-      return NextResponse.json({ month, count: stored.length, submissions: withDates(stored), ...(sheetsWarning ? { sheetsWarning } : {}) });
+      const submissions = visible(stored);
+      return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
     }
 
     const allToSave = [...stored, ...newRows];
     await getStorageService().saveSubmissions(allToSave, month);
-    return NextResponse.json({ month, count: allToSave.length, submissions: withDates(allToSave), ...(sheetsWarning ? { sheetsWarning } : {}) });
+    const submissions = visible(allToSave);
+    return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
   } catch (err) {
     console.error("[GET /api/invoices]", err);
     return NextResponse.json(

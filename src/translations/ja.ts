@@ -12,6 +12,7 @@ const ja = {
   nav_invoices: "請求書一覧",
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",
+  nav_archives: "アーカイブ",
   nav_config: "設定",
   nav_group_sales: "営業",
   nav_group_members: "メンバー",

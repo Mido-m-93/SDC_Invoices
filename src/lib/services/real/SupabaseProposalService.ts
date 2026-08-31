@@ -21,6 +21,8 @@ function toRow(p: Proposal): Record<string, unknown> {
     verification: p.verification ?? null,
     source_file_id: p.sourceFileId ?? null,
     created_at: p.createdAt,
+    deleted_at: p.deletedAt ?? null,
+    deleted_by: p.deletedBy ?? null,
   };
 }
 
@@ -42,6 +44,8 @@ function fromRow(row: Record<string, unknown>): Proposal {
     verification: (row.verification as Proposal["verification"]) ?? undefined,
     sourceFileId: (row.source_file_id as string | null) ?? undefined,
     createdAt: row.created_at as string,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -54,6 +58,7 @@ export class SupabaseProposalService implements IProposalService {
     const { data, error } = await this.db
       .from("proposals")
       .select("*")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) throw new Error(`listProposals: ${error.message}`);
     return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
@@ -66,8 +71,31 @@ export class SupabaseProposalService implements IProposalService {
     if (error) throw new Error(`saveProposal: ${error.message}`);
   }
 
-  async deleteProposal(id: string): Promise<void> {
-    const { error } = await this.db.from("proposals").delete().eq("id", id);
+  // Soft delete — sets deleted_at/deleted_by instead of removing the row, so
+  // it can be restored from the Archives page instead of being lost.
+  async deleteProposal(id: string, deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("proposals")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .eq("id", id);
     if (error) throw new Error(`deleteProposal: ${error.message}`);
+  }
+
+  async restoreProposal(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("proposals")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreProposal: ${error.message}`);
+  }
+
+  async listDeletedProposals(): Promise<Proposal[]> {
+    const { data, error } = await this.db
+      .from("proposals")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedProposals: ${error.message}`);
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
   }
 }

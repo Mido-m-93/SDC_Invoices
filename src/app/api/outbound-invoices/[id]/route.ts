@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOutboundInvoiceService, getContractService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 import type { OutboundInvoiceStatus } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -50,8 +51,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
-    await getOutboundInvoiceService().deleteInvoice(params.id);
+    await getOutboundInvoiceService().deleteInvoice(params.id, user.email);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

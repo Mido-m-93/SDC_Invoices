@@ -29,6 +29,8 @@ function toRow(inv: OutboundInvoice): Record<string, unknown> {
     verification: inv.verification ?? null,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
+    deleted_at: inv.deletedAt ?? null,
+    deleted_by: inv.deletedBy ?? null,
   };
 }
 
@@ -58,6 +60,8 @@ function fromRow(row: Record<string, unknown>): OutboundInvoice {
     verification: (row.verification as OutboundInvoice["verification"]) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -67,7 +71,7 @@ export class SupabaseOutboundInvoiceService implements IOutboundInvoiceService {
   }
 
   async listInvoices(filters?: { status?: OutboundInvoiceStatus; billingMonth?: string }): Promise<OutboundInvoice[]> {
-    let query = this.db.from("outbound_invoices").select("*").order("created_at", { ascending: false });
+    let query = this.db.from("outbound_invoices").select("*").is("deleted_at", null).order("created_at", { ascending: false });
     if (filters?.status) query = query.eq("status", filters.status);
     if (filters?.billingMonth) query = query.eq("billing_month", filters.billingMonth);
     const { data, error } = await query;
@@ -88,9 +92,32 @@ export class SupabaseOutboundInvoiceService implements IOutboundInvoiceService {
     if (error) throw new Error(`saveInvoice: ${error.message}`);
   }
 
-  async deleteInvoice(id: string): Promise<void> {
-    const { error } = await this.db.from("outbound_invoices").delete().eq("id", id);
+  // Soft delete — sets deleted_at/deleted_by instead of removing the row, so
+  // it can be restored from the Archives page instead of being lost.
+  async deleteInvoice(id: string, deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("outbound_invoices")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .eq("id", id);
     if (error) throw new Error(`deleteInvoice: ${error.message}`);
+  }
+
+  async restoreInvoice(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("outbound_invoices")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreInvoice: ${error.message}`);
+  }
+
+  async listDeletedInvoices(): Promise<OutboundInvoice[]> {
+    const { data, error } = await this.db
+      .from("outbound_invoices")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedInvoices: ${error.message}`);
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
   }
 
   async updateStatus(id: string, status: OutboundInvoiceStatus, actorName: string): Promise<void> {
@@ -106,7 +133,7 @@ export class SupabaseOutboundInvoiceService implements IOutboundInvoiceService {
   }
 
   async getSummary(month?: string): Promise<OutboundInvoiceSummary> {
-    let query = this.db.from("outbound_invoices").select("status, total, currency");
+    let query = this.db.from("outbound_invoices").select("status, total, currency").is("deleted_at", null);
     if (month) query = query.eq("billing_month", month);
     const { data, error } = await query;
     if (error) throw new Error(`getSummary: ${error.message}`);

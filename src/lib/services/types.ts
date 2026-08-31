@@ -114,8 +114,17 @@ export interface IStorageService {
   /** Delete ALL submissions (and their validation results) across all months */
   clearAllSubmissions(): Promise<void>;
 
-  /** Load saved submissions for a given month */
+  /** Load saved submissions for a given month (includes soft-deleted rows — see impl for why) */
   loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]>;
+
+  /** Soft-delete a single submission row by id */
+  deleteSubmission(id: string, deletedBy?: string): Promise<void>;
+
+  /** Undo a soft-delete on a single submission row */
+  restoreSubmission(id: string): Promise<void>;
+
+  /** All soft-deleted submission rows, across all months */
+  listDeletedSubmissions(): Promise<InvoiceSubmission[]>;
 
   /** Patch the currency field on a single stored submission */
   patchSubmissionCurrency(submissionId: string, month: string, currency: string): Promise<void>;
@@ -182,7 +191,9 @@ export interface IContractService {
 export interface IProposalService {
   listProposals(): Promise<Proposal[]>;
   saveProposal(proposal: Proposal): Promise<void>;
-  deleteProposal(id: string): Promise<void>;
+  deleteProposal(id: string, deletedBy?: string): Promise<void>;
+  restoreProposal(id: string): Promise<void>;
+  listDeletedProposals(): Promise<Proposal[]>;
 }
 
 // ── Payment record service ────────────────────────────────────────────────────
@@ -214,7 +225,9 @@ export interface IExpenseService {
   listClaims(filters?: { status?: ExpenseStatus; submittedBy?: string }): Promise<ExpenseClaim[]>;
   getClaim(id: string): Promise<ExpenseClaim | null>;
   saveClaim(claim: ExpenseClaim): Promise<void>;
-  deleteClaim(id: string): Promise<void>;
+  deleteClaim(id: string, deletedBy?: string): Promise<void>;
+  restoreClaim(id: string): Promise<void>;
+  listDeletedClaims(): Promise<ExpenseClaim[]>;
   deleteAllClaims(): Promise<void>;
   updateStatus(id: string, status: ExpenseStatus, actorName: string, comment?: string): Promise<void>;
   validateClaim(claim: ExpenseClaim): Promise<ExpenseValidationResult>;
@@ -230,7 +243,9 @@ export interface IOutboundInvoiceService {
   listInvoices(filters?: { status?: OutboundInvoiceStatus; billingMonth?: string }): Promise<OutboundInvoice[]>;
   getInvoice(id: string): Promise<OutboundInvoice | null>;
   saveInvoice(invoice: OutboundInvoice): Promise<void>;
-  deleteInvoice(id: string): Promise<void>;
+  deleteInvoice(id: string, deletedBy?: string): Promise<void>;
+  restoreInvoice(id: string): Promise<void>;
+  listDeletedInvoices(): Promise<OutboundInvoice[]>;
   updateStatus(id: string, status: OutboundInvoiceStatus, actorName: string): Promise<void>;
   getSummary(month?: string): Promise<OutboundInvoiceSummary>;
 }

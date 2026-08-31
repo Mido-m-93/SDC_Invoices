@@ -46,6 +46,11 @@ function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, un
     payment_status: s.paymentStatus,
     payment_amount: s.paymentAmount,
     payment_processing_status: s.paymentProcessingStatus,
+    // saveSubmissions deletes-then-reinserts a whole month's rows on every
+    // save, so a soft-deleted row's deleted_at MUST round-trip through here
+    // or it would silently come back to life (hard-undeleted) on next save.
+    deleted_at: s.deletedAt ?? null,
+    deleted_by: s.deletedBy ?? null,
   };
   // Only include currency if it has a value — omitting it is safe before the
   // migration runs, whereas passing null for a non-existent column breaks inserts.
@@ -71,6 +76,8 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     paymentStatus: row.payment_status as string,
     paymentAmount: row.payment_amount as string,
     paymentProcessingStatus: row.payment_processing_status as string,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -282,6 +289,13 @@ export class SupabaseStorageService implements IStorageService {
     return Array.from(seen);
   }
 
+  // Deliberately returns ALL rows including soft-deleted ones — the caller
+  // (GET /api/invoices) both (a) filters deleted rows out of what it sends
+  // the frontend and (b) feeds the unfiltered result straight back into
+  // saveSubmissions() to re-persist the month, which deletes-then-reinserts
+  // every row it's given. Filtering here would make a deleted row vanish for
+  // good (hard-deleted) on the very next page load instead of staying in
+  // Archives.
   async loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]> {
     const { data, error } = await this.db
       .from("invoice_submissions")
@@ -289,6 +303,32 @@ export class SupabaseStorageService implements IStorageService {
       .eq("snapshot_month", month)
       .order("submission_row_number", { ascending: true });
     if (error) throw new Error(`loadSubmissionsFromStore: ${error.message}`);
+    return (data ?? []).map((r) => fromSubmissionRow(r as Record<string, unknown>));
+  }
+
+  async deleteSubmission(id: string, deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("invoice_submissions")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .eq("id", id);
+    if (error) throw new Error(`deleteSubmission: ${error.message}`);
+  }
+
+  async restoreSubmission(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("invoice_submissions")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreSubmission: ${error.message}`);
+  }
+
+  async listDeletedSubmissions(): Promise<InvoiceSubmission[]> {
+    const { data, error } = await this.db
+      .from("invoice_submissions")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedSubmissions: ${error.message}`);
     return (data ?? []).map((r) => fromSubmissionRow(r as Record<string, unknown>));
   }
 

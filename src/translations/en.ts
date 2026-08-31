@@ -12,6 +12,7 @@ const en = {
   nav_invoices: "Invoices",
   nav_payment_records: "Payments",
   nav_logs: "Logs",
+  nav_archives: "Archives",
   nav_config: "Settings",
   nav_group_sales: "Sales",
   nav_group_members: "Members",

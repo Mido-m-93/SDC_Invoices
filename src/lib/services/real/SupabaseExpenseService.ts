@@ -66,6 +66,8 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     mf_billing_id: c.mfBillingId ?? null,
     mf_billing_url: c.mfBillingUrl ?? null,
     mf_sent_at: c.mfSentAt ?? null,
+    deleted_at: c.deletedAt ?? null,
+    deleted_by: c.deletedBy ?? null,
   };
 }
 
@@ -102,6 +104,8 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     mfBillingId: (row.mf_billing_id as string) || undefined,
     mfBillingUrl: (row.mf_billing_url as string) || undefined,
     mfSentAt: (row.mf_sent_at as string) || undefined,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -153,7 +157,7 @@ export class SupabaseExpenseService implements IExpenseService {
   }
 
   async listClaims(filters?: { status?: ExpenseStatus; submittedBy?: string }): Promise<ExpenseClaim[]> {
-    let query = this.db.from("expense_claims").select("*").order("submitted_at", { ascending: false });
+    let query = this.db.from("expense_claims").select("*").is("deleted_at", null).order("submitted_at", { ascending: false });
     if (filters?.status) query = query.eq("status", filters.status);
     if (filters?.submittedBy) query = query.eq("submitted_by", filters.submittedBy);
     const { data, error } = await query;
@@ -174,11 +178,37 @@ export class SupabaseExpenseService implements IExpenseService {
     if (error) throw new Error(`saveClaim: ${error.message}`);
   }
 
-  async deleteClaim(id: string): Promise<void> {
-    const { error } = await this.db.from("expense_claims").delete().eq("id", id);
+  // Soft delete — sets deleted_at/deleted_by instead of removing the row, so
+  // it can be restored from the Archives page instead of being lost.
+  async deleteClaim(id: string, deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("expense_claims")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .eq("id", id);
     if (error) throw new Error(`deleteClaim: ${error.message}`);
   }
 
+  async restoreClaim(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("expense_claims")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreClaim: ${error.message}`);
+  }
+
+  async listDeletedClaims(): Promise<ExpenseClaim[]> {
+    const { data, error } = await this.db
+      .from("expense_claims")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedClaims: ${error.message}`);
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
+  }
+
+  // Bulk hard-delete — kept as a genuine hard delete (used by test/reset
+  // tooling, not the reviewer-facing Delete button), not part of the
+  // soft-delete/Archives flow.
   async deleteAllClaims(): Promise<void> {
     const { error } = await this.db.from("expense_claims").delete().neq("id", "");
     if (error) throw new Error(`deleteAllClaims: ${error.message}`);

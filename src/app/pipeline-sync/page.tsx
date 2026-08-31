@@ -371,6 +371,30 @@ export default function PipelineSyncPage() {
     }
   }
 
+  async function deleteRecord(r: StagedPipelineRecord) {
+    if (!confirm(`Delete "${r.rawClientName}"? You can restore it from Archives.`)) return;
+    setBusyId(r.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/pipeline-sync/${r.id}`, { method: "DELETE" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        const message = data.error ?? "Failed to delete record";
+        setError(message);
+        notify("error", message, "/pipeline-sync");
+        return;
+      }
+      await load();
+      notify("info", `Deleted "${r.rawClientName}" — restore it from Archives if needed`, "/pipeline-sync");
+    } catch {
+      const message = "Failed to delete record";
+      setError(message);
+      notify("error", message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const mockSourceLabels = [
     sourceStatus?.notion === "mock" ? "Notion" : null,
     sourceStatus?.sharepoint === "mock" ? "SharePoint" : null,
@@ -580,24 +604,28 @@ export default function PipelineSyncPage() {
                   )}
                 </div>
 
-                {pending && (
-                  <div className="mt-3 flex justify-end gap-2 border-t border-stone-100 pt-3">
-                    <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
-                      {t("pipeline_sync_reject")}
-                    </Button>
-                    <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
-                      {t("pipeline_sync_approve")}
-                    </Button>
+                <div className="mt-3 flex justify-between gap-2 border-t border-stone-100 pt-3">
+                  <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => deleteRecord(r)}>
+                    Delete
+                  </Button>
+                  <div className="flex gap-2">
+                    {r.status === "rejected" && (
+                      <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => restoreRejected(r)}>
+                        Undo Reject
+                      </Button>
+                    )}
+                    {pending && (
+                      <>
+                        <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
+                          {t("pipeline_sync_reject")}
+                        </Button>
+                        <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
+                          {t("pipeline_sync_approve")}
+                        </Button>
+                      </>
+                    )}
                   </div>
-                )}
-
-                {r.status === "rejected" && (
-                  <div className="mt-3 flex justify-end border-t border-stone-100 pt-3">
-                    <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => restoreRejected(r)}>
-                      Undo Reject
-                    </Button>
-                  </div>
-                )}
+                </div>
               </div>
             );
           })}
