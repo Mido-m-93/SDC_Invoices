@@ -62,6 +62,8 @@ import {
   saveRun,
   loadRuns,
   clearAllRuns,
+  restoreRun,
+  loadDeletedRuns,
   appendLog,
   loadLogs,
   loadVendors,
@@ -311,8 +313,16 @@ export class MockStorageService implements IStorageService {
     saveRun(run);
   }
 
-  async clearAllRuns(): Promise<void> {
-    clearAllRuns();
+  async clearAllRuns(deletedBy?: string): Promise<void> {
+    clearAllRuns(deletedBy);
+  }
+
+  async restoreRun(id: string): Promise<void> {
+    restoreRun(id);
+  }
+
+  async listDeletedRuns(): Promise<ProcessingRun[]> {
+    return loadDeletedRuns();
   }
 
   async appendLog(log: ProcessingLog): Promise<void> {

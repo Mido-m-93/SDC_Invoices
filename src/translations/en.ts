@@ -323,7 +323,7 @@ const en = {
   logs_refresh: "Refresh",
   logs_clear_all: "Clear Logs",
   logs_clear_all_confirm_title: "Clear all processing logs?",
-  logs_clear_all_confirm_body: "This permanently deletes all run history and log entries. This cannot be undone.",
+  logs_clear_all_confirm_body: "This removes all run history from this list. You can restore it from Archives afterward.",
   logs_clear_all_confirm_action: "Clear Logs",
   logs_clear_all_deleting: "Clearing...",
   log_result_OK: "OK",

@@ -323,7 +323,7 @@ const ja = {
   logs_refresh: "更新",
   logs_clear_all: "ログを削除",
   logs_clear_all_confirm_title: "すべての処理ログを削除しますか？",
-  logs_clear_all_confirm_body: "すべての実行履歴とログを完全に削除します。この操作は取り消せません。",
+  logs_clear_all_confirm_body: "すべての実行履歴がこの一覧から削除されます。後でアーカイブから復元できます。",
   logs_clear_all_confirm_action: "ログを削除",
   logs_clear_all_deleting: "削除中...",
   log_result_OK: "成功",

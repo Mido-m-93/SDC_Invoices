@@ -181,6 +181,8 @@ function toRunRow(run: ProcessingRun): Record<string, unknown> {
     saved: run.saved,
     errors: run.errors,
     status: run.status,
+    deleted_at: run.deletedAt ?? null,
+    deleted_by: run.deletedBy ?? null,
   };
 }
 
@@ -196,6 +198,8 @@ function fromRunRow(row: Record<string, unknown>): ProcessingRun {
     saved: row.saved as number,
     errors: row.errors as number,
     status: row.status as ProcessingRun["status"],
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -377,6 +381,7 @@ export class SupabaseStorageService implements IStorageService {
     const { data, error } = await this.db
       .from("processing_runs")
       .select("*")
+      .is("deleted_at", null)
       .order("started_at", { ascending: false });
     if (error) throw new Error(`loadRuns: ${error.message}`);
     return (data ?? []).map((r) => fromRunRow(r as Record<string, unknown>));
@@ -389,10 +394,34 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`saveRun: ${error.message}`);
   }
 
-  async clearAllRuns(): Promise<void> {
-    // processing_logs.run_id references processing_runs(id) on delete cascade
-    const { error } = await this.db.from("processing_runs").delete().neq("id", "");
+  // Soft delete — was a genuine hard delete (logs cascaded via FK). Now sets
+  // deleted_at instead, so "Clear Logs" lands in Archives like every other
+  // delete/clear action in the app, and the associated processing_logs rows
+  // are left alone (still fetchable if the run is restored).
+  async clearAllRuns(deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("processing_runs")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .is("deleted_at", null);
     if (error) throw new Error(`clearAllRuns: ${error.message}`);
+  }
+
+  async restoreRun(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("processing_runs")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreRun: ${error.message}`);
+  }
+
+  async listDeletedRuns(): Promise<ProcessingRun[]> {
+    const { data, error } = await this.db
+      .from("processing_runs")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedRuns: ${error.message}`);
+    return (data ?? []).map((r) => fromRunRow(r as Record<string, unknown>));
   }
 
   async appendLog(log: ProcessingLog): Promise<void> {

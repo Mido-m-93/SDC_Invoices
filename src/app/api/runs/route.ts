@@ -2,6 +2,7 @@
 // src/app/api/runs/route.ts
 import { NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +20,10 @@ export async function GET() {
 }
 
 export async function DELETE() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
-    await getStorageService().clearAllRuns();
+    await getStorageService().clearAllRuns(user.email);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[DELETE /api/runs]", err);

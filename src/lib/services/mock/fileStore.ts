@@ -247,15 +247,29 @@ export function saveRun(run: ProcessingRun): void {
 }
 
 export function loadRuns(): ProcessingRun[] {
-  return readStore().runs;
+  return readStore().runs.filter((r) => !r.deletedAt);
 }
 
-export function clearAllRuns(): void {
+// Soft delete — mirrors SupabaseStorageService; logs are left alone (no
+// longer removed) so a restored run keeps its history.
+export function clearAllRuns(deletedBy?: string): void {
   const store = readStore();
-  const runIds = new Set(store.runs.map((r) => r.id));
-  store.runs = [];
-  store.logs = store.logs.filter((l) => !runIds.has(l.runId));
+  const now = new Date().toISOString();
+  for (const r of store.runs) {
+    if (!r.deletedAt) { r.deletedAt = now; r.deletedBy = deletedBy ?? null; }
+  }
   writeStore(store);
+}
+
+export function restoreRun(id: string): void {
+  const store = readStore();
+  const r = store.runs.find((r) => r.id === id);
+  if (r) { r.deletedAt = null; r.deletedBy = null; }
+  writeStore(store);
+}
+
+export function loadDeletedRuns(): ProcessingRun[] {
+  return readStore().runs.filter((r) => !!r.deletedAt);
 }
 
 // ── Processing logs ───────────────────────────────────────────────────────────

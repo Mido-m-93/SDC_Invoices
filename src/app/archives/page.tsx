@@ -5,9 +5,9 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
-import type { Proposal, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission } from "@/types";
+import type { Proposal, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun } from "@/types";
 
-type ModuleKey = "proposals" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices";
+type ModuleKey = "proposals" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs";
 
 const MODULE_LABEL: Record<ModuleKey, string> = {
   proposals: "Proposal",
@@ -15,6 +15,7 @@ const MODULE_LABEL: Record<ModuleKey, string> = {
   expenses: "Expense",
   outbound_invoices: "Outbound Invoice",
   invoices: "Invoice",
+  logs: "Processing Log",
 };
 
 // One shape all five modules' deleted items get normalized into, so the page
@@ -89,12 +90,25 @@ function toArchivedInvoiceSubmission(s: InvoiceSubmission): ArchivedItem {
   };
 }
 
+function toArchivedRun(r: ProcessingRun): ArchivedItem {
+  return {
+    key: `logs:${r.id}`,
+    module: "logs",
+    id: r.id,
+    title: `Run ${r.id}`,
+    subtitle: `${r.month} · ${r.status} · ${r.totalRows} row${r.totalRows === 1 ? "" : "s"}`,
+    deletedAt: r.deletedAt ?? null,
+    deletedBy: r.deletedBy ?? null,
+  };
+}
+
 const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
   proposals: (id) => `/api/proposals/${id}/restore`,
   pipeline_sync: (id) => `/api/pipeline-sync/${id}/undelete`,
   expenses: (id) => `/api/expenses/${id}/restore`,
   outbound_invoices: (id) => `/api/outbound-invoices/${id}/restore`,
   invoices: (id) => `/api/invoices/${id}/restore`,
+  logs: (id) => `/api/runs/${id}/restore`,
 };
 
 export default function ArchivesPage() {
@@ -109,19 +123,21 @@ export default function ArchivesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [proposalsRes, pipelineRes, expensesRes, outboundRes, invoicesRes] = await Promise.all([
+      const [proposalsRes, pipelineRes, expensesRes, outboundRes, invoicesRes, logsRes] = await Promise.all([
         fetch("/api/proposals/deleted"),
         fetch("/api/pipeline-sync/deleted"),
         fetch("/api/expenses/deleted"),
         fetch("/api/outbound-invoices/deleted"),
         fetch("/api/invoices/deleted"),
+        fetch("/api/runs/deleted"),
       ]);
-      const [proposalsData, pipelineData, expensesData, outboundData, invoicesData] = await Promise.all([
+      const [proposalsData, pipelineData, expensesData, outboundData, invoicesData, logsData] = await Promise.all([
         proposalsRes.json() as Promise<{ proposals?: Proposal[] }>,
         pipelineRes.json() as Promise<{ records?: StagedPipelineRecord[] }>,
         expensesRes.json() as Promise<{ claims?: ExpenseClaim[] }>,
         outboundRes.json() as Promise<{ invoices?: OutboundInvoice[] }>,
         invoicesRes.json() as Promise<{ submissions?: InvoiceSubmission[] }>,
+        logsRes.json() as Promise<{ runs?: ProcessingRun[] }>,
       ]);
 
       const all: ArchivedItem[] = [
@@ -130,6 +146,7 @@ export default function ArchivesPage() {
         ...(expensesData.claims ?? []).map(toArchivedExpense),
         ...(outboundData.invoices ?? []).map(toArchivedOutboundInvoice),
         ...(invoicesData.submissions ?? []).map(toArchivedInvoiceSubmission),
+        ...(logsData.runs ?? []).map(toArchivedRun),
       ].sort((a, b) => (a.deletedAt ?? "") < (b.deletedAt ?? "") ? 1 : -1);
 
       setItems(all);
@@ -171,6 +188,7 @@ export default function ArchivesPage() {
     expenses: items.filter((i) => i.module === "expenses").length,
     outbound_invoices: items.filter((i) => i.module === "outbound_invoices").length,
     invoices: items.filter((i) => i.module === "invoices").length,
+    logs: items.filter((i) => i.module === "logs").length,
   };
   const filtered = filter === "all" ? items : items.filter((i) => i.module === filter);
 
@@ -178,7 +196,7 @@ export default function ArchivesPage() {
     <AppShell>
       <PageHeader
         title="Archives"
-        subtitle="Deleted items from Proposals, Pipeline Sync, Expenses, Outbound Invoices, and Invoices — restore anything moved here by mistake."
+        subtitle="Deleted items from Proposals, Pipeline Sync, Expenses, Outbound Invoices, Invoices, and Processing Logs — restore anything moved here by mistake."
       />
 
       {error && (
@@ -189,7 +207,7 @@ export default function ArchivesPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(["all", "proposals", "pipeline_sync", "expenses", "outbound_invoices", "invoices"] as const).map((f) => (
+        {(["all", "proposals", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

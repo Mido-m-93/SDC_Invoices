@@ -162,6 +162,8 @@ export interface ProcessingRun {
   errors: number;
   status: "RUNNING" | "COMPLETE" | "FAILED";
   entityType?: "invoice" | "expense";  // absent = legacy invoice run
+  deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
+  deletedBy?: string | null;
 }
 
 // ── App configuration (stored in Firestore / config file) ────────────────────
