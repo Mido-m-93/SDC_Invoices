@@ -348,6 +348,29 @@ export default function PipelineSyncPage() {
     }
   }
 
+  async function restoreRejected(r: StagedPipelineRecord) {
+    setBusyId(r.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/pipeline-sync/${r.id}/restore`, { method: "POST" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        const message = data.error ?? "Failed to restore record";
+        setError(message);
+        notify("error", message, "/pipeline-sync");
+        return;
+      }
+      await load();
+      notify("info", `Restored "${r.rawClientName}" to Needs Review`, "/pipeline-sync");
+    } catch {
+      const message = "Failed to restore record";
+      setError(message);
+      notify("error", message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const mockSourceLabels = [
     sourceStatus?.notion === "mock" ? "Notion" : null,
     sourceStatus?.sharepoint === "mock" ? "SharePoint" : null,
@@ -564,6 +587,14 @@ export default function PipelineSyncPage() {
                     </Button>
                     <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
                       {t("pipeline_sync_approve")}
+                    </Button>
+                  </div>
+                )}
+
+                {r.status === "rejected" && (
+                  <div className="mt-3 flex justify-end border-t border-stone-100 pt-3">
+                    <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => restoreRejected(r)}>
+                      Undo Reject
                     </Button>
                   </div>
                 )}

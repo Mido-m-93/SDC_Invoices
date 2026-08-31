@@ -761,7 +761,7 @@ export interface PipelineSyncAuditEntry {
   id: string;
   timestamp: string;
   actor: string;
-  action: "sync" | "extract" | "match" | "approve" | "reject";
+  action: "sync" | "extract" | "match" | "approve" | "reject" | "restore";
   recordId: string | null;
   source: PipelineSourceType | null;
   detail: string;

@@ -430,6 +430,42 @@ export async function rejectStagedRecord(
   return updated;
 }
 
+/**
+ * Undo a rejection, putting a record back into the review queue. Rejected
+ * (and approved) records are deliberately skipped by matchExistingRecords
+ * on every future sync — a human decision shouldn't get silently overwritten
+ * by a re-extraction — but that also means a rejected record is otherwise
+ * frozen forever, including from picking up later extraction-quality fixes
+ * (e.g. improved amount-finding). This is the escape hatch: only valid from
+ * "rejected", since "approved" already created a real Lead elsewhere that
+ * reverting this record's status wouldn't undo.
+ */
+export async function restoreRejectedRecord(id: string, actorName: string): Promise<StagedPipelineRecord> {
+  const record = (await loadStagedPipelineRecords()).find((r) => r.id === id);
+  if (!record) throw new Error(`Staged pipeline record "${id}" not found`);
+  if (record.status !== "rejected") {
+    throw new Error(`Record "${id}" is "${record.status}", not rejected — nothing to restore`);
+  }
+
+  const updated: StagedPipelineRecord = {
+    ...record,
+    status: "needs_review",
+    reviewerComment: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await saveStagedPipelineRecord(updated);
+
+  await audit({
+    actor: actorName,
+    action: "restore",
+    recordId: record.id,
+    source: record.source,
+    detail: "Restored from rejected back to needs_review.",
+  });
+
+  return updated;
+}
+
 export async function getAuditLog(recordId?: string): Promise<PipelineSyncAuditEntry[]> {
   const all = await loadPipelineAuditLog(recordId);
   return all.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
