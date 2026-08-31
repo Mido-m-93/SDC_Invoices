@@ -249,12 +249,15 @@ export class MockStorageService implements IStorageService {
     saveUploadedSubmissions(updated, month);
   }
 
-  async clearAllSubmissions(): Promise<void> {
-    if (typeof window !== "undefined") localStorage.removeItem("sdc_invoice_submissions");
+  // Soft delete — mirrors SupabaseStorageService; only submissions move to
+  // Archives, validation/filed-document state stays untouched so a restored
+  // submission doesn't lose its history.
+  async clearAllSubmissions(deletedBy?: string): Promise<void> {
     const store = readStore();
-    store.submissions = [];
-    store.validationResults = {};
-    store.filedDocuments = {};
+    const now = new Date().toISOString();
+    for (const s of store.submissions) {
+      if (!s.deletedAt) { s.deletedAt = now; s.deletedBy = deletedBy ?? null; }
+    }
     writeStore(store);
   }
 

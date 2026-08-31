@@ -111,8 +111,8 @@ export interface IStorageService {
   /** Save invoice submissions snapshot for a given month */
   saveSubmissions(submissions: InvoiceSubmission[], month: string): Promise<void>;
 
-  /** Delete ALL submissions (and their validation results) across all months */
-  clearAllSubmissions(): Promise<void>;
+  /** Soft-delete ALL submissions across all months (recoverable from Archives) */
+  clearAllSubmissions(deletedBy?: string): Promise<void>;
 
   /** Load saved submissions for a given month (includes soft-deleted rows — see impl for why) */
   loadSubmissionsFromStore(month: string): Promise<InvoiceSubmission[]>;

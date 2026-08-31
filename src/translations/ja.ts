@@ -299,7 +299,7 @@ const ja = {
   invoices_prev: "‹ 前へ",
   invoices_next: "次へ ›",
   invoices_clear_all_confirm_title: "すべての請求書をクリアしますか？",
-  invoices_clear_all_confirm_body: "すべての月の請求書提出データと検証結果が完全に削除されます。この操作は元に戻せません。",
+  invoices_clear_all_confirm_body: "すべての月の請求書提出データがこの一覧から削除されます。後でアーカイブから復元できます。",
   invoices_clear_all_confirm_action: "はい、すべて削除します",
   invoices_clear_all_deleting: "削除中…",
 

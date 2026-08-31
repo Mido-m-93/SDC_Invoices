@@ -299,7 +299,7 @@ const en = {
   invoices_prev: "‹ Prev",
   invoices_next: "Next ›",
   invoices_clear_all_confirm_title: "Clear all invoices?",
-  invoices_clear_all_confirm_body: "This will permanently delete all invoice submissions and validation results across every month. This cannot be undone.",
+  invoices_clear_all_confirm_body: "This will remove all invoice submissions across every month from this list. You can restore them from Archives afterward.",
   invoices_clear_all_confirm_action: "Yes, delete all",
   invoices_clear_all_deleting: "Deleting…",
 

@@ -270,8 +270,15 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`patchSubmissionCurrency: ${error.message}`);
   }
 
-  async clearAllSubmissions(): Promise<void> {
-    const { error } = await this.db.from("invoice_submissions").delete().neq("id", "");
+  // Soft delete — was a genuine hard delete, which meant "Clear All" bypassed
+  // Archives entirely and was unrecoverable. Only rows not already deleted
+  // are touched, so this doesn't stamp over deletedBy on rows deleted
+  // individually earlier.
+  async clearAllSubmissions(deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("invoice_submissions")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .is("deleted_at", null);
     if (error) throw new Error(`clearAllSubmissions: ${error.message}`);
   }
 

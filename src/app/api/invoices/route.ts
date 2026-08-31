@@ -1,6 +1,7 @@
 // src/app/api/invoices/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSheetsService, getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 import { parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 
@@ -82,8 +83,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
-    await getStorageService().clearAllSubmissions();
+    await getStorageService().clearAllSubmissions(user.email);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/invoices]", err);
