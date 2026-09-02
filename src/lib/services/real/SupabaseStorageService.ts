@@ -290,6 +290,7 @@ export class SupabaseStorageService implements IStorageService {
     const { data, error } = await this.db
       .from("invoice_submissions")
       .select("snapshot_month")
+      .is("deleted_at", null)
       .order("snapshot_month", { ascending: false });
     if (error) throw new Error(`listAvailableMonths: ${error.message}`);
     const seen = new Set<string>();
