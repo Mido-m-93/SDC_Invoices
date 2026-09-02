@@ -52,9 +52,8 @@ function toSubmissionRow(s: InvoiceSubmission, month: string): Record<string, un
     deleted_at: s.deletedAt ?? null,
     deleted_by: s.deletedBy ?? null,
   };
-  // Only include currency if it has a value — omitting it is safe before the
-  // migration runs, whereas passing null for a non-existent column breaks inserts.
   if (s.currency) row.currency = s.currency;
+  if (s.submittedAt) row.submitted_at = s.submittedAt;
   return row;
 }
 
@@ -76,6 +75,7 @@ function fromSubmissionRow(row: Record<string, unknown>): InvoiceSubmission {
     paymentStatus: row.payment_status as string,
     paymentAmount: row.payment_amount as string,
     paymentProcessingStatus: row.payment_processing_status as string,
+    submittedAt: (row.submitted_at as string | null) ?? undefined,
     deletedAt: (row.deleted_at as string | null) ?? undefined,
     deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
