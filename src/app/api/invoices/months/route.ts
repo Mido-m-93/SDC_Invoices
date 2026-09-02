@@ -7,22 +7,28 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Months already persisted in storage
-    const storedMonths = await getStorageService().listAvailableMonths();
+    const storage = getStorageService();
+    // Active months (non-deleted rows) and all-ever months (including deleted)
+    const [storedMonths, allMonths] = await Promise.all([
+      storage.listAvailableMonths(),
+      storage.listAllMonths(),
+    ]);
+    // Months where all rows have been deleted — don't resurface them from Excel
+    const exhaustedMonths = new Set(allMonths.filter((m) => !storedMonths.includes(m)));
 
-    // Also scan the live Excel so future months (e.g. next month's submissions)
-    // appear in the dropdown before they're loaded into storage.
+    // Also scan the live Excel so genuinely new months appear in the dropdown
+    // before they've ever been loaded into storage.
     let excelMonths: string[] = [];
     try {
-      const rows = await getSheetsService().loadSubmissions("_all");
+      const rows = await getSheetsService().loadSubmissions(“_all”);
       const seen = new Set<string>();
       for (const row of rows) {
         const m = parseSnapshotMonth(row.closingMonth);
-        if (m !== "unknown") seen.add(m);
+        if (m !== “unknown” && !exhaustedMonths.has(m)) seen.add(m);
       }
       excelMonths = Array.from(seen);
     } catch {
-      // Best-effort â€” fall back to stored months only if Excel is unreachable
+      // Best-effort — fall back to stored months only if Excel is unreachable
     }
 
     const merged = Array.from(new Set([...storedMonths, ...excelMonths]))
