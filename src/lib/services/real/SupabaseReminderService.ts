@@ -334,19 +334,21 @@ export class SupabaseReminderService implements IReminderService {
   }
 
   async getSummary(month: string): Promise<ReminderSummary> {
-    const [gaps, stale, dueAll, logs] = await Promise.all([
+    const db = getSupabase();
+    const [gaps, stale, dueAll, logs, expenseResult] = await Promise.all([
       this.detectGaps(month),
       this.detectStaleReviews(3),
       this.detectDueDateIssues(5),
       this.getLogs(month),
+      db.from("expense_claims").select("id", { count: "exact", head: true }).eq("status", "submitted"),
     ]);
 
     const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
     const overdue = dueAll.filter((d) => d.daysUntilDue < 0);
     const oldestDays = stale.length > 0 ? Math.max(...stale.map((s) => s.staleDays)) : 0;
+    const pendingExpensesCount = expenseResult.count ?? 0;
 
     // Total expected submissions = active contracts for month
-    const db = getSupabase();
     const [year, mon] = month.split("-");
     const monthEnd = new Date(parseInt(year), parseInt(mon), 0).toISOString().slice(0, 10);
     const { count: contractCount } = await db
@@ -363,6 +365,7 @@ export class SupabaseReminderService implements IReminderService {
       staleReview: { count: stale.length, oldestDays },
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
+      pendingExpenses: { count: pendingExpensesCount },
       lastSent,
       recentLogs: logs.slice(0, 10),
     };

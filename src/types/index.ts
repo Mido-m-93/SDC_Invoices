@@ -353,6 +353,7 @@ export interface ReminderSummary {
   staleReview: { count: number; oldestDays: number };
   dueDateApproaching: { count: number };
   dueDateOverdue: { count: number };
+  pendingExpenses: { count: number };
   lastSent: string | null;
   recentLogs: ReminderLog[];
 }

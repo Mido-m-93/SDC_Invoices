@@ -721,6 +721,13 @@ function ReminderStatusSection({
           type: "due_date_overdue" as ReminderType,
           href: "/invoices",
         },
+        {
+          label: language === "ja" ? "未処理経費" : "Pending Expenses",
+          value: String(summary.pendingExpenses.count),
+          color: summary.pendingExpenses.count > 0 ? "amber" : "green",
+          type: "missing_invoice" as ReminderType,
+          href: "/expenses",
+        },
       ]
     : [];
 
@@ -779,7 +786,7 @@ function ReminderStatusSection({
           <p className="text-xs text-stone-400">{t("reminder_loading")}</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
               {chips.map((chip) => {
                 const cardClass = `rounded-lg px-3 py-2.5 border transition-all cursor-pointer ${
                   chip.color === "red"   ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" :

@@ -149,6 +149,7 @@ export class MockReminderService implements IReminderService {
       staleReview: { count: stale.length, oldestDays },
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
+      pendingExpenses: { count: 0 },
       lastSent,
       recentLogs: monthLogs.slice(0, 10),
     };
