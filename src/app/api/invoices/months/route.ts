@@ -17,7 +17,7 @@ export async function GET() {
     const exhaustedMonths = new Set(allMonths.filter((m) => !storedMonths.includes(m)));
 
     // Also scan the live Excel so genuinely new months appear in the dropdown
-    // before they've ever been loaded into storage.
+    // before they have ever been loaded into storage.
     let excelMonths: string[] = [];
     try {
       const rows = await getSheetsService().loadSubmissions(“_all”);
