@@ -64,12 +64,18 @@ export async function GET(req: NextRequest) {
     // only for what actually gets sent to the frontend.
     const visible = (rows: typeof stored) => withDates(rows).filter((s) => !s.deletedAt);
 
-    if (newRows.length === 0) {
+    // Backfill submittedAt for stored rows that have it missing — happens for
+    // rows saved before the submitted_at column was persisted. Only re-save if
+    // there are dates to fill in (avoids unnecessary writes on every load).
+    const missingDates = submittedAtByRow.size > 0 &&
+      stored.some((s) => !s.submittedAt && submittedAtByRow.has(s.submissionRowNumber));
+
+    if (newRows.length === 0 && !missingDates) {
       const submissions = visible(stored);
       return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
     }
 
-    const allToSave = [...stored, ...newRows];
+    const allToSave = withDates([...stored, ...newRows]);
     await getStorageService().saveSubmissions(allToSave, month);
     const submissions = visible(allToSave);
     return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
