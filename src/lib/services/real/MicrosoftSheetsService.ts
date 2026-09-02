@@ -111,6 +111,40 @@ export class MicrosoftSheetsService implements ISheetsService {
     );
     const driveId = driveInfo.id;
 
+    // Force-open the workbook via a session before downloading. Microsoft
+    // Forms→Excel sync only flushes new responses when the file is "opened"
+    // (viewed in Excel Online). Creating a workbook session via the Graph API
+    // replicates that open, triggering the same flush so we see all new rows.
+    // We close the session immediately after — we don't need it open for the
+    // raw file download that follows.
+    try {
+      const sessionRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/workbook/createSession`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ persistChanges: false }),
+          cache: "no-store",
+        }
+      );
+      if (sessionRes.ok) {
+        const session = await sessionRes.json() as { id?: string };
+        if (session.id) {
+          // Brief pause to let Forms flush pending responses into the workbook.
+          await new Promise((r) => setTimeout(r, 2000));
+          // Close the session — fire-and-forget, failure is non-critical.
+          fetch(
+            `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ITEM_ID}/workbook/sessions/${session.id}`,
+            { method: "DELETE", headers: { Authorization: `Bearer ${token}`, "workbook-session-id": session.id } }
+          ).catch(() => { /* ignore */ });
+        }
+      } else {
+        console.warn("[MicrosoftSheetsService] Could not create workbook session:", sessionRes.status);
+      }
+    } catch (sessionErr) {
+      console.warn("[MicrosoftSheetsService] Workbook session step failed (non-fatal):", sessionErr);
+    }
+
     // Download the raw file to bypass Graph API Excel caching. SharePoint
     // Online occasionally returns a transient 502/503/504 ("something went
     // wrong, try again in a few minutes") — retry those a few times before
