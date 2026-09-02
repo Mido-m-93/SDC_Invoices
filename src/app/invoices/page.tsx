@@ -102,6 +102,19 @@ export default function InvoicesPage() {
     loadInvoices();
   }, [loadInvoices]);
 
+  const handleSync = async () => {
+    setLoading(true);
+    setError(null);
+    // Trigger the Forms→Excel flush before reading, so new submissions appear
+    // without the user having to manually open the sheet in Excel Online.
+    try {
+      await fetch("/api/invoices/force-refresh", { method: "POST" });
+    } catch {
+      // Non-fatal — load whatever is available
+    }
+    await loadInvoices();
+  };
+
   const handleClearAll = async () => {
     setClearing(true);
     setError(null);
@@ -345,7 +358,7 @@ export default function InvoicesPage() {
                 variant="primary"
                 size="md"
                 loading={loading}
-                onClick={loadInvoices}
+                onClick={handleSync}
                 icon={<RefreshIcon />}
               >
                 {t("btn_sync")}
