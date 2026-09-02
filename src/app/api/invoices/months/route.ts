@@ -13,22 +13,22 @@ export async function GET() {
       storage.listAvailableMonths(),
       storage.listAllMonths(),
     ]);
-    // Months where all rows have been deleted — don't resurface them from Excel
+    // Months where all rows have been deleted - do not resurface them from Excel
     const exhaustedMonths = new Set(allMonths.filter((m) => !storedMonths.includes(m)));
 
     // Also scan the live Excel so genuinely new months appear in the dropdown
     // before they have ever been loaded into storage.
     let excelMonths: string[] = [];
     try {
-      const rows = await getSheetsService().loadSubmissions(“_all”);
+      const rows = await getSheetsService().loadSubmissions("_all");
       const seen = new Set<string>();
       for (const row of rows) {
         const m = parseSnapshotMonth(row.closingMonth);
-        if (m !== “unknown” && !exhaustedMonths.has(m)) seen.add(m);
+        if (m !== "unknown" && !exhaustedMonths.has(m)) seen.add(m);
       }
       excelMonths = Array.from(seen);
     } catch {
-      // Best-effort — fall back to stored months only if Excel is unreachable
+      // Best-effort - fall back to stored months only if Excel is unreachable
     }
 
     const merged = Array.from(new Set([...storedMonths, ...excelMonths]))
