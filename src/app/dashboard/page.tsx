@@ -698,24 +698,28 @@ function ReminderStatusSection({
           value: `${summary.missingInvoice.count}/${summary.missingInvoice.total}`,
           color: summary.missingInvoice.count > 0 ? "amber" : "green",
           type: "missing_invoice" as ReminderType,
+          href: summary.missingInvoice.count > 0 ? "/invoices" : undefined,
         },
         {
           label: t("reminder_stale_review"),
           value: summary.staleReview.count > 0 ? `${summary.staleReview.count} (${summary.staleReview.oldestDays}d)` : "0",
           color: summary.staleReview.count > 0 ? "amber" : "green",
           type: "stale_review" as ReminderType,
+          href: summary.staleReview.count > 0 ? "/invoices" : undefined,
         },
         {
           label: t("reminder_due_approaching"),
           value: String(summary.dueDateApproaching.count),
           color: summary.dueDateApproaching.count > 0 ? "amber" : "green",
           type: "due_date_approaching" as ReminderType,
+          href: summary.dueDateApproaching.count > 0 ? "/invoices" : undefined,
         },
         {
           label: t("reminder_due_overdue"),
           value: String(summary.dueDateOverdue.count),
           color: summary.dueDateOverdue.count > 0 ? "red" : "green",
           type: "due_date_overdue" as ReminderType,
+          href: summary.dueDateOverdue.count > 0 ? "/invoices" : undefined,
         },
       ]
     : [];
@@ -776,24 +780,32 @@ function ReminderStatusSection({
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-              {chips.map((chip) => (
-                <div key={chip.type} className={`rounded-lg px-3 py-2.5 border ${
-                  chip.color === "red"   ? "bg-red-50 border-red-200" :
-                  chip.color === "amber" ? "bg-amber-50 border-amber-200" :
+              {chips.map((chip) => {
+                const cardClass = `rounded-lg px-3 py-2.5 border transition-all ${
+                  chip.color === "red"   ? "bg-red-50 border-red-200"   + (chip.href ? " hover:bg-red-100 hover:border-red-300 cursor-pointer" : "") :
+                  chip.color === "amber" ? "bg-amber-50 border-amber-200" + (chip.href ? " hover:bg-amber-100 hover:border-amber-300 cursor-pointer" : "") :
                   "bg-emerald-50 border-emerald-200"
-                }`}>
-                  <p className={`text-xs font-medium mb-0.5 ${
-                    chip.color === "red"   ? "text-red-700" :
-                    chip.color === "amber" ? "text-amber-700" :
-                    "text-emerald-700"
-                  }`}>{chip.label}</p>
-                  <p className={`text-lg font-bold ${
-                    chip.color === "red"   ? "text-red-900" :
-                    chip.color === "amber" ? "text-amber-900" :
-                    "text-emerald-900"
-                  }`}>{chip.value}</p>
-                </div>
-              ))}
+                }`;
+                const inner = (
+                  <>
+                    <p className={`text-xs font-medium mb-0.5 ${
+                      chip.color === "red"   ? "text-red-700" :
+                      chip.color === "amber" ? "text-amber-700" :
+                      "text-emerald-700"
+                    }`}>{chip.label}</p>
+                    <p className={`text-lg font-bold ${
+                      chip.color === "red"   ? "text-red-900" :
+                      chip.color === "amber" ? "text-amber-900" :
+                      "text-emerald-900"
+                    }`}>{chip.value}{chip.href && <span className="text-xs font-normal ml-1 opacity-60">→</span>}</p>
+                  </>
+                );
+                return chip.href ? (
+                  <a key={chip.type} href={chip.href} className={cardClass}>{inner}</a>
+                ) : (
+                  <div key={chip.type} className={cardClass}>{inner}</div>
+                );
+              })}
             </div>
 
             {result && (
