@@ -698,28 +698,28 @@ function ReminderStatusSection({
           value: `${summary.missingInvoice.count}/${summary.missingInvoice.total}`,
           color: summary.missingInvoice.count > 0 ? "amber" : "green",
           type: "missing_invoice" as ReminderType,
-          href: summary.missingInvoice.count > 0 ? "/invoices" : undefined,
+          href: "/invoices",
         },
         {
           label: t("reminder_stale_review"),
           value: summary.staleReview.count > 0 ? `${summary.staleReview.count} (${summary.staleReview.oldestDays}d)` : "0",
           color: summary.staleReview.count > 0 ? "amber" : "green",
           type: "stale_review" as ReminderType,
-          href: summary.staleReview.count > 0 ? "/invoices" : undefined,
+          href: "/invoices",
         },
         {
           label: t("reminder_due_approaching"),
           value: String(summary.dueDateApproaching.count),
           color: summary.dueDateApproaching.count > 0 ? "amber" : "green",
           type: "due_date_approaching" as ReminderType,
-          href: summary.dueDateApproaching.count > 0 ? "/invoices" : undefined,
+          href: "/invoices",
         },
         {
           label: t("reminder_due_overdue"),
           value: String(summary.dueDateOverdue.count),
           color: summary.dueDateOverdue.count > 0 ? "red" : "green",
           type: "due_date_overdue" as ReminderType,
-          href: summary.dueDateOverdue.count > 0 ? "/invoices" : undefined,
+          href: "/invoices",
         },
       ]
     : [];
@@ -781,10 +781,10 @@ function ReminderStatusSection({
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               {chips.map((chip) => {
-                const cardClass = `rounded-lg px-3 py-2.5 border transition-all ${
-                  chip.color === "red"   ? "bg-red-50 border-red-200"   + (chip.href ? " hover:bg-red-100 hover:border-red-300 cursor-pointer" : "") :
-                  chip.color === "amber" ? "bg-amber-50 border-amber-200" + (chip.href ? " hover:bg-amber-100 hover:border-amber-300 cursor-pointer" : "") :
-                  "bg-emerald-50 border-emerald-200"
+                const cardClass = `rounded-lg px-3 py-2.5 border transition-all cursor-pointer ${
+                  chip.color === "red"   ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" :
+                  chip.color === "amber" ? "bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300" :
+                  "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
                 }`;
                 const inner = (
                   <>
