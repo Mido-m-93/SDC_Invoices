@@ -161,10 +161,11 @@ export class SupabaseReminderService implements IReminderService {
   async detectDueDateIssues(thresholdDays: number): Promise<DueDateAlert[]> {
     const db = getSupabase();
 
-    // Get all non-saved submissions
+    // Get all non-deleted, non-saved submissions
     const { data: submissions } = await db
       .from("invoice_submissions")
-      .select("id, payer_name, closing_month, claimed_amount_tax_included");
+      .select("id, payer_name, closing_month, claimed_amount_tax_included")
+      .is("deleted_at", null);
 
     if (!submissions?.length) return [];
 
