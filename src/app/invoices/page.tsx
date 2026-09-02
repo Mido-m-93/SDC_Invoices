@@ -42,6 +42,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [sendingToMF, setSendingToMF] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
@@ -105,10 +106,17 @@ export default function InvoicesPage() {
   const handleSync = async () => {
     setLoading(true);
     setError(null);
+    setSyncWarning(null);
     // Trigger the Forms→Excel flush before reading, so new submissions appear
     // without the user having to manually open the sheet in Excel Online.
     try {
-      await fetch("/api/invoices/force-refresh", { method: "POST" });
+      const res = await fetch("/api/invoices/force-refresh", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; note?: string; error?: string };
+      if (!data.ok) {
+        setSyncWarning(
+          "Microsoft Formsの同期に失敗しました。新しい提出が表示されない場合は、ExcelファイルをブラウザのExcel Onlineで一度開いてから再度Syncしてください。 / Could not trigger the Microsoft Forms sync. If new submissions are missing, open the Excel sheet once in Excel Online, then Sync again."
+        );
+      }
     } catch {
       // Non-fatal — load whatever is available
     }
@@ -382,6 +390,14 @@ export default function InvoicesPage() {
               <span className="text-amber-700 font-mono text-xs block mt-1 break-all">{sheetsWarning}</span>
             </div>
             <button onClick={() => setSheetsWarning(null)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
+          </div>
+        )}
+
+        {/* Force-refresh sync warning */}
+        {syncWarning && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800 flex items-start justify-between gap-4">
+            <span>{syncWarning}</span>
+            <button onClick={() => setSyncWarning(null)} className="text-amber-400 hover:text-amber-600 text-lg leading-none shrink-0">×</button>
           </div>
         )}
 

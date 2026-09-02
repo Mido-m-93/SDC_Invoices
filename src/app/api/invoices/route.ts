@@ -36,8 +36,13 @@ export async function GET(req: NextRequest) {
     ]);
     console.log(`[GET /api/invoices] storage returned ${stored.length} rows, sheets returned ${sheetsOutcome.rows.length} rows`);
 
-    const storedRowNumbers = new Set(stored.map((s) => s.submissionRowNumber));
-    const storedIdByRow = new Map(stored.map((s) => [s.submissionRowNumber, s.id]));
+    const storedByRow = new Map(stored.map((s) => [s.submissionRowNumber, s]));
+    // Only non-deleted rows count as "already stored". A soft-deleted row that
+    // re-appears in Excel (e.g. after a "Clear All" then a Sync) should be
+    // restored rather than permanently hidden behind its own row number.
+    const activeRowNumbers = new Set(
+      stored.filter((s) => !s.deletedAt).map((s) => s.submissionRowNumber)
+    );
     const allFresh = sheetsOutcome.rows;
     const sheetsWarning = sheetsOutcome.error;
     const freshForMonth = allFresh.filter(
@@ -51,11 +56,19 @@ export async function GET(req: NextRequest) {
       allFresh.map((s) => [s.submissionRowNumber, s.submittedAt])
     );
 
-    // Find genuinely new rows (row number not yet in storage).
-    // We never remove existing rows — only append — so old data is never wiped.
+    // Find rows from Excel not already in active (non-deleted) storage.
+    // If a matching soft-deleted row exists in the DB, restore it by re-using
+    // its stored ID (so linked validation results stay attached) and clearing
+    // the soft-delete fields.
     const newRows = freshForMonth
-      .filter((s) => !storedRowNumbers.has(s.submissionRowNumber))
-      .map((s) => ({ ...s, id: storedIdByRow.get(s.submissionRowNumber) ?? s.id }));
+      .filter((s) => !activeRowNumbers.has(s.submissionRowNumber))
+      .map((s) => {
+        const existing = storedByRow.get(s.submissionRowNumber);
+        if (existing) {
+          return { ...s, id: existing.id, deletedAt: undefined, deletedBy: undefined };
+        }
+        return s;
+      });
 
     const withDates = (rows: typeof stored) =>
       rows.map((s) => ({ ...s, submittedAt: submittedAtByRow.get(s.submissionRowNumber) ?? s.submittedAt }));
@@ -75,7 +88,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
     }
 
-    const allToSave = withDates([...stored, ...newRows]);
+    // Exclude the old soft-deleted version of any row being restored —
+    // newRows already carries the restored version with the same ID.
+    const newRowNumbers = new Set(newRows.map((s) => s.submissionRowNumber));
+    const allToSave = withDates([
+      ...stored.filter((s) => !newRowNumbers.has(s.submissionRowNumber)),
+      ...newRows,
+    ]);
     await getStorageService().saveSubmissions(allToSave, month);
     const submissions = visible(allToSave);
     return NextResponse.json({ month, count: submissions.length, submissions, ...(sheetsWarning ? { sheetsWarning } : {}) });
