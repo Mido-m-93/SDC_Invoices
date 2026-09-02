@@ -88,7 +88,38 @@ export class MoneyForwardService {
   async sendInvoice(payload: MFSendPayload): Promise<MFSendResult> {
     const partnerId = await this.findOrCreatePartner(payload.partnerName);
     const result    = await this.createBilling(partnerId, payload);
+    if (payload.sourceUrl) {
+      await this.tryAttachFile(result.billingId, payload.sourceUrl);
+    }
     return result;
+  }
+
+  // Attempts to attach the source PDF to the billing as a file upload.
+  // MF's Invoice v3 API has no documented attachment endpoint — this is a
+  // best-effort try; any error is swallowed so the billing itself is unaffected.
+  private async tryAttachFile(billingId: string, fileUrl: string): Promise<void> {
+    try {
+      const fetchRes = await fetch(fileUrl);
+      if (!fetchRes.ok) return;
+      const buffer = await fetchRes.arrayBuffer();
+      const fileName = decodeURIComponent(fileUrl.split("/").pop() ?? "invoice.pdf").split("?")[0];
+      const mimeType = fetchRes.headers.get("content-type") ?? "application/pdf";
+      const blob = new Blob([buffer], { type: mimeType });
+      const form = new FormData();
+      form.append("attached_file", blob, fileName);
+
+      await this.ensureTokens();
+      const res = await fetch(`${MF_API_BASE}/billings/${billingId}/attached_file`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+        body: form,
+      });
+      if (!res.ok) {
+        console.warn(`[MoneyForwardService] Attachment upload → ${res.status} (not supported or failed)`);
+      }
+    } catch (err) {
+      console.warn("[MoneyForwardService] Attachment upload skipped:", err);
+    }
   }
 
   // ── Department (取引先部署) management ──────────────────────────────────────
