@@ -42,6 +42,7 @@ Thumbs.db
 
 # Dev mock data store (CSV uploads, cleared on redeploy)
 tmp-invoice-store.json
+tmp-sandbox-mf-store.json
 
 # Python (automation/)
 __pycache__/
