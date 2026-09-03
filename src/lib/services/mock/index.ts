@@ -289,6 +289,10 @@ export class MockStorageService implements IStorageService {
     return Array.from(seen).sort().reverse();
   }
 
+  async listAllMonths(): Promise<string[]> {
+    return this.listAvailableMonths();
+  }
+
   async saveValidationResult(result: InvoiceValidationResult): Promise<void> {
     saveValidationResult(result);
   }

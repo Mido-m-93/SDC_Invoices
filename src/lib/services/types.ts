@@ -131,6 +131,8 @@ export interface IStorageService {
 
   /** List all months that have at least one saved submission */
   listAvailableMonths(): Promise<string[]>;
+  /** List all months ever stored, including those where all rows are deleted */
+  listAllMonths(): Promise<string[]>;
 
   /** Save a validation result */
   saveValidationResult(result: InvoiceValidationResult): Promise<void>;

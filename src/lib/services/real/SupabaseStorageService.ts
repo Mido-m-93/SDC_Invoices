@@ -286,6 +286,20 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`clearAllSubmissions: ${error.message}`);
   }
 
+  async listAllMonths(): Promise<string[]> {
+    const { data, error } = await this.db
+      .from("invoice_submissions")
+      .select("snapshot_month")
+      .order("snapshot_month", { ascending: false });
+    if (error) throw new Error(`listAllMonths: ${error.message}`);
+    const seen = new Set<string>();
+    for (const row of data ?? []) {
+      const m = (row as Record<string, unknown>).snapshot_month as string;
+      if (m && m !== "unknown") seen.add(m);
+    }
+    return Array.from(seen);
+  }
+
   async listAvailableMonths(): Promise<string[]> {
     const { data, error } = await this.db
       .from("invoice_submissions")
