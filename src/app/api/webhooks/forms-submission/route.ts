@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
       id: generateId(),
       // Negative and unique — never collides with real Excel row numbers
       // (always >= 2), which is all this field is used to disambiguate.
-      submissionRowNumber:      -Date.now(),
+      // Seconds, not ms: the column is a 32-bit integer and a ms timestamp
+      // (~1.79e12) overflows it; a seconds timestamp (~1.79e9) fits comfortably.
+      submissionRowNumber:      -Math.floor(Date.now() / 1000),
       submittedAt:               body.submittedAt || new Date().toISOString(),
       email:                     get("email"),
       payerName:                 get("payerName"),
