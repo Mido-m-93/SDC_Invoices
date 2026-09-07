@@ -67,8 +67,32 @@ export async function POST() {
 
     const session = await sessionRes.json() as { id?: string };
 
+    // Creating a session alone doesn't force the flush — Microsoft only
+    // reconciles pending Forms responses into the workbook when something
+    // actually reads data through an active session. So read the first
+    // worksheet's used range here (result is discarded — this call's only
+    // purpose is to trigger that reconciliation).
+    if (session.id) {
+      try {
+        const sheetsRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${ITEM_ID}/workbook/worksheets`,
+          { headers: { Authorization: `Bearer ${token}`, "workbook-session-id": session.id }, cache: "no-store" }
+        );
+        const sheets = await sheetsRes.json() as { value?: Array<{ id: string }> };
+        const firstSheetId = sheets.value?.[0]?.id;
+        if (firstSheetId) {
+          await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${ITEM_ID}/workbook/worksheets/${firstSheetId}/usedRange(valuesOnly=true)`,
+            { headers: { Authorization: `Bearer ${token}`, "workbook-session-id": session.id }, cache: "no-store" }
+          );
+        }
+      } catch (err) {
+        console.warn("[force-refresh] usedRange read failed (continuing anyway):", err);
+      }
+    }
+
     // Wait for Forms to flush pending responses into the workbook.
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => setTimeout(r, 4000));
 
     // Close the session — fire and forget.
     if (session.id) {
