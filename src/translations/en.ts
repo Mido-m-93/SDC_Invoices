@@ -13,6 +13,7 @@ const en = {
   nav_payment_records: "Payments",
   nav_logs: "Logs",
   nav_archives: "Archives",
+  nav_users: "Users",
   nav_config: "Settings",
   nav_group_sales: "Sales",
   nav_group_members: "Team",
@@ -729,6 +730,17 @@ const en = {
   members_field_notes: "Notes",
   members_field_notes_placeholder: "Additional notes…",
   members_save: "Save Member",
+
+  // ── Users Page ─────────────────────────────────────────────────────────────
+  users_title: "Users",
+  users_subtitle: "Everyone with an account in this app",
+  users_error_load: "Failed to load users: {message}",
+  users_loading: "Loading…",
+  users_empty_title: "No users found.",
+  users_col_email: "Email",
+  users_col_created: "Account Created",
+  users_col_last_sign_in: "Last Sign-In",
+  users_last_sign_in_never: "Never",
 
   // ── Vendors Page ───────────────────────────────────────────────────────────
   vendors_title: "Vendor Master",

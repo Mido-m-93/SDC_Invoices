@@ -13,6 +13,7 @@ const ja = {
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",
   nav_archives: "アーカイブ",
+  nav_users: "ユーザー",
   nav_config: "設定",
   nav_group_sales: "営業",
   nav_group_members: "チーム",
@@ -729,6 +730,17 @@ const ja = {
   members_field_notes: "備考",
   members_field_notes_placeholder: "補足事項…",
   members_save: "メンバーを保存",
+
+  // ── Users Page ─────────────────────────────────────────────────────────────
+  users_title: "ユーザー",
+  users_subtitle: "このアプリのアカウントを持つ全員",
+  users_error_load: "ユーザーの読み込みに失敗しました：{message}",
+  users_loading: "読み込み中…",
+  users_empty_title: "ユーザーが見つかりません。",
+  users_col_email: "メール",
+  users_col_created: "アカウント作成日",
+  users_col_last_sign_in: "最終ログイン",
+  users_last_sign_in_never: "なし",
 
   // ── Vendors Page ───────────────────────────────────────────────────────────
   vendors_title: "取引先マスタ",

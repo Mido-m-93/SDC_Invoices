@@ -35,11 +35,12 @@ const FINANCE_ITEMS = [
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
 ];
 
-const SYSTEM_HREFS = ["/logs", "/config", "/archives"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
+  { key: "nav_users" as const, href: "/users", icon: UsersIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
 ];
 
