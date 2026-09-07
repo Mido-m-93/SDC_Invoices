@@ -57,7 +57,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-white text-stone-900">
+    <div className="min-h-dvh bg-white text-stone-900">
       {/* Mobile top bar — only shown below the lg breakpoint */}
       <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-[#1a3d2b] px-4 py-3 lg:hidden">
         <button
@@ -266,8 +266,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-h-screen bg-white pt-14 lg:ml-[220px] lg:pt-0">
-        <div className="min-h-screen px-6 py-8 lg:px-10">{children}</div>
+      <main className="min-h-dvh bg-white pt-14 lg:ml-[220px] lg:pt-0">
+        <div className="min-h-dvh px-6 py-8 lg:px-10">{children}</div>
       </main>
     </div>
   );
