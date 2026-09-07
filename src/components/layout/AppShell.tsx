@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/translations";
 import { useCurrentUser, userColor, userInitials } from "@/lib/hooks/useCurrentUser";
 import NotificationBell from "@/components/ui/NotificationBell";
@@ -50,17 +51,55 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
   const { user, isAdmin, signOut } = useCurrentUser();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Auto-close the mobile sidebar whenever the route changes.
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col bg-[#1a3d2b] text-white">
+      {/* Mobile top bar — only shown below the lg breakpoint */}
+      <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-[#1a3d2b] px-4 py-3 lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-white/80 hover:text-white"
+          aria-label={t("nav_open_menu")}
+        >
+          <MenuIcon size={20} />
+        </button>
+        <span className="text-sm font-semibold text-white">ACC-SDC</span>
+      </div>
+
+      {/* Backdrop, mobile only */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        />
+      )}
+
+      <aside
+        className={clsx(
+          "fixed inset-y-0 left-0 z-50 flex w-[220px] flex-col bg-[#1a3d2b] text-white transition-transform duration-200 lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
         {/* Header */}
         <div className="shrink-0 border-b border-white/10 px-5 py-5">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold leading-snug text-white">
               ACC-SDC
             </p>
-            <NotificationBell />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="text-white/60 hover:text-white lg:hidden"
+                aria-label={t("nav_close_menu")}
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -227,7 +266,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="ml-[220px] min-h-screen bg-white">
+      <main className="min-h-screen bg-white pt-14 lg:ml-[220px] lg:pt-0">
         <div className="min-h-screen px-6 py-8 lg:px-10">{children}</div>
       </main>
     </div>
@@ -435,4 +474,12 @@ function SyncIcon({ size = 18 }: { size?: number }) {
 }
 function BriefcaseIcon({ size = 18 }: { size?: number }) {
   return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="12"/><path d="M2 12h20"/></svg>);
+}
+
+function MenuIcon({ size = 18 }: { size?: number }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>);
+}
+
+function CloseIcon({ size = 18 }: { size?: number }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
 }

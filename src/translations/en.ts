@@ -15,6 +15,8 @@ const en = {
   nav_archives: "Archives",
   nav_users: "Users",
   nav_config: "Settings",
+  nav_open_menu: "Open menu",
+  nav_close_menu: "Close menu",
   nav_group_sales: "Sales",
   nav_group_members: "Team",
   nav_group_finance: "Finance",

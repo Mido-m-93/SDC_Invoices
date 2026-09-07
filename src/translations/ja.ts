@@ -15,6 +15,8 @@ const ja = {
   nav_archives: "アーカイブ",
   nav_users: "ユーザー",
   nav_config: "設定",
+  nav_open_menu: "メニューを開く",
+  nav_close_menu: "メニューを閉じる",
   nav_group_sales: "営業",
   nav_group_members: "チーム",
   nav_group_finance: "財務",
