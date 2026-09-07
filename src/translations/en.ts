@@ -15,7 +15,7 @@ const en = {
   nav_archives: "Archives",
   nav_config: "Settings",
   nav_group_sales: "Sales",
-  nav_group_members: "Members",
+  nav_group_members: "Team",
   nav_group_finance: "Finance",
   nav_group_system: "System",
 
