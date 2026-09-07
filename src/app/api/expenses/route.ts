@@ -2,11 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { ExpenseClaim, ExpenseStatus } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") as ExpenseStatus | null;
   const submittedBy = searchParams.get("submittedBy") ?? undefined;
@@ -20,6 +24,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: Partial<ExpenseClaim>;
   try {
     body = await req.json();
@@ -65,6 +72,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     await getExpenseService().deleteAllClaims();
     return NextResponse.json({ ok: true });

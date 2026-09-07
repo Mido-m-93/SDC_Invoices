@@ -6,6 +6,8 @@ import type { OutboundInvoiceStatus } from "@/types";
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const inv = await getOutboundInvoiceService().getInvoice(params.id);
     if (!inv) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -16,6 +18,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   try {
@@ -40,6 +44,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   let body: { status: OutboundInvoiceStatus; actorName?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   try {

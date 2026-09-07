@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: { approvedBy?: string; comment?: string; action?: "approve" | "reject" };
   try { body = await req.json(); } catch { body = {}; }
   const status = body.action === "reject" ? "rejected" : "approved";

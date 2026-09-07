@@ -2,11 +2,14 @@
 // src/app/api/config/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 import type { AppConfig } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const config = await getStorageService().loadConfig();
     return NextResponse.json(config);
@@ -20,6 +23,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   let config: AppConfig;
   try {
     config = await req.json();

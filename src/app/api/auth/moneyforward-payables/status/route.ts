@@ -2,10 +2,13 @@
 // token can actually call the live API (GET /offices), not just that it exists.
 import { NextRequest, NextResponse } from "next/server";
 import { MoneyForwardPayablesService } from "@/lib/services/real/MoneyForwardPayablesService";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const service = new MoneyForwardPayablesService();
     const offices = await service.listOffices();

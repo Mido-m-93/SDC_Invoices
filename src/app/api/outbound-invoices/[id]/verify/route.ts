@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOutboundInvoiceService, getContractService } from "@/lib/services";
 import { verifyConsistency } from "@/lib/services/ai/consistencyVerifier";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 // AI checkpoint: client Invoice ↔ Contract. Compares the invoice against the
 // contract it was issued from and flags anything that doesn't line up.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const invoiceSvc = getOutboundInvoiceService();
     const invoice = await invoiceSvc.getInvoice(params.id);

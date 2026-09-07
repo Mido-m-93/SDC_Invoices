@@ -2,10 +2,14 @@
 import { NextResponse } from "next/server";
 import { getStorageService, getSheetsService } from "@/lib/services";
 import { parseSnapshotMonth } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     const storage = getStorageService();
     // Active months (non-deleted rows) and all-ever months (including deleted)

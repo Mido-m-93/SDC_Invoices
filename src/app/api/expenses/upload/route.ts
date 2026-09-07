@@ -18,6 +18,7 @@ import iconv from "iconv-lite";
 import { generateId } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -221,6 +222,9 @@ function mapRow(
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     const formData = await req.formData();
     const file     = formData.get("file");

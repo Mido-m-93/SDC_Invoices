@@ -6,6 +6,7 @@ import { convertUsdToJpy } from "@/lib/services/real/ExchangeRateService";
 import { deriveDueDate } from "@/lib/services/real/SupabaseReminderService";
 import { getStorageService } from "@/lib/services";
 import { detectCurrency } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { InvoiceSubmission, InvoiceValidationResult } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ interface RequestBody {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: unknown;
   try {
     body = await req.json();

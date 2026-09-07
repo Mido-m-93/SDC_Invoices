@@ -4,10 +4,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: unknown;
   try {
     body = await req.json();

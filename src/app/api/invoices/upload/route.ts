@@ -11,6 +11,7 @@ import { generateId, parseSnapshotMonth } from "@/lib/utils";
 import type { InvoiceSubmission } from "@/types";
 import { getStorageService } from "@/lib/services";
 import { type FieldName, buildFieldMap } from "@/lib/services/formFieldMapping";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +127,9 @@ function mapRow(row: Record<string, unknown>, fieldMap: Map<string, FieldName>, 
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     const formData = await req.formData();
     const file = formData.get("file");

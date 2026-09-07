@@ -4,6 +4,7 @@
 // immediately — proves the write path works without leaving residue.
 import { NextResponse } from "next/server";
 import { MoneyForwardPayablesService } from "@/lib/services/real/MoneyForwardPayablesService";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,9 @@ const EX_ITEM_ID = "2kZEehoQlT5ykabIPHp-nQ"; // 旅費交通費
 const CR_ITEM_ID = "VmT1xzos46Uq1P_KhsP5bw"; // 買掛金 (accounts payable) — real id, read back from a real payee's invoice_transaction_default_value
 
 export async function POST() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const service = new MoneyForwardPayablesService();
   const steps: Record<string, unknown> = {};
 

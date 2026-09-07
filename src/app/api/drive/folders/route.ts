@@ -8,12 +8,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDriveService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   const month = req.nextUrl.searchParams.get("month");
 
   try {

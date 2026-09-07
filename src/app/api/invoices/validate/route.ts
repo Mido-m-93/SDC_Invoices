@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStorageService, getMemberService } from "@/lib/services";
 import { RealValidationService } from "@/lib/services/real/RealValidationService";
 import { generateId, parseSnapshotMonth } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { InvoiceSubmission, ProcessingRun, ProcessingLog, Member } from "@/types";
 import { matchSubmissionToMember } from "@/lib/services/ai/matchingService";
 import { enrichWithRisk } from "@/lib/services/riskEnrichment";
@@ -48,6 +49,9 @@ export const dynamic = 'force-dynamic';
  * Validates one or more invoices, persists results, and records a processing run + logs.
  */
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: unknown;
   try {
     body = await req.json();

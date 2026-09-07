@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getVendorService, getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { Vendor, Member } from "@/types";
 
 const TENANT_ID     = process.env.AZURE_TENANT_ID!;
@@ -67,9 +68,15 @@ async function listSubfolders(token: string, categoryFolder: string): Promise<st
   }
 }
 
-export const GET = async () => POST();
+export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+  return POST();
+}
 
 export async function POST() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const token = await getAccessToken();
     const vendorService = getVendorService();

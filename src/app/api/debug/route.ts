@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getVendorService, getContractService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const today = new Date().toISOString().slice(0, 10);
   const [vendors, contracts] = await Promise.all([
     getVendorService().listVendors(),

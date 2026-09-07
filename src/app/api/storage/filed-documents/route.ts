@@ -2,6 +2,7 @@
 // src/app/api/storage/filed-documents/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,8 @@ export const dynamic = 'force-dynamic';
  * Returns filed document records for the given submission IDs.
  */
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   let body: { submissionIds?: string[] };
   try {
     body = await req.json();

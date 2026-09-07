@@ -7,6 +7,7 @@ import {
   listItemsByFolderId,
   type GraphDriveItem,
 } from "@/lib/services/real/graphClient";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,9 @@ interface InspectedItem extends GraphDriveItem {
 // into any subfolders, so we can see the real content shape (Excel tracker?
 // per-deal subfolders? PDFs?) before building parsing/matching logic.
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const which = req.nextUrl.searchParams.get("which");
   if (!which || !FOLDER_PATHS[which]) {
     return NextResponse.json(

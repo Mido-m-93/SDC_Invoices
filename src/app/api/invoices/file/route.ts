@@ -7,6 +7,7 @@ import {
 } from "@/lib/services";
 import { DEFAULT_CONFIG, buildMonthFolderName } from "@/config/defaults";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { InvoiceValidationResult, FiledDocument } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,9 @@ const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "root";
  * Requires validation.statusCode === "READY".
  */
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: unknown;
   try {
     body = await req.json();

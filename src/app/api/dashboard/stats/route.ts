@@ -1,6 +1,7 @@
 // src/app/api/dashboard/stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 import type { DashboardStats } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,8 @@ const ERROR_CODES = new Set([
 ]);
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json(

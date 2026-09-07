@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService, getStorageService } from "@/lib/services";
 import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { ProcessingRun, ProcessingLog } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const storageSvc = getStorageService();
   const runId = generateId();
   const startedAt = new Date().toISOString();

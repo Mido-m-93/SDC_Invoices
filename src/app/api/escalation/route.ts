@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { getStorageService, getNotificationService } from "@/lib/services";
 import { EscalationService } from "@/lib/services/real/EscalationService";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/escalation — check all recent months for BLOCKED invoices and escalate
 export async function POST() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const storage      = getStorageService();
     const notification = await getNotificationService();

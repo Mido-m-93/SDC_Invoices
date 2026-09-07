@@ -2,9 +2,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCloseChecklistService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 import type { CloseChecklistItem } from "@/types";
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
   try {
@@ -17,6 +20,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const body = await req.json() as Partial<CloseChecklistItem> & { id: string };
     if (!body.id) return NextResponse.json({ error: "Missing id" }, { status: 400 });

@@ -2,6 +2,7 @@
 // src/app/api/logs/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,8 @@ export const dynamic = 'force-dynamic';
  * Returns processing logs for the specified run.
  */
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   const runId = req.nextUrl.searchParams.get("runId");
   if (!runId) {
     return NextResponse.json(

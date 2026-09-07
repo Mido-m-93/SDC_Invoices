@@ -5,6 +5,9 @@ import { requireAuth } from "@/lib/auth-guard";
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     const claim = await getExpenseService().getClaim(params.id);
     if (!claim) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -15,6 +18,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   try {

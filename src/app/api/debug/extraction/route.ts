@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractFromPdf } from "@/lib/services/ai/pdfExtractor";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const url = req.nextUrl.searchParams.get("url");
 
   const hasAzure = !!(

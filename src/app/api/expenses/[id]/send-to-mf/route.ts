@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getExpenseService } from "@/lib/services";
 import { MoneyForwardService } from "@/lib/services/real/MoneyForwardService";
 import { convertUsdToJpy } from "@/lib/services/real/ExchangeRateService";
+import { requireAuth } from "@/lib/auth-guard";
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -13,6 +14,9 @@ function addDays(dateStr: string, days: number): string {
 export const dynamic = 'force-dynamic';
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const claim = await getExpenseService().getClaim(params.id);
   if (!claim) {
     return NextResponse.json({ error: "Expense claim not found" }, { status: 404 });

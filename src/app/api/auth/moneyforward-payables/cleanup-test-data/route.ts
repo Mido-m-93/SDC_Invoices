@@ -5,12 +5,16 @@
 // behind — clearly named so it's identifiable for manual removal if needed.
 import { NextResponse } from "next/server";
 import { MoneyForwardPayablesService } from "@/lib/services/real/MoneyForwardPayablesService";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = 'force-dynamic';
 
 const TEST_COUNTERPARTY_ID = "cACoViLZ77nK4h7cvIfLfw"; // TEST_DO_NOT_USE
 
 export async function POST() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const service = new MoneyForwardPayablesService();
   const steps: Record<string, unknown> = {};
 

@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 25;
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json(

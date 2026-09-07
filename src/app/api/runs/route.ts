@@ -7,6 +7,8 @@ import { requireAuth } from "@/lib/auth-guard";
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   try {
     const runs = await getStorageService().loadRuns();
     return NextResponse.json({ count: runs.length, runs });

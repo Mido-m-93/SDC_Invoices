@@ -2,11 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOutboundInvoiceService, getContractService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth-guard";
 import type { OutboundInvoice, OutboundInvoiceStatus } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") as OutboundInvoiceStatus | null;
   const billingMonth = searchParams.get("billingMonth") ?? undefined;
@@ -20,6 +23,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
   let body: Partial<OutboundInvoice>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
