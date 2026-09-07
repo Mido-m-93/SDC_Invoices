@@ -46,6 +46,11 @@ function LoginForm() {
         router.refresh();
       }
     } else if (mode === "signup") {
+      if (!email.toLowerCase().endsWith("@roboco-op.org")) {
+        setError("Sign-up is restricted to @roboco-op.org email addresses.");
+        setLoading(false);
+        return;
+      }
       const { data: signUpData, error: authError } = await supabase.auth.signUp({
         email,
         password,

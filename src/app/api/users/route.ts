@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "Provide a valid 'email'" }, { status: 400 });
     }
+    if (!email.toLowerCase().endsWith("@roboco-op.org")) {
+      return NextResponse.json({ error: "Only @roboco-op.org email addresses can be invited" }, { status: 400 });
+    }
 
     const db = getSupabaseClient();
     const { data, error } = await db.auth.admin.inviteUserByEmail(email);
