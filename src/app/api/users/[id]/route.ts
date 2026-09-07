@@ -3,15 +3,19 @@
 // real delete — see ARCHIVE_BAN_DURATION). Restore via POST /api/users/[id]/restore.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 import { getSupabaseClient } from "@/lib/supabase";
 import { ARCHIVE_BAN_DURATION } from "@/lib/authUsers";
 
 export const dynamic = "force-dynamic";
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
+
+  if (params.id === user.id) {
+    return NextResponse.json({ error: "You can't remove your own account." }, { status: 400 });
+  }
 
   try {
     const db = getSupabaseClient();

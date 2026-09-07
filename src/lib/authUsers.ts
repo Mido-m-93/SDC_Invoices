@@ -12,6 +12,7 @@ export interface AppUser {
   lastSignInAt: string | null;
   archivedAt: string | null;
   archivedBy: string | null;
+  isAdmin: boolean;
 }
 
 // A ban this long is effectively permanent until explicitly lifted — used as
@@ -29,7 +30,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
     if (error) throw new Error(error.message);
 
     for (const u of data.users) {
-      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string };
+      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string; role?: string };
       users.push({
         id: u.id,
         email: u.email ?? "",
@@ -37,6 +38,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         lastSignInAt: u.last_sign_in_at ?? null,
         archivedAt: u.banned_until ? metadata.archived_at ?? u.banned_until : null,
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
+        isAdmin: metadata.role === "admin",
       });
     }
 
@@ -44,4 +46,10 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
   }
 
   return users;
+}
+
+/** True if at least one account currently has the admin role — used to gate one-time bootstrap. */
+export async function anyAdminExists(): Promise<boolean> {
+  const users = await listAllAuthUsers();
+  return users.some((u) => u.isAdmin);
 }

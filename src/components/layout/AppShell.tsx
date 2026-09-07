@@ -49,7 +49,7 @@ const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: Gr
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
-  const { user, signOut } = useCurrentUser();
+  const { user, isAdmin, signOut } = useCurrentUser();
 
   return (
     <div className="min-h-screen bg-white text-stone-900">
@@ -175,7 +175,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SYSTEM_ITEMS.map(({ key, href, icon: Icon }) => {
+              {SYSTEM_ITEMS.filter(({ href }) => href !== "/users" || isAdmin).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link

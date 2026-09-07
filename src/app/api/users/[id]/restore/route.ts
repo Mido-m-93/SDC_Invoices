@@ -2,13 +2,13 @@
 // POST /api/users/[id]/restore — lifts the archive ban set by DELETE /api/users/[id].
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   try {

@@ -3,13 +3,13 @@
 // Archives page.
 
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 import { listAllAuthUsers } from "@/lib/authUsers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   try {

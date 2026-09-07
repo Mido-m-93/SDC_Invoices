@@ -4,14 +4,14 @@
 // Distinct from the co-op's business "Members" entity.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 import { getSupabaseClient } from "@/lib/supabase";
 import { listAllAuthUsers } from "@/lib/authUsers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   try {
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   try {

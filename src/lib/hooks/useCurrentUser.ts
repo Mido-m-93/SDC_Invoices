@@ -19,6 +19,8 @@ function nameToColor(name: string): string {
 
 export function useCurrentUser() {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
   const router = useRouter();
 
@@ -31,25 +33,32 @@ export function useCurrentUser() {
       return;
     }
 
-    const resolveUser = (authUser: { user_metadata?: Record<string, unknown>; email?: string } | null) => {
+    type RawUser = { id?: string; user_metadata?: Record<string, unknown>; email?: string } | null;
+
+    const resolveUser = (authUser: RawUser) => {
       if (!authUser) return null;
       const name = authUser.user_metadata?.name as string | undefined;
       return name || authUser.email?.split("@")[0] || "User";
     };
+    const applyUser = (authUser: RawUser) => {
+      setUser(resolveUser(authUser));
+      setUserId(authUser?.id ?? null);
+      setIsAdmin((authUser?.user_metadata?.role as string | undefined) === "admin");
+    };
 
     supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {
       if (refreshedUser) {
-        setUser(resolveUser(refreshedUser));
+        applyUser(refreshedUser);
         setReady(true);
       } else {
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        setUser(resolveUser(authUser));
+        applyUser(authUser);
         setReady(true);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(resolveUser(session?.user ?? null));
+      applyUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
@@ -63,7 +72,7 @@ export function useCurrentUser() {
     router.refresh();
   };
 
-  return { user, ready, signOut };
+  return { user, userId, isAdmin, ready, signOut };
 }
 
 export function userInitials(name: AppUser): string {
