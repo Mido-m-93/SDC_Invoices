@@ -740,7 +740,14 @@ const en = {
   users_col_email: "Email",
   users_col_created: "Account Created",
   users_col_last_sign_in: "Last Sign-In",
+  users_col_actions: "Actions",
   users_last_sign_in_never: "Never",
+  users_add_button: "+ Add User",
+  users_action_remove: "Remove",
+  users_remove_confirm: "Remove {email}? They'll lose access immediately, but this can be undone from Archives.",
+  users_invite_modal_title: "Invite User",
+  users_invite_email_label: "Email",
+  users_invite_send: "Send Invite",
 
   // ── Vendors Page ───────────────────────────────────────────────────────────
   vendors_title: "Vendor Master",

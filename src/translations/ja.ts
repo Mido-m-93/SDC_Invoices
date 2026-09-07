@@ -740,7 +740,14 @@ const ja = {
   users_col_email: "メール",
   users_col_created: "アカウント作成日",
   users_col_last_sign_in: "最終ログイン",
+  users_col_actions: "操作",
   users_last_sign_in_never: "なし",
+  users_add_button: "+ ユーザーを追加",
+  users_action_remove: "削除",
+  users_remove_confirm: "{email} を削除しますか？すぐにアクセスできなくなりますが、アーカイブから復元できます。",
+  users_invite_modal_title: "ユーザーを招待",
+  users_invite_email_label: "メール",
+  users_invite_send: "招待を送信",
 
   // ── Vendors Page ───────────────────────────────────────────────────────────
   vendors_title: "取引先マスタ",

@@ -7,7 +7,14 @@ import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
 import type { Proposal, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun } from "@/types";
 
-type ModuleKey = "proposals" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs";
+interface ArchivedAppUser {
+  id: string;
+  email: string;
+  archivedAt: string | null;
+  archivedBy: string | null;
+}
+
+type ModuleKey = "proposals" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs" | "users";
 
 const MODULE_LABEL: Record<ModuleKey, string> = {
   proposals: "Proposal",
@@ -16,6 +23,7 @@ const MODULE_LABEL: Record<ModuleKey, string> = {
   outbound_invoices: "Outbound Invoice",
   invoices: "Invoice",
   logs: "Processing Log",
+  users: "User",
 };
 
 // One shape all five modules' deleted items get normalized into, so the page
@@ -102,6 +110,18 @@ function toArchivedRun(r: ProcessingRun): ArchivedItem {
   };
 }
 
+function toArchivedUser(u: ArchivedAppUser): ArchivedItem {
+  return {
+    key: `users:${u.id}`,
+    module: "users",
+    id: u.id,
+    title: u.email || "(unknown user)",
+    subtitle: "",
+    deletedAt: u.archivedAt,
+    deletedBy: u.archivedBy,
+  };
+}
+
 const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
   proposals: (id) => `/api/proposals/${id}/restore`,
   pipeline_sync: (id) => `/api/pipeline-sync/${id}/undelete`,
@@ -109,6 +129,7 @@ const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
   outbound_invoices: (id) => `/api/outbound-invoices/${id}/restore`,
   invoices: (id) => `/api/invoices/${id}/restore`,
   logs: (id) => `/api/runs/${id}/restore`,
+  users: (id) => `/api/users/${id}/restore`,
 };
 
 export default function ArchivesPage() {
@@ -123,21 +144,23 @@ export default function ArchivesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [proposalsRes, pipelineRes, expensesRes, outboundRes, invoicesRes, logsRes] = await Promise.all([
+      const [proposalsRes, pipelineRes, expensesRes, outboundRes, invoicesRes, logsRes, usersRes] = await Promise.all([
         fetch("/api/proposals/deleted"),
         fetch("/api/pipeline-sync/deleted"),
         fetch("/api/expenses/deleted"),
         fetch("/api/outbound-invoices/deleted"),
         fetch("/api/invoices/deleted"),
         fetch("/api/runs/deleted"),
+        fetch("/api/users/deleted"),
       ]);
-      const [proposalsData, pipelineData, expensesData, outboundData, invoicesData, logsData] = await Promise.all([
+      const [proposalsData, pipelineData, expensesData, outboundData, invoicesData, logsData, usersData] = await Promise.all([
         proposalsRes.json() as Promise<{ proposals?: Proposal[] }>,
         pipelineRes.json() as Promise<{ records?: StagedPipelineRecord[] }>,
         expensesRes.json() as Promise<{ claims?: ExpenseClaim[] }>,
         outboundRes.json() as Promise<{ invoices?: OutboundInvoice[] }>,
         invoicesRes.json() as Promise<{ submissions?: InvoiceSubmission[] }>,
         logsRes.json() as Promise<{ runs?: ProcessingRun[] }>,
+        usersRes.json() as Promise<{ users?: ArchivedAppUser[] }>,
       ]);
 
       const all: ArchivedItem[] = [
@@ -147,6 +170,7 @@ export default function ArchivesPage() {
         ...(outboundData.invoices ?? []).map(toArchivedOutboundInvoice),
         ...(invoicesData.submissions ?? []).map(toArchivedInvoiceSubmission),
         ...(logsData.runs ?? []).map(toArchivedRun),
+        ...(usersData.users ?? []).map(toArchivedUser),
       ].sort((a, b) => (a.deletedAt ?? "") < (b.deletedAt ?? "") ? 1 : -1);
 
       setItems(all);
@@ -189,6 +213,7 @@ export default function ArchivesPage() {
     outbound_invoices: items.filter((i) => i.module === "outbound_invoices").length,
     invoices: items.filter((i) => i.module === "invoices").length,
     logs: items.filter((i) => i.module === "logs").length,
+    users: items.filter((i) => i.module === "users").length,
   };
   const filtered = filter === "all" ? items : items.filter((i) => i.module === filter);
 
@@ -196,7 +221,7 @@ export default function ArchivesPage() {
     <AppShell>
       <PageHeader
         title="Archives"
-        subtitle="Deleted items from Proposals, Pipeline Sync, Expenses, Outbound Invoices, Invoices, and Processing Logs — restore anything moved here by mistake."
+        subtitle="Deleted items from Proposals, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users — restore anything moved here by mistake."
       />
 
       {error && (
@@ -207,7 +232,7 @@ export default function ArchivesPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(["all", "proposals", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs"] as const).map((f) => (
+        {(["all", "proposals", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs", "users"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
