@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { getExpenseService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -281,6 +282,9 @@ async function fetchRowsViaWorkbookApi(): Promise<Record<string, unknown>[]> {
 
 // ── GET: list OneDrive files to find the correct item ID ─────────────────────
 export async function GET() {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN"] as const)
     .filter((k) => !process.env[k]);
   if (missing.length > 0)
@@ -354,9 +358,20 @@ export async function GET() {
 }
 
 // ── POST: sync claims from OneDrive Excel ─────────────────────────────────────
-// Open to authenticated users and internal cron — no CRON_SECRET required here.
-// The cron route (/api/cron/sync-expenses) handles its own auth before calling this.
-export async function POST(_req: NextRequest) {
+// Reachable two ways: a logged-in user, or the internal cron call from
+// /api/cron/sync-expenses (which forwards the already-verified CRON_SECRET
+// rather than a fixed marker header, so this can't be triggered directly
+// by anyone who just guesses the header name).
+export async function POST(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  const internalCron = req.headers.get("x-internal-cron");
+  const isValidCronCall = !!cronSecret && internalCron === cronSecret;
+
+  if (!isValidCronCall) {
+    const { user, response } = await requireAuth();
+    if (!user) return response!;
+  }
+
   // Validate required env vars before making any network calls
   const missing = (["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "MICROSOFT_OWNER_UPN", "MICROSOFT_EXPENSE_EXCEL_ITEM_ID"] as const)
     .filter((k) => !process.env[k]);

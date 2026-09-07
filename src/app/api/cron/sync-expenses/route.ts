@@ -9,11 +9,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured on the server" }, { status: 500 });
+  }
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     const base = req.nextUrl.origin;
     const res  = await fetch(`${base}/api/expenses/sync-forms`, {
       method:  "POST",
-      headers: { "x-internal-cron": "1" },
+      headers: { "x-internal-cron": cronSecret },
     });
     const data = await res.json() as { count?: number; error?: string };
 

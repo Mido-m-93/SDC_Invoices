@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
+import { requireAuth } from "@/lib/auth-guard";
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -247,6 +248,15 @@ async function runSync(retryFailed = false): Promise<{
 }
 
 export async function GET(req: NextRequest) {
+  // Called by Vercel Cron, which signs the request with CRON_SECRET.
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured on the server" }, { status: 500 });
+  }
+  if (req.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
     const result = await runSync(retryFailed);
@@ -258,6 +268,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
+
   try {
     const retryFailed = req.nextUrl.searchParams.get("retry") === "true";
     const result = await runSync(retryFailed);
