@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     return new NextResponse(
-      html(`<h2>Authorization denied</h2><p>${error}</p>`),
+      html(`<h2>Authorization denied</h2><p>${escapeHtml(error)}</p>`),
       { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   }
@@ -49,16 +49,16 @@ export async function GET(req: NextRequest) {
         <h2>Money Forward connected! &check;</h2>
         <p>${savedToDb
           ? "Tokens saved to Supabase automatically &mdash; no manual step needed."
-          : `&#9888; Could not save to Supabase: <code>${dbError}</code>`
+          : `&#9888; Could not save to Supabase: <code>${escapeHtml(dbError)}</code>`
         }</p>
         ${!savedToDb ? `<table>
           <tr>
             <td><code>MF_ACCESS_TOKEN</code></td>
-            <td><textarea rows="2" style="width:600px">${tokens.accessToken}</textarea></td>
+            <td><textarea rows="2" style="width:600px">${escapeHtml(tokens.accessToken)}</textarea></td>
           </tr>
           <tr>
             <td><code>MF_REFRESH_TOKEN</code></td>
-            <td><textarea rows="2" style="width:600px">${tokens.refreshToken}</textarea></td>
+            <td><textarea rows="2" style="width:600px">${escapeHtml(tokens.refreshToken)}</textarea></td>
           </tr>
         </table>` : ""}
         <p style="color:#888">Access token expires in ${Math.round(tokens.expiresIn / 60)} minutes. The app refreshes it automatically.</p>
@@ -67,10 +67,19 @@ export async function GET(req: NextRequest) {
     );
   } catch (err) {
     return new NextResponse(
-      html(`<h2>Token exchange failed</h2><pre>${String(err)}</pre>`),
+      html(`<h2>Token exchange failed</h2><pre>${escapeHtml(String(err))}</pre>`),
       { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function html(body: string): string {
