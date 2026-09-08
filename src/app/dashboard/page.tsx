@@ -949,7 +949,6 @@ function InvoiceDrawer({
                 return (
                   <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
                     <td className="px-4 py-2.5 font-medium text-stone-900 whitespace-nowrap">
-                      <span className="text-xs text-stone-400 font-mono mr-1.5">#{s.submissionRowNumber}</span>
                       {s.payerName}
                     </td>
                     <td className="px-4 py-2.5 text-stone-500 text-xs whitespace-nowrap">{s.closingMonth || t("none")}</td>

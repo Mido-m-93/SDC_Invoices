@@ -255,7 +255,7 @@ export default function PipelineSyncPage() {
     } catch {
       const message = t("pipeline_sync_error_sync_failed");
       setError(message);
-      notify("error", message);
+      notify("error", message, "/pipeline-sync");
     } finally {
       setSyncing(null);
     }
@@ -313,7 +313,7 @@ export default function PipelineSyncPage() {
     } catch {
       const message = t("pipeline_sync_error_approve_failed");
       setError(message);
-      notify("error", message);
+      notify("error", message, "/pipeline-sync");
     } finally {
       setBusyId(null);
     }
@@ -342,7 +342,7 @@ export default function PipelineSyncPage() {
     } catch {
       const message = t("pipeline_sync_error_reject_failed");
       setError(message);
-      notify("error", message);
+      notify("error", message, "/pipeline-sync");
     } finally {
       setBusyId(null);
     }
@@ -365,7 +365,7 @@ export default function PipelineSyncPage() {
     } catch {
       const message = "Failed to restore record";
       setError(message);
-      notify("error", message);
+      notify("error", message, "/pipeline-sync");
     } finally {
       setBusyId(null);
     }
@@ -389,7 +389,7 @@ export default function PipelineSyncPage() {
     } catch {
       const message = "Failed to delete record";
       setError(message);
-      notify("error", message);
+      notify("error", message, "/pipeline-sync");
     } finally {
       setBusyId(null);
     }

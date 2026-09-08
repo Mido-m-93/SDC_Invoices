@@ -486,7 +486,6 @@ export default function InvoicesPage() {
                       <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
                         {/* Name */}
                         <td className="px-4 py-3 font-medium text-stone-900 whitespace-nowrap">
-                          <span className="text-xs text-stone-400 font-mono mr-1.5">#{s.submissionRowNumber}</span>
                           {s.payerName}
                         </td>
 

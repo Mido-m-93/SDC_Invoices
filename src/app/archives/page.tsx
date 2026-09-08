@@ -199,7 +199,7 @@ export default function ArchivesPage() {
       notify("success", `Restored "${item.title}"`, "/archives");
     } catch {
       setError("Failed to restore item");
-      notify("error", "Failed to restore item");
+      notify("error", "Failed to restore item", "/archives");
     } finally {
       setRestoringKey(null);
     }
