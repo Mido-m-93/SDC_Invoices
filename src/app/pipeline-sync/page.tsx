@@ -385,7 +385,7 @@ export default function PipelineSyncPage() {
         return;
       }
       await load();
-      notify("info", `Deleted "${r.rawClientName}" — restore it from Archives if needed`, "/pipeline-sync");
+      notify("info", `Deleted "${r.rawClientName}" — restore it from Archives if needed`, "/archives");
     } catch {
       const message = "Failed to delete record";
       setError(message);

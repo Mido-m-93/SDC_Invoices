@@ -84,7 +84,7 @@ export default function UsersPage() {
       const data = await res.json() as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Failed to remove user");
       setUsers((prev) => prev.filter((x) => x.id !== u.id));
-      notify("success", `Removed ${u.email} — moved to Archives`, "/users");
+      notify("success", `Removed ${u.email} — moved to Archives`, "/archives");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(message);
