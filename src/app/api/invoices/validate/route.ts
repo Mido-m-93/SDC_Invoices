@@ -123,9 +123,13 @@ export async function POST(req: NextRequest) {
         const m = parseSnapshotMonth(targets[0]?.closingMonth);
         if (m === "unknown") return [];
         const all = await storageSvc.loadSubmissionsFromStore(m);
+        // loadSubmissionsFromStore() deliberately includes soft-deleted rows for
+        // other callers - exclude them here so a deleted duplicate doesn't still
+        // count against the "other submissions this month" total.
+        const active = all.filter((s) => !s.deletedAt);
         // Deduplicate by row number — prevents re-load of the same spreadsheet row from being counted twice
         const seen = new Set<string>();
-        return all.filter((s) => {
+        return active.filter((s) => {
           const k = `${s.submissionRowNumber}|${s.closingMonth}`;
           if (seen.has(k)) return false;
           seen.add(k);
