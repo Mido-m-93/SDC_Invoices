@@ -211,7 +211,7 @@ function OutboundInvoicesPageInner() {
       const res = await fetch(`/api/outbound-invoices/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`status ${res.status}`);
       load();
-      notify("success", "Deleted invoice", "/outbound-invoices");
+      notify("success", "Deleted invoice — restore from Archives if needed", "/archives");
     } catch (err) {
       setError(`Failed to delete invoice: ${String(err)}`);
       notify("error", `Failed to delete invoice: ${String(err)}`, "/outbound-invoices");

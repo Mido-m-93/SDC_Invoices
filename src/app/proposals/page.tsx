@@ -228,7 +228,7 @@ export default function ProposalsPage() {
     const target = proposals.find((p) => p.id === id);
     try {
       await fetch(`/api/proposals/${id}`, { method: "DELETE" });
-      notify("success", `Deleted proposal ${target?.projectName ?? id}`, "/proposals");
+      notify("success", `Deleted proposal ${target?.projectName ?? id} — restore from Archives if needed`, "/archives");
       load();
     } catch {
       setError(t("proposals_error_save_failed"));

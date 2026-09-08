@@ -207,7 +207,7 @@ export default function ExpensesPage() {
     if (!confirm(t("expenses_delete_confirm"))) return;
     const claim = claims.find((c) => c.id === id) ?? null;
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    notify("info", `Deleted expense claim${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
+    notify("info", `Deleted expense claim${claim ? ` for ${claim.submittedBy}` : ""} — restore from Archives if needed`, "/archives");
     load();
   }
 
