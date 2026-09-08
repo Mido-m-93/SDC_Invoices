@@ -225,6 +225,7 @@ export default function InvoicesPage() {
       setItems((prev) => prev.filter((i) => i.submission.id !== item.submission.id));
       setSelectedItem((prev) => (prev?.submission.id === item.submission.id ? null : prev));
       notify("info", `Deleted invoice for ${item.submission.payerName} — restore from Archives if needed`, "/invoices");
+      fetchAvailableMonths().then(setAvailableMonths).catch(() => {});
     } catch {
       notify("error", `Failed to delete invoice for ${item.submission.payerName}`, "/invoices");
     } finally {
