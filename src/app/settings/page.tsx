@@ -19,6 +19,21 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [mfTestLoading, setMfTestLoading] = useState(false);
+  const [mfTestResult, setMfTestResult] = useState<unknown>(null);
+
+  const handleMfTest = async () => {
+    setMfTestLoading(true);
+    setMfTestResult(null);
+    try {
+      const res = await fetch("/api/auth/moneyforward-payables/test-payee", { method: "POST" });
+      setMfTestResult(await res.json());
+    } catch (err) {
+      setMfTestResult({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+    setMfTestLoading(false);
+  };
+
   const handleUsernameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const slug = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
@@ -119,6 +134,24 @@ export default function SettingsPage() {
               {loading ? t("settings_updating") : t("settings_update_password")}
             </button>
           </form>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8">
+          <h2 className="text-base font-semibold text-stone-900 mb-2">Money Forward Payables — Sandbox Test</h2>
+          <p className="text-sm text-stone-500 mb-5">
+            Creates a clearly-marked TEST_DO_NOT_USE counterparty, bank account, and payee directly
+            against the connected Money Forward Payables account. Use this to confirm the integration
+            itself works, independent of member matching.
+          </p>
+          <button type="button" onClick={handleMfTest} disabled={mfTestLoading}
+            className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
+            {mfTestLoading ? "Testing…" : "Test MF Sandbox Payee"}
+          </button>
+          {mfTestResult !== null && (
+            <pre className="mt-4 rounded-xl bg-stone-50 border border-stone-200 p-4 text-xs text-stone-700 overflow-auto max-h-80">
+              {JSON.stringify(mfTestResult, null, 2)}
+            </pre>
+          )}
         </div>
       </div>
     </AppShell>
