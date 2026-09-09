@@ -463,6 +463,10 @@ export class MockMemberService implements IMemberService {
   async getMemberByEmail(email: string): Promise<Member | null> {
     return loadMembers().find(m => m.email.toLowerCase() === email.toLowerCase()) ?? null;
   }
+  async getMemberByName(displayName: string): Promise<Member | null> {
+    const target = displayName.trim().toLowerCase();
+    return loadMembers().find(m => m.displayName.trim().toLowerCase() === target) ?? null;
+  }
   async saveMember(member: Member): Promise<void> { saveMember(member); }
   async deleteMember(id: string): Promise<void> { deleteMember(id); }
 }

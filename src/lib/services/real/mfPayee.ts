@@ -39,20 +39,31 @@ function payeeCodeFor(member: Member): string {
 
 /**
  * Resolves (or creates) the Money Forward Payables payee for a member,
- * identified by email. Bank details are entered once and persisted on the
- * Member record — every subsequent call for the same person reuses the
- * existing payee/counterparty instead of creating a duplicate.
+ * identified by display name. Bank details are entered once and persisted
+ * on the Member record — every subsequent call for the same person reuses
+ * the existing payee/counterparty instead of creating a duplicate.
+ *
+ * Matched by name rather than email: submitters have used more than one
+ * email address across submissions for the same person, while their name
+ * on the submission has stayed consistent with the Member record. `email`
+ * is a fallback for the inverse problem — some submissions have an email
+ * address in the name field, which won't match anyone by name.
  */
 export async function createOrReusePayeeForMember(
-  memberEmail: string,
-  bankDetails?: BankDetailsInput
+  memberName: string,
+  bankDetails?: BankDetailsInput,
+  email?: string
 ): Promise<CreatePayeeResult> {
   const memberService = getMemberService();
-  let member = await memberService.getMemberByEmail(memberEmail);
+  let member = await memberService.getMemberByName(memberName);
+
+  if (!member && email) {
+    member = await memberService.getMemberByEmail(email);
+  }
 
   if (!member) {
     throw new MemberNotFoundError(
-      `No registered member found for ${memberEmail} — register them under Team → Members before creating a Money Forward payee.`
+      `No registered member found for ${memberName} — register them under Team → Members before creating a Money Forward payee.`
     );
   }
 
@@ -65,7 +76,18 @@ export async function createOrReusePayeeForMember(
     };
   }
 
-  if (bankDetails) {
+  // Only fill in bank details when the member doesn't already have complete
+  // ones on file — a resolved-by-fuzzy-name-or-email match should never be
+  // able to overwrite an existing member's bank account before their first
+  // payee is created.
+  const hasCompleteBankDetails =
+    !!member.bankCode &&
+    !!member.bankBranchCode &&
+    !!member.bankAccountNumber &&
+    !!member.bankHolderName &&
+    !!member.bankHolderNameKana;
+
+  if (bankDetails && !hasCompleteBankDetails) {
     member = {
       ...member,
       bankAccountType: bankDetails.bankAccountType,

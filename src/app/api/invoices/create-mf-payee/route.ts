@@ -37,18 +37,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!submission.email) {
+  if (!submission.payerName) {
     return NextResponse.json(
       {
-        error: `"${submission.payerName}" has no email on their submission, so we can't match them to a registered member.`,
-        code: "NO_EMAIL",
+        error: "This submission has no name, so we can't match it to a registered member.",
+        code: "NO_NAME",
       },
       { status: 422 }
     );
   }
 
   try {
-    const result = await createOrReusePayeeForMember(submission.email, bankDetails);
+    const result = await createOrReusePayeeForMember(submission.payerName, bankDetails, submission.email);
 
     try {
       const storage = getStorageService();

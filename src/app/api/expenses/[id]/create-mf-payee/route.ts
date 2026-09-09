@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    const result = await createOrReusePayeeForMember(claim.submittedByEmail, bankDetails);
+    const result = await createOrReusePayeeForMember(claim.submittedBy, bankDetails, claim.submittedByEmail);
 
     const updated = {
       ...claim,

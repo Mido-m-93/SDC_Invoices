@@ -312,6 +312,7 @@ export interface IMemberService {
   listMembers(filters?: { status?: MemberStatus; role?: string }): Promise<Member[]>;
   getMember(id: string): Promise<Member | null>;
   getMemberByEmail(email: string): Promise<Member | null>;
+  getMemberByName(displayName: string): Promise<Member | null>;
   saveMember(member: Member): Promise<void>;
   deleteMember(id: string): Promise<void>;
 }
