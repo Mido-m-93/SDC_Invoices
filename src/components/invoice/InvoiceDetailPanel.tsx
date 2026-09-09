@@ -9,16 +9,19 @@ import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
 import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
-import { SHOW_SEND_TO_MF } from "@/lib/featureFlags";
+import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE } from "@/lib/featureFlags";
+import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
+import { createInvoiceMfPayee } from "@/lib/api/client";
 
 interface Props {
   item: InvoiceListItem;
   onClose: () => void;
   onSendToMF?: (item: InvoiceListItem) => void;
   sendingToMF?: boolean;
+  onPayeeCreated?: () => void;
 }
 
-export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF }: Props) {
+export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF, onPayeeCreated }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
   const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
@@ -197,6 +200,16 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
                     >
                       💴 {t("action_view_in_mf")}
                     </a>
+                  )}
+                  {SHOW_CREATE_MF_PAYEE && (
+                    <div className="mt-2">
+                      <CreatePayeeButton
+                        personName={s.payerName}
+                        existingPayeeId={v.mfPayeeId}
+                        onCreate={(bankDetails) => createInvoiceMfPayee(s, v, bankDetails)}
+                        onCreated={() => onPayeeCreated?.()}
+                      />
+                    </div>
                   )}
                 </div>
               )}

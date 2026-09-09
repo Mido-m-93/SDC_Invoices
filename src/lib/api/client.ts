@@ -182,6 +182,78 @@ export async function sendExpenseToMoneyForward(
   });
 }
 
+// ── Money Forward Payables — "Create Payee" flow ──────────────────────────────
+
+export interface MfBankDetailsInput {
+  bankAccountType: "ordinary" | "checking" | "saving" | "other";
+  bankCode: string;
+  bankBranchCode: string;
+  accountNumber: string;
+  holderName: string;
+  holderNameKana: string;
+}
+
+export interface CreateMfPayeeResult {
+  payeeId: string;
+  counterpartyId: string;
+  createdAt: string;
+  reused: boolean;
+}
+
+// Thrown with `code` preserved so the UI can tell "needs a bank-details form"
+// apart from "something actually went wrong".
+export class MfPayeeApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+    public readonly memberName?: string
+  ) {
+    super(message);
+  }
+}
+
+async function postMfPayee(
+  path: string,
+  bankDetails?: MfBankDetailsInput
+): Promise<CreateMfPayeeResult> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bankDetails ? { bankDetails } : {}),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const { error, code, memberName } = body as { error?: string; code?: string; memberName?: string };
+    throw new MfPayeeApiError(error ?? `HTTP ${res.status}`, code, memberName);
+  }
+  return body as CreateMfPayeeResult;
+}
+
+export async function createInvoiceMfPayee(
+  submission: InvoiceSubmission,
+  validation: InvoiceValidationResult,
+  bankDetails?: MfBankDetailsInput
+): Promise<CreateMfPayeeResult> {
+  const res = await fetch("/api/invoices/create-mf-payee", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ submission, validation, bankDetails }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const { error, code, memberName } = body as { error?: string; code?: string; memberName?: string };
+    throw new MfPayeeApiError(error ?? `HTTP ${res.status}`, code, memberName);
+  }
+  return body as CreateMfPayeeResult;
+}
+
+export async function createExpenseMfPayee(
+  claimId: string,
+  bankDetails?: MfBankDetailsInput
+): Promise<CreateMfPayeeResult> {
+  return postMfPayee(`/api/expenses/${claimId}/create-mf-payee`, bankDetails);
+}
+
 // ── Validation results & filed documents ─────────────────────────────────────
 // These come from the storage API route
 

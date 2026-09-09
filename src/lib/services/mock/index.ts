@@ -460,6 +460,9 @@ export class MockLeadService implements ILeadService {
 export class MockMemberService implements IMemberService {
   async listMembers(): Promise<Member[]> { return loadMembers(); }
   async getMember(id: string): Promise<Member | null> { return loadMembers().find(m => m.id === id) ?? null; }
+  async getMemberByEmail(email: string): Promise<Member | null> {
+    return loadMembers().find(m => m.email.toLowerCase() === email.toLowerCase()) ?? null;
+  }
   async saveMember(member: Member): Promise<void> { saveMember(member); }
   async deleteMember(id: string): Promise<void> { deleteMember(id); }
 }

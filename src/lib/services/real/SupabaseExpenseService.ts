@@ -66,6 +66,9 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     mf_billing_id: c.mfBillingId ?? null,
     mf_billing_url: c.mfBillingUrl ?? null,
     mf_sent_at: c.mfSentAt ?? null,
+    mf_payee_id: c.mfPayeeId ?? null,
+    mf_counterparty_id: c.mfCounterpartyId ?? null,
+    mf_payee_created_at: c.mfPayeeCreatedAt ?? null,
     deleted_at: c.deletedAt ?? null,
     deleted_by: c.deletedBy ?? null,
   };
@@ -104,6 +107,9 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     mfBillingId: (row.mf_billing_id as string) || undefined,
     mfBillingUrl: (row.mf_billing_url as string) || undefined,
     mfSentAt: (row.mf_sent_at as string) || undefined,
+    mfPayeeId: (row.mf_payee_id as string) || undefined,
+    mfCounterpartyId: (row.mf_counterparty_id as string) || undefined,
+    mfPayeeCreatedAt: (row.mf_payee_created_at as string) || undefined,
     deletedAt: (row.deleted_at as string | null) ?? undefined,
     deletedBy: (row.deleted_by as string | null) ?? undefined,
   };

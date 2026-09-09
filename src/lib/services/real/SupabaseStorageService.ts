@@ -110,6 +110,9 @@ function toValidationRow(r: InvoiceValidationResult): Record<string, unknown> {
     mf_billing_id: r.mfBillingId ?? null,
     mf_billing_url: r.mfBillingUrl ?? null,
     mf_sent_at: r.mfSentAt ?? null,
+    mf_payee_id: r.mfPayeeId ?? null,
+    mf_counterparty_id: r.mfCounterpartyId ?? null,
+    mf_payee_created_at: r.mfPayeeCreatedAt ?? null,
   };
 }
 
@@ -142,6 +145,9 @@ function fromValidationRow(row: Record<string, unknown>): InvoiceValidationResul
     mfBillingId: (row.mf_billing_id as string) || undefined,
     mfBillingUrl: (row.mf_billing_url as string) || undefined,
     mfSentAt: (row.mf_sent_at as string) || undefined,
+    mfPayeeId: (row.mf_payee_id as string) || undefined,
+    mfCounterpartyId: (row.mf_counterparty_id as string) || undefined,
+    mfPayeeCreatedAt: (row.mf_payee_created_at as string) || undefined,
   };
 }
 

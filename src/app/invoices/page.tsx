@@ -704,6 +704,7 @@ export default function InvoicesPage() {
           onClose={() => setSelectedItem(null)}
           onSendToMF={handleSendToMF}
           sendingToMF={sendingToMF === selectedItem.submission.id}
+          onPayeeCreated={() => loadInvoices()}
         />
       )}
 

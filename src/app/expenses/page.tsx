@@ -7,8 +7,9 @@ import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import { sendExpenseToMoneyForward } from "@/lib/api/client";
-import { SHOW_SEND_TO_MF, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
+import { sendExpenseToMoneyForward, createExpenseMfPayee } from "@/lib/api/client";
+import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
+import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
 import { monthOptions } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 
@@ -449,6 +450,14 @@ export default function ExpensesPage() {
                         className="text-xs text-blue-500 hover:underline whitespace-nowrap self-center" title={t("mf_sent")}>
                         💴 {t("action_view_in_mf")}
                       </a>
+                    )}
+                    {SHOW_CREATE_MF_PAYEE && (c.status === "approved" || c.status === "paid") && (
+                      <CreatePayeeButton
+                        personName={c.submittedBy}
+                        existingPayeeId={c.mfPayeeId}
+                        onCreate={(bankDetails) => createExpenseMfPayee(c.id, bankDetails)}
+                        onCreated={() => load()}
+                      />
                     )}
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("expenses_action_delete")}</Button>
                   </td>

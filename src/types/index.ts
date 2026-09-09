@@ -102,10 +102,14 @@ export interface InvoiceValidationResult {
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
-  // Money Forward integration
+  // Money Forward integration (Invoice product — 請求書, money coming in)
   mfBillingId?: string;
   mfBillingUrl?: string;
   mfSentAt?: string;
+  // Money Forward Payables integration (支払先 — money we owe this person)
+  mfPayeeId?: string;
+  mfCounterpartyId?: string;
+  mfPayeeCreatedAt?: string;
   // Escalation / exception tracking
   escalatedAt?: string;
   reviewerComment?: string;
@@ -416,10 +420,14 @@ export interface ExpenseClaim {
   bankAccount?: string;
   createdAt: string;
   updatedAt: string;
-  // Money Forward integration
+  // Money Forward integration (Invoice product — 請求書, money coming in)
   mfBillingId?: string;
   mfBillingUrl?: string;
   mfSentAt?: string;
+  // Money Forward Payables integration (支払先 — money we owe this person)
+  mfPayeeId?: string;
+  mfCounterpartyId?: string;
+  mfPayeeCreatedAt?: string;
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
 }
@@ -621,6 +629,20 @@ export interface Member {
   // Set whenever a contract-extraction attempt is made (success or failure) so a
   // member whose PDF can't be read doesn't get retried on every single sync run.
   contractSyncAttemptedAt?: string | null;
+  // Bank account details, entered once via the "Create Payee in MF" flow and
+  // reused for every future invoice/expense payout to this person — never
+  // sourced automatically, since a wrong bank code would misdirect a real payment.
+  bankAccountType?: "ordinary" | "checking" | "saving" | "other" | null;
+  bankCode?: string | null;
+  bankBranchCode?: string | null;
+  bankAccountNumber?: string | null;
+  bankHolderName?: string | null;
+  bankHolderNameKana?: string | null;
+  // Money Forward Payables integration — set once the payee has been created,
+  // so later payouts to the same person reuse it instead of creating a duplicate.
+  mfCounterpartyId?: string | null;
+  mfPayeeId?: string | null;
+  mfPayeeCreatedAt?: string | null;
 }
 
 // ── Phase 11: Accounting Layer ────────────────────────────────────────────────
