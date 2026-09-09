@@ -602,7 +602,7 @@ export interface LeadSummary {
 }
 
 // ── Phase 11: Member / Employee Management ────────────────────────────────────
-export type MemberRole = "admin" | "sales" | "accounting" | "engineer" | "designer" | "manager" | "other";
+export type MemberRole = "admin" | "sales" | "accounting" | "engineer" | "designer" | "manager" | "contractor" | "other";
 export type MemberStatus = "active" | "inactive" | "on_leave";
 
 export interface Member {

@@ -710,6 +710,7 @@ const en = {
   members_role_engineer: "Engineer",
   members_role_designer: "Designer",
   members_role_manager: "Manager",
+  members_role_contractor: "Contractor",
   members_role_other: "Other",
   members_status_active: "Active",
   members_status_inactive: "Inactive",

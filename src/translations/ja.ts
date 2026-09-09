@@ -710,6 +710,7 @@ const ja = {
   members_role_engineer: "エンジニア",
   members_role_designer: "デザイナー",
   members_role_manager: "マネージャー",
+  members_role_contractor: "業務委託",
   members_role_other: "その他",
   members_status_active: "在籍中",
   members_status_inactive: "退職",

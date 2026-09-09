@@ -28,6 +28,7 @@ const ROLE_COLORS: Record<MemberRole, string> = {
   engineer:   "bg-indigo-100 text-indigo-700",
   designer:   "bg-violet-100 text-violet-700",
   manager:    "bg-amber-100 text-amber-700",
+  contractor: "bg-teal-100 text-teal-700",
   other:      "bg-stone-100 text-stone-600",
 };
 
@@ -286,6 +287,7 @@ export default function MembersPage() {
                     <option value="engineer">{t("members_role_engineer")}</option>
                     <option value="designer">{t("members_role_designer")}</option>
                     <option value="manager">{t("members_role_manager")}</option>
+                    <option value="contractor">{t("members_role_contractor")}</option>
                     <option value="other">{t("members_role_other")}</option>
                   </select>
                 </Field>
