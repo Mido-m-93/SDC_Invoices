@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const member = { ...body, id: params.id, updatedAt: new Date().toISOString() } as Member;
     await getMemberService().saveMember(member);
     return NextResponse.json({ success: true, member });
-  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: "Internal server error" }, { status: 500 }); }
+  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: err instanceof Error ? err.message : "Internal server error" }, { status: 500 }); }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -22,5 +22,5 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     await getMemberService().deleteMember(params.id);
     return NextResponse.json({ success: true });
-  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: "Internal server error" }, { status: 500 }); }
+  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: err instanceof Error ? err.message : "Internal server error" }, { status: 500 }); }
 }

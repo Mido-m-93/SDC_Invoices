@@ -86,19 +86,23 @@ export default function MembersPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      if (editing) {
-        await fetch(`/api/members/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-      } else {
-        await fetch("/api/members", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, id: generateId("mbr") }),
-        });
+      const res = editing
+        ? await fetch(`/api/members/${editing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+          })
+        : await fetch("/api/members", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...form, id: generateId("mbr") }),
+          });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
       }
+
       setShowForm(false);
       notify("success", editing ? `Updated member ${form.displayName}` : `Added member ${form.displayName}`, "/members");
       load();

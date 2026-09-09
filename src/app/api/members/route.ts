@@ -28,5 +28,5 @@ export async function POST(req: NextRequest) {
     const member: Member = { id: generateId("mbr"), displayName: body.displayName ?? "", email: body.email ?? "", phone: body.phone ?? "", role: body.role ?? "other", department: body.department ?? "", employeeCode: body.employeeCode ?? "", joinDate: body.joinDate ?? "", status: body.status ?? "active", avatarUrl: body.avatarUrl ?? "", notes: body.notes ?? "", createdAt: now, updatedAt: now };
     await getMemberService().saveMember(member);
     return NextResponse.json({ success: true, member });
-  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: "Internal server error" }, { status: 500 }); }
+  } catch (err) { console.error("[API ERROR]", err); return NextResponse.json({ error: err instanceof Error ? err.message : "Internal server error" }, { status: 500 }); }
 }
