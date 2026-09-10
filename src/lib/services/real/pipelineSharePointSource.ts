@@ -124,7 +124,20 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
       if (!entry.isFolder) { files.push(entry); continue; }
       try {
         const children = await listItemsByFolderId(siteId, entry.id, token);
-        files.push(...children.filter((c) => !c.isFolder));
+        const subFiles = children.filter((c) => !c.isFolder);
+        const subFolders = children.filter((c) => c.isFolder);
+        // Log every category folder's result, even "found nothing" — without
+        // this, an empty or inaccessible subfolder leaves no trace in scan,
+        // making it impossible to tell "Graph saw 0 items here" apart from
+        // "this folder was never reached" when diagnosing a sync that finds
+        // far fewer files than the folder actually contains.
+        scan.push({
+          folder: `${folderPath}/${entry.name}`,
+          file: "(folder)",
+          extracted: 0,
+          skipped: `listed: ${children.length} item(s) — ${subFiles.length} file(s), ${subFolders.length} subfolder(s)`,
+        });
+        files.push(...subFiles);
       } catch (err) {
         scan.push({ folder: folderPath, file: entry.name, extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
       }
