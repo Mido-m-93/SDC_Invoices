@@ -36,6 +36,49 @@ const PIPELINE_FOLDER_PATHS = (process.env.MICROSOFT_PIPELINE_FOLDER_PATH
   .map((s) => s.trim())
   .filter(Boolean);
 
+// Client folders hold every kind of document (NDAs, invoices, meeting
+// decks, org charts...), not just deal-tracking ones — running AI
+// extraction on all of them is both wasteful and, at real scale (100+
+// client folders per category), enough LLM calls to blow the route's 300s
+// budget outright (confirmed: a full unfiltered sync hit a 504 timeout).
+// Same technique as looksLikeProposal in proposalSharePointSource.ts, plus
+// pipeline-tracking-specific terms (status/progress/meeting notes) since a
+// deal's stage often lives in those rather than a formal proposal doc.
+function looksLikePipelineDoc(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.includes("proposal") ||
+    lower.includes("提案") ||
+    lower.includes("見積") ||
+    lower.includes("quote") ||
+    lower.includes("quotation") ||
+    lower.includes("offer") ||
+    lower.includes("sow") ||
+    lower.includes("statement of work") ||
+    lower.includes("scope of work") ||
+    lower.includes("プロポーザル") ||
+    lower.includes("商談") ||
+    lower.includes("案件") ||
+    lower.includes("pipeline") ||
+    lower.includes("パイプライン") ||
+    lower.includes("status") ||
+    lower.includes("ステータス") ||
+    lower.includes("進捗") ||
+    lower.includes("議事録") ||
+    lower.includes("meeting") ||
+    lower.includes("tracker") ||
+    lower.includes("summary") ||
+    lower.includes("概要")
+  );
+}
+
+// Hard ceiling on files actually sent to extraction per sync run,
+// independent of how well looksLikePipelineDoc narrows things down — a
+// guaranteed way to stay inside the route's time budget rather than
+// trusting the keyword filter alone. Files beyond this are logged as
+// skipped, not silently dropped.
+const MAX_FILES_PER_SYNC = 120;
+
 async function fileToText(siteId: string, token: string, item: GraphDriveItem): Promise<string | null> {
   const lower = item.name.toLowerCase();
   try {
@@ -183,11 +226,21 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
       continue;
     }
 
-    const files: GraphDriveItem[] = topLevel.filter((e) => !e.isFolder);
+    const allFiles: GraphDriveItem[] = topLevel.filter((e) => !e.isFolder);
     const subfolders = topLevel.filter((e) => e.isFolder);
     await mapWithConcurrency(subfolders, 6, (entry) =>
-      walkFolder(siteId, token, entry.id, `${folderPath}/${entry.name}`, 1, files, scan)
+      walkFolder(siteId, token, entry.id, `${folderPath}/${entry.name}`, 1, allFiles, scan)
     );
+
+    const candidateFiles = allFiles.filter((file) => {
+      if (looksLikePipelineDoc(file.name)) return true;
+      scan.push({ folder: folderPath, file: file.name, extracted: 0, skipped: "not a pipeline-relevant file" });
+      return false;
+    });
+    const files = candidateFiles.slice(0, MAX_FILES_PER_SYNC);
+    for (const skipped of candidateFiles.slice(MAX_FILES_PER_SYNC)) {
+      scan.push({ folder: folderPath, file: skipped.name, extracted: 0, skipped: `per-sync file limit (${MAX_FILES_PER_SYNC}) reached` });
+    }
 
     // Extraction is AI-per-file and now runs across every client folder in
     // every category — sequential would risk the route's 300s budget once
