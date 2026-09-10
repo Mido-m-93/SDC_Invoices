@@ -32,14 +32,20 @@ const MEMBERS_ITEMS = [
   { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
 ];
 
-const FINANCE_HREFS = ["/payment-records", "/accounting", "/close-checklist", "/reporting"];
+const FINANCE_HREFS = ["/cash-collection", "/cash-payment", "/payment-records", "/accounting", "/close-checklist", "/reporting"];
 
 const FINANCE_ITEMS = [
+  { key: "nav_cash_collection" as const, href: "/cash-collection", icon: PaymentIcon },
+  { key: "nav_cash_payment" as const, href: "/cash-payment", icon: PaymentIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
 ];
+
+// Hidden from the sidebar for now — reachable directly by URL, kept out of
+// nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
+const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
 const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users"];
 
@@ -219,7 +225,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {FINANCE_ITEMS.map(({ key, href, icon: Icon }) => {
+              {FINANCE_ITEMS.filter(({ key }) => !FINANCE_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link

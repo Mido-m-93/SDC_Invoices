@@ -20,6 +20,8 @@ const en = {
   nav_group_sales: "Sales",
   nav_group_contract: "Contract",
   nav_group_members: "Expenses",
+  nav_cash_collection: "Cash Collection",
+  nav_cash_payment: "Cash Payment",
   nav_group_finance: "Finance",
   nav_group_system: "System",
 
@@ -1104,6 +1106,10 @@ const en = {
   close_checklist_empty_label: "No checklist found.",
 
   // ── Payment records page ──────────────────────────────────────────────────
+  cash_collection_title: "Cash Collection",
+  cash_collection_subtitle: "Payments received from clients against invoices and contracts",
+  cash_payment_title: "Cash Payment",
+  cash_payment_subtitle: "Payments made out to vendors",
   payment_records_title: "Payment Records",
   payment_records_subtitle: "Link payments to invoices and contracts — completing the document chain",
   payment_records_add_button: "+ Add Payment",

@@ -20,6 +20,8 @@ const ja = {
   nav_group_sales: "営業",
   nav_group_contract: "契約",
   nav_group_members: "経費",
+  nav_cash_collection: "入金管理",
+  nav_cash_payment: "出金管理",
   nav_group_finance: "財務",
   nav_group_system: "システム",
 
@@ -1104,6 +1106,10 @@ const ja = {
   close_checklist_empty_label: "チェックリストが見つかりません。",
 
   // ── Payment records page ──────────────────────────────────────────────────
+  cash_collection_title: "入金管理",
+  cash_collection_subtitle: "請求書・契約に紐づくクライアントからの入金",
+  cash_payment_title: "出金管理",
+  cash_payment_subtitle: "取引先への出金",
   payment_records_title: "支払記録",
   payment_records_subtitle: "支払を請求書・契約に紐付け — 書類の連鎖を完成させる",
   payment_records_add_button: "＋ 支払を追加",
