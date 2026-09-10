@@ -426,24 +426,100 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found;
   const hasFlag = panelResult && (!panelResult.stages.clientExists.pass || !panelResult.stages.contractMatch.found || !panelResult.stages.proposalMatch.found);
 
-  const syncActions = (
-    <div className="flex gap-2">
-      <Button variant="secondary" loading={syncing === "notion"} onClick={() => runSync("notion")}>
-        {t("pipeline_sync_run_notion")}
-      </Button>
-      <Button variant="secondary" loading={syncing === "sharepoint"} onClick={() => runSync("sharepoint")}>
-        {t("pipeline_sync_run_sharepoint")}
-      </Button>
-    </div>
-  );
+  const sharepointRecords = filtered.filter((r) => r.source === "sharepoint");
+  const notionRecords = filtered.filter((r) => r.source === "notion");
+
+  function renderRecordCard(r: StagedPipelineRecord) {
+    const override = overrideFor(r);
+    const pending = r.status === "auto_linked" || r.status === "needs_review";
+    const { contractCount, proposalCount } = existenceCounts(r.rawClientName, contracts, proposals);
+    return (
+      <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[r.status]}`}>
+                {STATUS_LABELS[r.status]}
+              </span>
+              {pending && (
+                <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
+              )}
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  proposalCount > 0 || contractCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
+                }`}
+                title="Existing proposals/contracts fuzzy-matched by client name"
+              >
+                {proposalCount > 0 || contractCount > 0
+                  ? `${proposalCount} proposal${proposalCount === 1 ? "" : "s"} · ${contractCount} contract${contractCount === 1 ? "" : "s"}`
+                  : "No proposal or contract yet"}
+              </span>
+            </div>
+            <p className="mt-1 font-medium text-stone-900">
+              <span className="mr-1 font-normal text-stone-400">Client:</span>
+              {r.rawClientName}
+            </p>
+            <p className="text-sm text-stone-500">{r.projectName || "—"} · {r.stageOrStatus}</p>
+            <p className="text-xs text-stone-400 mt-0.5">
+              {r.estimatedAmount ? `${r.currency} ${r.estimatedAmount.toLocaleString()}` : t("pipeline_sync_no_amount")}
+              {r.contactName ? ` · ${r.contactName}` : ""}
+            </p>
+            {r.status === "rejected" && r.reviewerComment && (
+              <p className="mt-1 text-xs text-red-600">{t("pipeline_sync_rejected_label").replace("{comment}", r.reviewerComment)}</p>
+            )}
+            {r.status === "approved" && (
+              <p className="mt-1 text-xs text-blue-600">
+                {t("pipeline_sync_linked_to").replace("{client}", r.matchedClientName ?? "").replace("{leadId}", r.createdLeadId ?? "")}
+              </p>
+            )}
+          </div>
+
+          {pending && (
+            <div className="w-64 shrink-0">
+              <ClientPicker
+                clients={clients}
+                clientId={override.clientId}
+                clientName={override.clientName}
+                onChange={(clientId, clientName) =>
+                  setOverrides((o) => ({ ...o, [r.id]: { clientId, clientName } }))
+                }
+                onClientCreated={(c) => setClients((cs) => [...cs, c])}
+                createEndpoint="/api/pipeline-sync/clients"
+                className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 flex justify-between gap-2 border-t border-stone-100 pt-3">
+          <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => deleteRecord(r)}>
+            Delete
+          </Button>
+          <div className="flex gap-2">
+            {r.status === "rejected" && (
+              <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => restoreRejected(r)}>
+                Undo Reject
+              </Button>
+            )}
+            {pending && (
+              <>
+                <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
+                  {t("pipeline_sync_reject")}
+                </Button>
+                <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
+                  {t("pipeline_sync_approve")}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {compact ? (
-        <div className="mb-5 flex justify-end">{syncActions}</div>
-      ) : (
-        <PageHeader title={t("nav_pipeline_sync")} subtitle={t("pipeline_sync_subtitle")} actions={syncActions} />
-      )}
+      {!compact && <PageHeader title={t("nav_pipeline_sync")} subtitle={t("pipeline_sync_subtitle")} />}
 
       {mockSourceLabels.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
@@ -542,100 +618,47 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-stone-200 bg-white px-6 py-12 text-center">
-          <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
-        </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((r) => {
-            const override = overrideFor(r);
-            const pending = r.status === "auto_linked" || r.status === "needs_review";
-            const { contractCount, proposalCount } = existenceCounts(r.rawClientName, contracts, proposals);
-            return (
-              <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono uppercase text-stone-400">{r.source}</span>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[r.status]}`}>
-                        {STATUS_LABELS[r.status]}
-                      </span>
-                      {pending && (
-                        <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
-                      )}
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          proposalCount > 0 || contractCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
-                        }`}
-                        title="Existing proposals/contracts fuzzy-matched by client name"
-                      >
-                        {proposalCount > 0 || contractCount > 0
-                          ? `${proposalCount} proposal${proposalCount === 1 ? "" : "s"} · ${contractCount} contract${contractCount === 1 ? "" : "s"}`
-                          : "No proposal or contract yet"}
-                      </span>
-                    </div>
-                    <p className="mt-1 font-medium text-stone-900">
-                      <span className="mr-1 font-normal text-stone-400">Client:</span>
-                      {r.rawClientName}
-                    </p>
-                    <p className="text-sm text-stone-500">{r.projectName || "—"} · {r.stageOrStatus}</p>
-                    <p className="text-xs text-stone-400 mt-0.5">
-                      {r.estimatedAmount ? `${r.currency} ${r.estimatedAmount.toLocaleString()}` : t("pipeline_sync_no_amount")}
-                      {r.contactName ? ` · ${r.contactName}` : ""}
-                    </p>
-                    {r.status === "rejected" && r.reviewerComment && (
-                      <p className="mt-1 text-xs text-red-600">{t("pipeline_sync_rejected_label").replace("{comment}", r.reviewerComment)}</p>
-                    )}
-                    {r.status === "approved" && (
-                      <p className="mt-1 text-xs text-blue-600">
-                        {t("pipeline_sync_linked_to").replace("{client}", r.matchedClientName ?? "").replace("{leadId}", r.createdLeadId ?? "")}
-                      </p>
-                    )}
-                  </div>
-
-                  {pending && (
-                    <div className="w-64 shrink-0">
-                      <ClientPicker
-                        clients={clients}
-                        clientId={override.clientId}
-                        clientName={override.clientName}
-                        onChange={(clientId, clientName) =>
-                          setOverrides((o) => ({ ...o, [r.id]: { clientId, clientName } }))
-                        }
-                        onClientCreated={(c) => setClients((cs) => [...cs, c])}
-                        createEndpoint="/api/pipeline-sync/clients"
-                        className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-3 flex justify-between gap-2 border-t border-stone-100 pt-3">
-                  <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => deleteRecord(r)}>
-                    Delete
-                  </Button>
-                  <div className="flex gap-2">
-                    {r.status === "rejected" && (
-                      <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => restoreRejected(r)}>
-                        Undo Reject
-                      </Button>
-                    )}
-                    {pending && (
-                      <>
-                        <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => reject(r)}>
-                          {t("pipeline_sync_reject")}
-                        </Button>
-                        <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
-                          {t("pipeline_sync_approve")}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
+        <div className="space-y-6">
+          {/* SharePoint section */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-700">
+                SharePoint
+                <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">{sharepointRecords.length}</span>
+              </h2>
+              <Button variant="secondary" size="sm" loading={syncing === "sharepoint"} onClick={() => runSync("sharepoint")}>
+                {t("pipeline_sync_run_sharepoint")}
+              </Button>
+            </div>
+            {sharepointRecords.length === 0 ? (
+              <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
+                <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
               </div>
-            );
-          })}
+            ) : (
+              <div className="space-y-3">{sharepointRecords.map(renderRecordCard)}</div>
+            )}
+          </div>
+
+          {/* Notion section */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-700">
+                Notion
+                <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">{notionRecords.length}</span>
+              </h2>
+              <Button variant="secondary" size="sm" loading={syncing === "notion"} onClick={() => runSync("notion")}>
+                {t("pipeline_sync_run_notion")}
+              </Button>
+            </div>
+            {notionRecords.length === 0 ? (
+              <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
+                <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">{notionRecords.map(renderRecordCard)}</div>
+            )}
+          </div>
         </div>
       )}
 
