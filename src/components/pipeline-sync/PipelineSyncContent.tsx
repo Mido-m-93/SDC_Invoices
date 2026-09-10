@@ -98,6 +98,15 @@ interface SharePointSearchResult {
   parentPath: string;
 }
 
+// Mirrors PipelineSourceScanDetail from pipelineSharePointSource.ts (that
+// module is server-only and can't be imported into a client component).
+interface ScanDetail {
+  folder: string;
+  file: string;
+  extracted: number;
+  skipped?: string;
+}
+
 interface PipelineSyncContentProps {
   // Compact mode drops the full PageHeader (title + subtitle) so this can sit
   // inside a tab alongside another header — the sync action buttons still render.
@@ -126,6 +135,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
+  const [lastScan, setLastScan] = useState<ScanDetail[] | null>(null);
   const [sourceStatus, setSourceStatus] = useState<Record<PipelineSourceType, "real" | "mock"> | null>(null);
   const [validationPanel, setValidationPanel] = useState<ValidationPanel | null>(null);
   const [sharePointResults, setSharePointResults] = useState<SharePointSearchResult[] | null>(null);
@@ -233,6 +243,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
     setSyncing(source);
     setError(null);
     setSyncDetail(null);
+    if (source === "sharepoint") setLastScan(null);
     notify("info", t("pipeline_sync_notify_syncing").replace("{source}", SOURCE_LABEL[source]), "/pipeline-sync");
     try {
       const res = await fetch("/api/pipeline-sync", {
@@ -240,13 +251,14 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; staged?: number; autoLinked?: number; needsReview?: number; scan?: ScanDetail[] };
       if (!res.ok) {
         const message = data.error ?? t("pipeline_sync_error_sync_failed");
         setError(message);
         notify("error", message, "/pipeline-sync");
         return;
       }
+      if (source === "sharepoint") setLastScan(data.scan ?? []);
       await load();
       await loadLastExtractDetail(source);
       notify(
@@ -648,6 +660,29 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
           {sourceTab === "sharepoint" ? t("pipeline_sync_run_sharepoint") : t("pipeline_sync_run_notion")}
         </Button>
       </div>
+
+      {sourceTab === "sharepoint" && lastScan && (
+        <div className="mb-4 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
+          <p className="mb-2 text-xs font-semibold text-stone-600">
+            10_Pipeline folder contents ({lastScan.length} file{lastScan.length === 1 ? "" : "s"} found)
+          </p>
+          {lastScan.length === 0 ? (
+            <p className="text-xs text-stone-400">No files found in the folder.</p>
+          ) : (
+            <ul className="space-y-1">
+              {lastScan.map((s, i) => (
+                <li key={i} className="flex items-center gap-2 text-xs">
+                  <span className={s.skipped ? "text-stone-400" : "text-emerald-600"}>{s.skipped ? "○" : "✓"}</span>
+                  <span className="font-medium text-stone-700">{s.file}</span>
+                  <span className="text-stone-400">
+                    {s.skipped ? s.skipped : `extracted ${s.extracted} record${s.extracted === 1 ? "" : "s"}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
