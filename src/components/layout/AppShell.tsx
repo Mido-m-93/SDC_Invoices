@@ -160,7 +160,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {MEMBERS_ITEMS.map(({ key, href, icon: Icon }) => {
+              {MEMBERS_ITEMS.filter(({ key }) => key !== "nav_members").map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
