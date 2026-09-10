@@ -118,6 +118,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineRecordStatus | "all">("all");
+  const [sourceTab, setSourceTab] = useState<PipelineSourceType>("sharepoint");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState<PipelineSourceType | null>(null);
@@ -616,50 +617,46 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
         </div>
       )}
 
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex gap-1 border-b border-stone-200">
+          {(
+            [
+              { key: "sharepoint" as const, label: "SharePoint", count: sharepointRecords.length },
+              { key: "notion" as const, label: "Notion", count: notionRecords.length },
+            ]
+          ).map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setSourceTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                sourceTab === key
+                  ? "border-[#1a3d2b] text-[#1a3d2b]"
+                  : "border-transparent text-stone-400 hover:text-stone-600"
+              }`}
+            >
+              {label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sourceTab === key ? "bg-[#1a3d2b]/10 text-[#1a3d2b]" : "bg-stone-100 text-stone-500"}`}>{count}</span>
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={syncing === sourceTab}
+          onClick={() => runSync(sourceTab)}
+        >
+          {sourceTab === "sharepoint" ? t("pipeline_sync_run_sharepoint") : t("pipeline_sync_run_notion")}
+        </Button>
+      </div>
+
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
-      ) : (
-        <div className="space-y-6">
-          {/* SharePoint section */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-                SharePoint
-                <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">{sharepointRecords.length}</span>
-              </h2>
-              <Button variant="secondary" size="sm" loading={syncing === "sharepoint"} onClick={() => runSync("sharepoint")}>
-                {t("pipeline_sync_run_sharepoint")}
-              </Button>
-            </div>
-            {sharepointRecords.length === 0 ? (
-              <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
-                <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
-              </div>
-            ) : (
-              <div className="space-y-3">{sharepointRecords.map(renderRecordCard)}</div>
-            )}
-          </div>
-
-          {/* Notion section */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-                Notion
-                <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">{notionRecords.length}</span>
-              </h2>
-              <Button variant="secondary" size="sm" loading={syncing === "notion"} onClick={() => runSync("notion")}>
-                {t("pipeline_sync_run_notion")}
-              </Button>
-            </div>
-            {notionRecords.length === 0 ? (
-              <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
-                <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
-              </div>
-            ) : (
-              <div className="space-y-3">{notionRecords.map(renderRecordCard)}</div>
-            )}
-          </div>
+      ) : (sourceTab === "sharepoint" ? sharepointRecords : notionRecords).length === 0 ? (
+        <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
+          <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
         </div>
+      ) : (
+        <div className="space-y-3">{(sourceTab === "sharepoint" ? sharepointRecords : notionRecords).map(renderRecordCard)}</div>
       )}
 
       {/* ── Validation panel (right-side drawer) ── */}
