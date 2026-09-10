@@ -18,6 +18,7 @@ const ja = {
   nav_open_menu: "メニューを開く",
   nav_close_menu: "メニューを閉じる",
   nav_group_sales: "営業",
+  nav_group_contract: "契約",
   nav_group_members: "経費",
   nav_group_finance: "財務",
   nav_group_system: "システム",

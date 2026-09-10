@@ -9,14 +9,19 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-const SALES_HREFS = ["/leads", "/proposals", "/contracts", "/pipeline-sync", "/outbound-invoices"];
+const SALES_HREFS = ["/leads", "/proposals", "/pipeline-sync", "/outbound-invoices"];
 
 const SALES_ITEMS = [
   { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_leads" as const, href: "/leads", icon: LeadIcon },
   { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
-  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
   { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
+];
+
+const CONTRACT_HREFS = ["/contracts"];
+
+const CONTRACT_ITEMS = [
+  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
 ];
 
 const MEMBERS_HREFS = ["/members", "/invoices", "/expenses"];
@@ -134,6 +139,33 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
             <div className="ml-3 border-l border-white/10 pl-2">
               {SALES_ITEMS.map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Contract group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <ContractIcon size={15} />
+              <span>{t("nav_group_contract")}</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {CONTRACT_ITEMS.map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
