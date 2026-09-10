@@ -92,6 +92,72 @@ export interface PipelineSourceScanDetail {
   skipped?: string;
 }
 
+// Runs `fn` over `items` with at most `limit` in flight — the category
+// folders each hold many per-client subfolders (confirmed via a real scan:
+// 10_Pipeline/01_企業 alone had a dozen+ client folders), so walking them
+// one at a time would be slow across a whole tree of categories.
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// Real structure turned out to be 10_Pipeline/<category>/<client>/<files> —
+// one level deeper than originally assumed. Rather than hardcode that exact
+// depth (a client folder could itself have a project subfolder in some
+// cases), this walks the whole subtree under each category folder, capped
+// at MAX_DEPTH as a safety valve against an unexpectedly deep or cyclical
+// structure — 10_Pipeline itself is scoped separately via PIPELINE_FOLDER_PATHS,
+// so this never risks crawling the wider site.
+const MAX_DEPTH = 6;
+
+async function walkFolder(
+  siteId: string,
+  token: string,
+  folderId: string,
+  folderLabel: string,
+  depth: number,
+  files: GraphDriveItem[],
+  scan: PipelineSourceScanDetail[]
+): Promise<void> {
+  if (depth > MAX_DEPTH) {
+    scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: `max recursion depth (${MAX_DEPTH}) reached` });
+    return;
+  }
+  let children: GraphDriveItem[];
+  try {
+    children = await listItemsByFolderId(siteId, folderId, token);
+  } catch (err) {
+    scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
+    return;
+  }
+  const subFiles = children.filter((c) => !c.isFolder);
+  const subFolders = children.filter((c) => c.isFolder);
+  // Log every folder's result, even "found nothing" — without this, an
+  // empty or inaccessible subfolder leaves no trace in scan, making it
+  // impossible to tell "Graph saw 0 items here" apart from "this folder
+  // was never reached" when diagnosing a sync that finds fewer files than
+  // the tree actually contains.
+  scan.push({
+    folder: folderLabel,
+    file: "(folder)",
+    extracted: 0,
+    skipped: `listed: ${children.length} item(s) — ${subFiles.length} file(s), ${subFolders.length} subfolder(s)`,
+  });
+  files.push(...subFiles);
+  await mapWithConcurrency(subFolders, 6, (sub) =>
+    walkFolder(siteId, token, sub.id, `${folderLabel}/${sub.name}`, depth + 1, files, scan)
+  );
+}
+
 /**
  * Scan the configured pipeline folder(s), extract structured deal records
  * from every readable file via Claude, and return them all flattened.
@@ -117,41 +183,25 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
       continue;
     }
 
-    // One level of recursion into subfolders (deal-per-folder layouts), same depth
-    // as the debug inspector and the member-contract sync.
-    const files: GraphDriveItem[] = [];
-    for (const entry of topLevel) {
-      if (!entry.isFolder) { files.push(entry); continue; }
-      try {
-        const children = await listItemsByFolderId(siteId, entry.id, token);
-        const subFiles = children.filter((c) => !c.isFolder);
-        const subFolders = children.filter((c) => c.isFolder);
-        // Log every category folder's result, even "found nothing" — without
-        // this, an empty or inaccessible subfolder leaves no trace in scan,
-        // making it impossible to tell "Graph saw 0 items here" apart from
-        // "this folder was never reached" when diagnosing a sync that finds
-        // far fewer files than the folder actually contains.
-        scan.push({
-          folder: `${folderPath}/${entry.name}`,
-          file: "(folder)",
-          extracted: 0,
-          skipped: `listed: ${children.length} item(s) — ${subFiles.length} file(s), ${subFolders.length} subfolder(s)`,
-        });
-        files.push(...subFiles);
-      } catch (err) {
-        scan.push({ folder: folderPath, file: entry.name, extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
-      }
-    }
+    const files: GraphDriveItem[] = topLevel.filter((e) => !e.isFolder);
+    const subfolders = topLevel.filter((e) => e.isFolder);
+    await mapWithConcurrency(subfolders, 6, (entry) =>
+      walkFolder(siteId, token, entry.id, `${folderPath}/${entry.name}`, 1, files, scan)
+    );
 
-    for (const file of files) {
+    // Extraction is AI-per-file and now runs across every client folder in
+    // every category — sequential would risk the route's 300s budget once
+    // this actually finds the real file tree, so bound concurrency instead
+    // (same rationale as proposalSharePointSource.ts's extraction pass).
+    await mapWithConcurrency(files, 4, async (file) => {
       const extracted = await extractItemsFromFile(siteId, token, file);
       if (extracted === null) {
         scan.push({ folder: folderPath, file: file.name, extracted: 0, skipped: "unsupported file type" });
-        continue;
+        return;
       }
       items.push(...extracted);
       scan.push({ folder: folderPath, file: file.name, extracted: extracted.length });
-    }
+    });
   }
 
   return { items, scan };
