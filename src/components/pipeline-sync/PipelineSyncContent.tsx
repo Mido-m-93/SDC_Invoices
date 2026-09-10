@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import ClientPicker from "@/components/ui/ClientPicker";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
@@ -32,8 +31,6 @@ const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
   approved: "bg-blue-50 text-blue-700",
   rejected: "bg-red-50 text-red-700",
 };
-
-type Override = { clientId: string; clientName: string };
 
 interface ValidationResult {
   recordId: string;
@@ -133,7 +130,6 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const [syncing, setSyncing] = useState<PipelineSourceType | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [syncDetail, setSyncDetail] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<ScanDetail[] | null>(null);
   const [sourceStatus, setSourceStatus] = useState<Record<PipelineSourceType, "real" | "mock"> | null>(null);
@@ -235,10 +231,6 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
     return () => { clearTimeout(timer); setSharePointSearching(false); };
   }, [search]);
 
-  function overrideFor(r: StagedPipelineRecord): Override {
-    return overrides[r.id] ?? { clientId: r.matchedClientId ?? "", clientName: r.matchedClientName ?? r.rawClientName };
-  }
-
   async function runSync(source: PipelineSourceType) {
     setSyncing(source);
     setError(null);
@@ -303,37 +295,6 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
     } catch (err) {
       setValidationPanel({ record: r, result: null, loading: false });
       setError(err instanceof Error ? err.message : "Validation failed");
-    }
-  }
-
-  async function confirmApprove() {
-    if (!validationPanel) return;
-    const r = validationPanel.record;
-    setBusyId(r.id);
-    setError(null);
-    try {
-      const override = overrideFor(r);
-      const res = await fetch(`/api/pipeline-sync/${r.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ overrideClientId: override.clientId || undefined }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        const message = data.error ?? t("pipeline_sync_error_approve_failed");
-        setError(message);
-        notify("error", message, "/pipeline-sync");
-        return;
-      }
-      setValidationPanel(null);
-      await load();
-      notify("success", t("pipeline_sync_notify_approved").replace("{name}", r.rawClientName), "/pipeline-sync");
-    } catch {
-      const message = t("pipeline_sync_error_approve_failed");
-      setError(message);
-      notify("error", message, "/pipeline-sync");
-    } finally {
-      setBusyId(null);
     }
   }
 
@@ -437,13 +398,11 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   // Determine overall panel result for the summary badge
   const panelResult = validationPanel?.result;
   const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found;
-  const hasFlag = panelResult && (!panelResult.stages.clientExists.pass || !panelResult.stages.contractMatch.found || !panelResult.stages.proposalMatch.found);
 
   const sharepointRecords = filtered.filter((r) => r.source === "sharepoint");
   const notionRecords = filtered.filter((r) => r.source === "notion");
 
   function renderRecordCard(r: StagedPipelineRecord) {
-    const override = overrideFor(r);
     const pending = r.status === "auto_linked" || r.status === "needs_review";
     const { contractCount, proposalCount } = existenceCounts(r.rawClientName, contracts, proposals);
     return (
@@ -486,22 +445,6 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
               </p>
             )}
           </div>
-
-          {pending && (
-            <div className="w-64 shrink-0">
-              <ClientPicker
-                clients={clients}
-                clientId={override.clientId}
-                clientName={override.clientName}
-                onChange={(clientId, clientName) =>
-                  setOverrides((o) => ({ ...o, [r.id]: { clientId, clientName } }))
-                }
-                onClientCreated={(c) => setClients((cs) => [...cs, c])}
-                createEndpoint="/api/pipeline-sync/clients"
-                className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20"
-              />
-            </div>
-          )}
         </div>
 
         <div className="mt-3 flex justify-between gap-2 border-t border-stone-100 pt-3">
@@ -520,7 +463,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   {t("pipeline_sync_reject")}
                 </Button>
                 <Button variant="primary" size="sm" loading={busyId === r.id} onClick={() => openValidation(r)}>
-                  {t("pipeline_sync_approve")}
+                  {t("pipeline_sync_validate")}
                 </Button>
               </>
             )}
@@ -725,8 +668,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   : "border-amber-200 bg-amber-50 text-amber-800"
               }`}>
                 {allGreen
-                  ? "✓ All checks passed — safe to create lead"
-                  : "⚠ Some checks need review — lead can still be created"}
+                  ? "✓ All checks passed"
+                  : "⚠ Some checks need review"}
               </div>
             )}
 
@@ -853,22 +796,14 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   })()}
                 </div>
               ) : (
-                <p className="text-sm text-red-600">Could not run validation. You can still create the lead below.</p>
+                <p className="text-sm text-red-600">Could not run validation.</p>
               )}
             </div>
 
             {/* Footer actions */}
-            <div className="border-t border-stone-100 px-6 py-4 flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setValidationPanel(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                loading={!!busyId}
-                onClick={confirmApprove}
-              >
-                {hasFlag ? "Create Lead (Needs Review)" : "Confirm & Create Lead"}
+            <div className="border-t border-stone-100 px-6 py-4 flex justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setValidationPanel(null)}>
+                Close
               </Button>
             </div>
           </div>
