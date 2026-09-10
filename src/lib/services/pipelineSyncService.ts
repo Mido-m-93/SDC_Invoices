@@ -27,7 +27,7 @@ import { getClientService, getLeadService } from "@/lib/services";
 import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/lib/services/ai/pipelineExtraction";
 import { rankClientCandidates, AUTO_LINK_THRESHOLD, similarity } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
-import { fetchRealSharePointPipelineItems, fetchClientFolderPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
+import { fetchRealSharePointPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
 import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
 import {
   loadStagedPipelineRecords,
@@ -99,17 +99,12 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
     return getMockSharePointPipelineRecords();
   }
 
-  // The dedicated pipeline tracker folder (fetchRealSharePointPipelineItems)
-  // is scanned alongside each client's own WorkTogether folder
-  // (fetchClientFolderPipelineItems) — the tracker turned out to hold
-  // nothing usable (a shortcut, not real data) in practice, so client
-  // folders are the resilient source. Same pattern as /api/proposals/sync.
-  const [trackerResult, clientFolderResult] = await Promise.all([
-    fetchRealSharePointPipelineItems(),
-    fetchClientFolderPipelineItems(),
-  ]);
-  const items = dedupeExtractedItems([...trackerResult.items, ...clientFolderResult.items]);
-  const scan = [...trackerResult.scan, ...clientFolderResult.scan];
+  // Scoped to only the dedicated pipeline tracker folder
+  // (fetchRealSharePointPipelineItems) — client WorkTogether folders are no
+  // longer scanned here (that data belongs to Proposals sync instead).
+  const trackerResult = await fetchRealSharePointPipelineItems();
+  const items = dedupeExtractedItems(trackerResult.items);
+  const scan = trackerResult.scan;
   await audit({
     actor: "system",
     action: "extract",
