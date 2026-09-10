@@ -8,7 +8,8 @@ const ja = {
   app_name_short: "請求書ツール",
   language_toggle: "EN",
   nav_dashboard: "ダッシュボード",
-  nav_proposals: "提案",
+  nav_proposals: "パイプライン・提案",
+  nav_budget: "予算",
   nav_invoices: "請求書一覧",
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",
@@ -892,6 +893,11 @@ const ja = {
   stage4_not_found: "SharePoint契約フォルダーに請負業者が見つかりませんでした。",
   stage4_contract_expired: "⚠ 契約期間は{date}に終了しています — この契約者の登録契約は期限切れです。",
   stage4_registered: "登録済み契約者。",
+
+  // ── Budget (placeholder — full feature still being designed) ───────────────
+  budget_title: "予算",
+  budget_subtitle: "提案と契約をつなぐステップ — 近日公開",
+  budget_placeholder_text: "予算管理機能は現在設計中です。しばらくお待ちください。",
 
   // ── Proposals ──────────────────────────────────────────────────────────────
   proposals_title: "提案管理",

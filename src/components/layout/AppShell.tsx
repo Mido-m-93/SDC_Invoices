@@ -9,14 +9,19 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-const SALES_HREFS = ["/leads", "/proposals", "/pipeline-sync", "/outbound-invoices"];
+const SALES_HREFS = ["/proposals", "/budget", "/leads", "/pipeline-sync", "/outbound-invoices"];
 
 const SALES_ITEMS = [
+  { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
+  { key: "nav_budget" as const, href: "/budget", icon: BudgetIcon },
   { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_leads" as const, href: "/leads", icon: LeadIcon },
-  { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
   { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
 ];
+
+// Hidden from the sidebar for now — reachable directly by URL, kept out of
+// nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
+const SALES_HIDDEN_KEYS = ["nav_pipeline_sync", "nav_leads", "nav_outbound_invoices"];
 
 const CONTRACT_HREFS = ["/contracts"];
 
@@ -144,7 +149,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SALES_ITEMS.map(({ key, href, icon: Icon }) => {
+              {SALES_ITEMS.filter(({ key }) => !SALES_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -479,6 +484,16 @@ function ProposalIcon({ size = 18 }: { size?: number }) {
       <polyline points="14,2 14,8 20,8" />
       <path d="M8 14c1.5-.5 1.5-1.5 1.5-2.5S8.5 10 8 10" />
       <path d="M12 14c1.5-.5 1.5-1.5 1.5-2.5S12.5 10 12 10" />
+    </svg>
+  );
+}
+
+function BudgetIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v10" />
+      <path d="M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5S10.3 12 12 12s3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5" />
     </svg>
   );
 }

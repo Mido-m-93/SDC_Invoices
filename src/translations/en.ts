@@ -8,7 +8,8 @@ const en = {
   app_name_short: "Invoice Tool",
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
-  nav_proposals: "Proposal",
+  nav_proposals: "Pipeline & Proposal",
+  nav_budget: "Budget",
   nav_invoices: "Invoices",
   nav_payment_records: "Payments",
   nav_logs: "Logs",
@@ -892,6 +893,11 @@ const en = {
   stage4_not_found: "Contractor not found in the SharePoint contracts folder.",
   stage4_contract_expired: "⚠ Contract ended on {date} — this contractor's registered agreement has expired.",
   stage4_registered: "Registered contractor.",
+
+  // ── Budget (placeholder — full feature still being designed) ───────────────
+  budget_title: "Budget",
+  budget_subtitle: "The bridge between Proposal and Contract — coming soon",
+  budget_placeholder_text: "Budget tracking is being designed. Check back soon.",
 
   // ── Proposals ──────────────────────────────────────────────────────────────
   proposals_title: "Proposals",
