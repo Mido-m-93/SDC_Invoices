@@ -894,6 +894,11 @@ const ja = {
   stage4_contract_expired: "⚠ 契約期間は{date}に終了しています — この契約者の登録契約は期限切れです。",
   stage4_registered: "登録済み契約者。",
 
+  // ── Pipeline & Proposal (tabbed combination page) ───────────────────────────
+  pipeline_and_proposal_subtitle: "パイプラインの生データから、追跡可能な提案へ",
+  tab_pipeline: "パイプライン",
+  tab_proposals: "提案",
+
   // ── Budget (placeholder — full feature still being designed) ───────────────
   budget_title: "予算",
   budget_subtitle: "提案と契約をつなぐステップ — 近日公開",

@@ -894,6 +894,11 @@ const en = {
   stage4_contract_expired: "⚠ Contract ended on {date} — this contractor's registered agreement has expired.",
   stage4_registered: "Registered contractor.",
 
+  // ── Pipeline & Proposal (tabbed combination page) ───────────────────────────
+  pipeline_and_proposal_subtitle: "From raw pipeline lead to a tracked proposal",
+  tab_pipeline: "Pipeline",
+  tab_proposals: "Proposals",
+
   // ── Budget (placeholder — full feature still being designed) ───────────────
   budget_title: "Budget",
   budget_subtitle: "The bridge between Proposal and Contract — coming soon",
