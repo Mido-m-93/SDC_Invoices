@@ -664,7 +664,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
       {sourceTab === "sharepoint" && lastScan && (
         <div className="mb-4 rounded-lg border border-stone-200 bg-stone-50 px-4 py-3">
           <p className="mb-2 text-xs font-semibold text-stone-600">
-            10_Pipeline folder contents ({lastScan.length} file{lastScan.length === 1 ? "" : "s"} found)
+            10_Pipeline sync results ({lastScan.length})
           </p>
           {lastScan.length === 0 ? (
             <p className="text-xs text-stone-400">No files found in the folder.</p>

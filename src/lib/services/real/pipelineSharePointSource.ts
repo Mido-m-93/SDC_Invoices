@@ -184,17 +184,11 @@ async function walkFolder(
   }
   const subFiles = children.filter((c) => !c.isFolder);
   const subFolders = children.filter((c) => c.isFolder);
-  // Log every folder's result, even "found nothing" — without this, an
-  // empty or inaccessible subfolder leaves no trace in scan, making it
-  // impossible to tell "Graph saw 0 items here" apart from "this folder
-  // was never reached" when diagnosing a sync that finds fewer files than
-  // the tree actually contains.
-  scan.push({
-    folder: folderLabel,
-    file: "(folder)",
-    extracted: 0,
-    skipped: `listed: ${children.length} item(s) — ${subFiles.length} file(s), ${subFolders.length} subfolder(s)`,
-  });
+  // Not logging every folder visited here — with a real tree this size
+  // (thousands of folders), that flooded both the audit summary and the
+  // folder-contents panel with noise. Genuine problems (read failures, depth
+  // limit) still get logged above/below; a plain "found nothing" is normal
+  // and not worth a scan entry per folder.
   files.push(...subFiles);
   await mapWithConcurrency(subFolders, 6, (sub) =>
     walkFolder(siteId, token, sub.id, `${folderLabel}/${sub.name}`, depth + 1, files, scan)
@@ -232,11 +226,14 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
       walkFolder(siteId, token, entry.id, `${folderPath}/${entry.name}`, 1, allFiles, scan)
     );
 
-    const candidateFiles = allFiles.filter((file) => {
-      if (looksLikePipelineDoc(file.name)) return true;
-      scan.push({ folder: folderPath, file: file.name, extracted: 0, skipped: "not a pipeline-relevant file" });
-      return false;
-    });
+    const candidateFiles = allFiles.filter((file) => looksLikePipelineDoc(file.name));
+    // At real scale (thousands of files per category) logging every single
+    // non-matching file individually flooded the folder-contents panel —
+    // one aggregate line carries the same signal.
+    const irrelevantCount = allFiles.length - candidateFiles.length;
+    if (irrelevantCount > 0) {
+      scan.push({ folder: folderPath, file: "(filtered)", extracted: 0, skipped: `${irrelevantCount} file(s) skipped as not pipeline-relevant` });
+    }
     const files = candidateFiles.slice(0, MAX_FILES_PER_SYNC);
     for (const skipped of candidateFiles.slice(MAX_FILES_PER_SYNC)) {
       scan.push({ folder: folderPath, file: skipped.name, extracted: 0, skipped: `per-sync file limit (${MAX_FILES_PER_SYNC}) reached` });

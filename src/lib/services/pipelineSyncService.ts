@@ -106,13 +106,21 @@ async function getSourceItems(source: PipelineSourceType): Promise<{ items: Extr
   const trackerResult = await fetchRealSharePointPipelineItems();
   const items = dedupeExtractedItems(trackerResult.items);
   const scan = trackerResult.scan;
+  // "(folder)" entries are rare folder-level errors (read failed, depth
+  // limit) meant for the UI's dedicated folder-contents panel, not this
+  // terse audit-log summary — only real file-level results and the
+  // aggregate "(filtered)" line belong here, capped so this can't run away.
+  // Not claiming a total "scanned N files" count here — "(filtered)" is one
+  // entry standing in for many files, so an entry count would understate it.
+  const fileSkips = scan.filter((s) => s.skipped && s.file !== "(folder)");
+  const shown = fileSkips.slice(0, 10).map((s) => `[${s.file}: ${s.skipped}]`).join(" ");
+  const more = fileSkips.length > 10 ? ` (+${fileSkips.length - 10} more, see folder contents panel)` : "";
   await audit({
     actor: "system",
     action: "extract",
     recordId: null,
     source,
-    detail: `Scanned ${scan.length} file(s) in real SharePoint, extracted ${items.length} record(s). ` +
-      scan.filter((s) => s.skipped).map((s) => `[${s.file}: ${s.skipped}]`).join(" "),
+    detail: `SharePoint pipeline sync complete — extracted ${items.length} record(s). ${shown}${more}`,
   });
   return { items, scan };
 }
