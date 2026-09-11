@@ -112,15 +112,17 @@ function OutboundInvoicesPageInner() {
     }));
   }
 
-  async function handleVerify(inv: OutboundInvoice) {
-    setVerifying(inv.id);
+  async function handleVerify(inv: OutboundInvoice, checkpoint: "verify" | "verify-proposal" | "verify-budget" = "verify") {
+    const key = `${inv.id}:${checkpoint}`;
+    setVerifying(key);
     try {
-      const res = await fetch(`/api/outbound-invoices/${inv.id}/verify`, { method: "POST" });
+      const res = await fetch(`/api/outbound-invoices/${inv.id}/${checkpoint}`, { method: "POST" });
       if (res.ok) {
         load();
         notify("success", `Verified invoice ${inv.invoiceNumber || inv.id}`, "/outbound-invoices");
       } else {
-        notify("error", `Failed to verify invoice ${inv.invoiceNumber || inv.id}`, "/outbound-invoices");
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        notify("error", data.error ?? `Failed to verify invoice ${inv.invoiceNumber || inv.id}`, "/outbound-invoices");
       }
     } catch (err) {
       notify("error", `Failed to verify invoice ${inv.invoiceNumber || inv.id}: ${String(err)}`, "/outbound-invoices");
@@ -291,7 +293,7 @@ function OutboundInvoicesPageInner() {
                 <th className="px-4 py-3 text-left">{t("outbound_col_due_date")}</th>
                 <th className="px-4 py-3 text-right">{t("outbound_invoices_total_label")}</th>
                 <th className="px-4 py-3 text-left">{t("col_status")}</th>
-                <th className="px-4 py-3 text-left">{t("outbound_col_verification")}</th>
+                <th className="px-4 py-3 text-left">{t("outbound_col_verification_combined")}</th>
                 <th className="px-4 py-3 text-left">{t("col_actions")}</th>
               </tr>
             </thead>
@@ -311,13 +313,38 @@ function OutboundInvoicesPageInner() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <VerificationBadge
-                      verification={inv.verification}
-                      onVerify={() => handleVerify(inv)}
-                      verifying={verifying === inv.id}
-                      verifyLabel={t("outbound_action_verify")}
-                      reverifyLabel={t("outbound_action_reverify")}
-                    />
+                    <div className="flex flex-col gap-1.5">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("outbound_col_verification_contract")}</p>
+                        <VerificationBadge
+                          verification={inv.verificationContract}
+                          onVerify={() => handleVerify(inv, "verify")}
+                          verifying={verifying === `${inv.id}:verify`}
+                          verifyLabel={t("outbound_action_verify")}
+                          reverifyLabel={t("outbound_action_reverify")}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("outbound_col_verification_proposal")}</p>
+                        <VerificationBadge
+                          verification={inv.verificationProposal}
+                          onVerify={() => handleVerify(inv, "verify-proposal")}
+                          verifying={verifying === `${inv.id}:verify-proposal`}
+                          verifyLabel={t("outbound_action_verify")}
+                          reverifyLabel={t("outbound_action_reverify")}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("outbound_col_verification_budget")}</p>
+                        <VerificationBadge
+                          verification={inv.verificationBudget}
+                          onVerify={() => handleVerify(inv, "verify-budget")}
+                          verifying={verifying === `${inv.id}:verify-budget`}
+                          verifyLabel={t("outbound_action_verify")}
+                          reverifyLabel={t("outbound_action_reverify")}
+                        />
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(inv)}>{t("outbound_invoices_action_edit")}</Button>

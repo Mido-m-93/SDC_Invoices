@@ -536,7 +536,9 @@ export interface OutboundInvoice {
   billingDate?: string;
   driveFileId?: string;
   driveFileUrl?: string;
-  verification?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
+  verificationContract?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
+  verificationProposal?: ConsistencyVerdict;   // AI check: this invoice vs. the contract's proposal
+  verificationBudget?: ConsistencyVerdict;     // AI check: this invoice vs. the contract's budget
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
 }
