@@ -62,6 +62,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
   const [staged, setStaged] = useState<StagedProposalRecord[]>([]);
   const [stagedPicks, setStagedPicks] = useState<Record<string, { clientId: string; clientName: string }>>({});
   const [resolvingStaged, setResolvingStaged] = useState<string | null>(null);
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const loadStaged = useCallback(async () => {
     try {
@@ -122,6 +123,46 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
     } finally {
       setResolvingStaged(null);
     }
+  }
+
+  async function handleApproveAllStaged() {
+    setBulkApproving(true);
+    const toApprove = [...staged];
+    let succeeded = 0;
+    let failed = 0;
+    // Modest concurrency cap — these are plain DB writes (no AI calls), but
+    // dozens of simultaneous requests is still worth bounding.
+    const CONCURRENCY = 5;
+    let next = 0;
+    async function worker() {
+      while (next < toApprove.length) {
+        const record = toApprove[next++];
+        const pick = stagedPicks[record.id];
+        try {
+          const res = await fetch(`/api/proposals/staged/${record.id}/approve`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId: pick?.clientId || undefined }),
+          });
+          if (res.ok) {
+            succeeded++;
+            setStaged((s) => s.filter((r) => r.id !== record.id));
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, toApprove.length) }, worker));
+    setBulkApproving(false);
+    notify(
+      failed > 0 ? "error" : "success",
+      `Approved ${succeeded} proposal(s)${failed > 0 ? `, ${failed} failed — still in the review queue` : ""}`,
+      "/proposals"
+    );
+    load();
   }
 
   async function handleRejectStaged(record: StagedProposalRecord) {
@@ -348,11 +389,16 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
 
       {staged.length > 0 && (
         <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-amber-200">
-            <h2 className="text-sm font-semibold text-amber-800">Needs client review ({staged.length})</h2>
-            <p className="text-xs text-amber-700 mt-0.5">
-              These SharePoint proposals couldn&apos;t be matched to an existing client with enough confidence. Pick the right client (or leave blank to create a new one) then approve, or discard.
-            </p>
+          <div className="px-4 py-3 border-b border-amber-200 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-amber-800">Needs client review ({staged.length})</h2>
+              <p className="text-xs text-amber-700 mt-0.5">
+                These SharePoint proposals couldn&apos;t be matched to an existing client with enough confidence. Pick the right client (or leave blank to create a new one) then approve, or discard.
+              </p>
+            </div>
+            <Button variant="primary" size="sm" loading={bulkApproving} onClick={handleApproveAllStaged}>
+              Approve All ({staged.length})
+            </Button>
           </div>
           <div className="divide-y divide-amber-200">
             {staged.map((record) => {
