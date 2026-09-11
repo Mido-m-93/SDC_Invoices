@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
-import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry, Proposal, Contract } from "@/types";
+import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry, Proposal, Contract, Budget } from "@/types";
 
 const SOURCE_LABEL: Record<PipelineSourceType, string> = { notion: "Notion", sharepoint: "SharePoint" };
 
@@ -15,14 +15,17 @@ const SOURCE_LABEL: Record<PipelineSourceType, string> = { notion: "Notion", sha
 // kept in sync so the at-a-glance badge agrees with the validation panel.
 const EXISTENCE_THRESHOLD = 0.45;
 
-function existenceCounts(rawClientName: string, contracts: Contract[], proposals: Proposal[]) {
+function existenceCounts(rawClientName: string, contracts: Contract[], proposals: Proposal[], budgets: Budget[]) {
   const contractCount = contracts.filter(
     (c) => Math.max(similarity(rawClientName, c.clientName ?? ""), similarity(rawClientName, c.projectName)) >= EXISTENCE_THRESHOLD
   ).length;
   const proposalCount = proposals.filter(
     (p) => Math.max(similarity(rawClientName, p.clientName ?? ""), similarity(rawClientName, p.projectName)) >= EXISTENCE_THRESHOLD
   ).length;
-  return { contractCount, proposalCount };
+  const budgetCount = budgets.filter(
+    (b) => Math.max(similarity(rawClientName, b.clientName ?? ""), similarity(rawClientName, b.projectName)) >= EXISTENCE_THRESHOLD
+  ).length;
+  return { contractCount, proposalCount, budgetCount };
 }
 
 const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
@@ -42,6 +45,7 @@ interface ValidationResult {
       pass: boolean;
       contractCount: number;
       proposalCount: number;
+      budgetCount: number;
     };
     contractMatch: {
       found: boolean;
@@ -64,6 +68,20 @@ interface ValidationResult {
         projectName: string;
         clientName: string | null;
         estimatedAmount: number;
+        currency: string;
+        status: string;
+        folderUrl: string | null;
+        score: number;
+      } | null;
+      amountClose: { close: boolean; diffPct: number | null };
+    };
+    budgetMatch: {
+      found: boolean;
+      budget: {
+        id: string;
+        projectName: string;
+        clientName: string | null;
+        budgetAmount: number;
         currency: string;
         status: string;
         folderUrl: string | null;
@@ -123,6 +141,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const [clients, setClients] = useState<Client[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [statusFilter, setStatusFilter] = useState<PipelineRecordStatus | "all">("all");
   const [sourceTab, setSourceTab] = useState<PipelineSourceType>("sharepoint");
   const [search, setSearch] = useState("");
@@ -141,21 +160,24 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rRes, cRes, conRes, propRes] = await Promise.all([
+      const [rRes, cRes, conRes, propRes, budRes] = await Promise.all([
         fetch("/api/pipeline-sync"),
         fetch("/api/pipeline-sync/clients"),
         fetch("/api/contracts"),
         fetch("/api/proposals"),
+        fetch("/api/budgets"),
       ]);
       const rData = (await rRes.json()) as { records: StagedPipelineRecord[]; sourceStatus?: Record<PipelineSourceType, "real" | "mock"> };
       const cData = (await cRes.json()) as { clients: Client[] };
       const conData = (await conRes.json()) as { contracts: Contract[] };
       const propData = (await propRes.json()) as { proposals: Proposal[] };
+      const budData = (await budRes.json()) as { budgets: Budget[] };
       setRecords(rData.records ?? []);
       setSourceStatus(rData.sourceStatus ?? null);
       setClients(cData.clients ?? []);
       setContracts(conData.contracts ?? []);
       setProposals(propData.proposals ?? []);
+      setBudgets(budData.budgets ?? []);
     } catch {
       setError(t("pipeline_sync_error_load"));
     } finally {
@@ -397,14 +419,14 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 
   // Determine overall panel result for the summary badge
   const panelResult = validationPanel?.result;
-  const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found;
+  const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found && panelResult.stages.budgetMatch.found;
 
   const sharepointRecords = filtered.filter((r) => r.source === "sharepoint");
   const notionRecords = filtered.filter((r) => r.source === "notion");
 
   function renderRecordCard(r: StagedPipelineRecord) {
     const pending = r.status === "auto_linked" || r.status === "needs_review";
-    const { contractCount, proposalCount } = existenceCounts(r.rawClientName, contracts, proposals);
+    const { contractCount, proposalCount, budgetCount } = existenceCounts(r.rawClientName, contracts, proposals, budgets);
     return (
       <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
         <div className="flex items-start justify-between gap-4">
@@ -418,13 +440,13 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
               )}
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  proposalCount > 0 || contractCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
+                  proposalCount > 0 || budgetCount > 0 || contractCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
                 }`}
-                title="Existing proposals/contracts fuzzy-matched by client name"
+                title="Existing proposals/budgets/contracts fuzzy-matched by client name"
               >
-                {proposalCount > 0 || contractCount > 0
-                  ? `${proposalCount} proposal${proposalCount === 1 ? "" : "s"} · ${contractCount} contract${contractCount === 1 ? "" : "s"}`
-                  : "No proposal or contract yet"}
+                {proposalCount > 0 || budgetCount > 0 || contractCount > 0
+                  ? `${proposalCount} proposal${proposalCount === 1 ? "" : "s"} · ${budgetCount} budget${budgetCount === 1 ? "" : "s"} · ${contractCount} contract${contractCount === 1 ? "" : "s"}`
+                  : "No proposal, budget, or contract yet"}
               </span>
             </div>
             <p className="mt-1 font-medium text-stone-900">
@@ -756,13 +778,40 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     linkLabel="View Proposal"
                   />
 
-                  {/* Stage 4: Proposal ↔ Contract cross-check */}
+                  {/* Stage 4 */}
+                  <ValidationStage
+                    number={4}
+                    title="Budget exists for this client?"
+                    subtitle="Name match + amount comparison"
+                    pass={panelResult.stages.budgetMatch.found && (panelResult.stages.budgetMatch.amountClose.close || panelResult.stages.budgetMatch.amountClose.diffPct === null)}
+                    warn={panelResult.stages.budgetMatch.found && panelResult.stages.budgetMatch.amountClose.diffPct !== null && !panelResult.stages.budgetMatch.amountClose.close}
+                    lines={(() => {
+                      const b = panelResult.stages.budgetMatch;
+                      if (!b.found) return ["No budget found for this client"];
+                      const lines = [
+                        `✓ Matched: "${b.budget!.projectName}" (${b.budget!.score}% name match)`,
+                        b.budget!.budgetAmount
+                          ? `Budgeted: ${b.budget!.currency} ${b.budget!.budgetAmount.toLocaleString()}`
+                          : "",
+                        b.amountClose.diffPct !== null
+                          ? b.amountClose.close
+                            ? `✓ Amount within ${b.amountClose.diffPct}% of budget`
+                            : `⚠ Amount differs by ${b.amountClose.diffPct}% from budget`
+                          : "",
+                      ].filter(Boolean);
+                      return lines;
+                    })()}
+                    link={panelResult.stages.budgetMatch.budget?.folderUrl ?? null}
+                    linkLabel="View Budget"
+                  />
+
+                  {/* Stage 5: Proposal ↔ Contract cross-check */}
                   {(() => {
                     const cross = panelResult.stages.proposalContractCross;
                     if (!cross.applicable) {
                       return (
                         <ValidationStage
-                          number={4}
+                          number={5}
                           title="Proposal ↔ Contract amount match"
                           subtitle="Cross-check: do proposal and contract agree?"
                           pass={false}
@@ -776,7 +825,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     const diffPct = cross.amountClose?.diffPct ?? null;
                     return (
                       <ValidationStage
-                        number={4}
+                        number={5}
                         title="Proposal ↔ Contract amount match"
                         subtitle="Cross-check: do proposal and contract agree?"
                         pass={close}

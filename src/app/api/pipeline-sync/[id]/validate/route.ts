@@ -3,10 +3,10 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
-import { getContractService, getProposalService } from "@/lib/services";
+import { getContractService, getProposalService, getBudgetService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
-import type { Contract, Proposal } from "@/types";
+import type { Contract, Proposal, Budget } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +53,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const projectName: string = row.project_name ?? "";
   const estimatedAmount: number | null = row.estimated_amount ?? null;
 
-  // Load contracts and proposals in parallel
-  const [contracts, proposals] = await Promise.all([
+  // Load contracts, proposals, and budgets in parallel
+  const [contracts, proposals, budgets] = await Promise.all([
     getContractService().listContracts().catch((): Contract[] => []),
     getProposalService().listProposals().catch((): Proposal[] => []),
+    getBudgetService().listBudgets().catch((): Budget[] => []),
   ]);
 
   // ── Stage 1: Client already exists in system? ──────────────────────────────
@@ -70,7 +71,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     score: bestNameScore(rawClientName, [p.clientName ?? "", p.projectName]),
   })).filter((m) => m.score >= NAME_THRESHOLD).sort((a, b) => b.score - a.score);
 
-  const clientExists = contractsByName.length > 0 || proposalsByName.length > 0;
+  const budgetsByName = budgets.map((b) => ({
+    budget: b,
+    score: bestNameScore(rawClientName, [b.clientName ?? "", b.projectName]),
+  })).filter((m) => m.score >= NAME_THRESHOLD).sort((a, b) => b.score - a.score);
+
+  const clientExists = contractsByName.length > 0 || proposalsByName.length > 0 || budgetsByName.length > 0;
 
   // ── Stage 2: Contract match (name + amount) ────────────────────────────────
   const bestContract = contractsByName[0] ?? null;
@@ -80,7 +86,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const bestProposal = proposalsByName[0] ?? null;
   const proposalAmount = amountClose(estimatedAmount, bestProposal?.proposal.estimatedAmount ?? null);
 
-  // ── Stage 4: Proposal ↔ Contract cross-check ──────────────────────────────
+  // ── Stage 4: Budget match (name + amount) ──────────────────────────────────
+  const bestBudget = budgetsByName[0] ?? null;
+  const budgetAmount = amountClose(estimatedAmount, bestBudget?.budget.budgetAmount ?? null);
+
+  // ── Stage 5: Proposal ↔ Contract cross-check ──────────────────────────────
   const crossCheck = bestContract && bestProposal
     ? amountClose(bestProposal.proposal.estimatedAmount, bestContract.contract.expectedMonthlyAmount)
     : null;
@@ -95,6 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         pass: clientExists,
         contractCount: contractsByName.length,
         proposalCount: proposalsByName.length,
+        budgetCount: budgetsByName.length,
       },
       contractMatch: {
         found: !!bestContract,
@@ -123,6 +134,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           score: Math.round(bestProposal.score * 100),
         } : null,
         amountClose: proposalAmount,
+      },
+      budgetMatch: {
+        found: !!bestBudget,
+        budget: bestBudget ? {
+          id: bestBudget.budget.id,
+          projectName: bestBudget.budget.projectName,
+          clientName: bestBudget.budget.clientName ?? null,
+          budgetAmount: bestBudget.budget.budgetAmount,
+          currency: bestBudget.budget.currency,
+          status: bestBudget.budget.status,
+          folderUrl: bestBudget.budget.folderUrl ?? null,
+          score: Math.round(bestBudget.score * 100),
+        } : null,
+        amountClose: budgetAmount,
       },
       proposalContractCross: {
         applicable: !!(bestContract && bestProposal),
