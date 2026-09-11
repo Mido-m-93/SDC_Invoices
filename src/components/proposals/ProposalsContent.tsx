@@ -4,20 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
-import VerificationBadge from "@/components/ui/VerificationBadge";
 import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 
 const STATUSES: Proposal["status"][] = ["draft", "submitted", "accepted", "rejected", "expired"];
-
-interface AcceptedResult {
-  proposal: Proposal;
-  contract: { id: string; projectName: string };
-  leadsAdvanced: number;
-  clientEmail?: string;
-}
 
 const STATUS_COLORS: Record<Proposal["status"], string> = {
   draft: "bg-stone-100 text-stone-600",
@@ -54,9 +46,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ProposalForm>({ ...EMPTY });
   const [error, setError] = useState<string | null>(null);
-  const [accepting, setAccepting] = useState<string | null>(null);
-  const [acceptedResult, setAcceptedResult] = useState<AcceptedResult | null>(null);
-  const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; clientsCreated: number; savedNames: string[] } | null>(null);
 
@@ -77,23 +66,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       notify("error", "SharePoint sync failed", "/proposals");
     } finally {
       setSyncing(false);
-    }
-  }
-
-  async function handleVerify(p: Proposal) {
-    setVerifying(p.id);
-    try {
-      const res = await fetch(`/api/proposals/${p.id}/verify`, { method: "POST" });
-      if (res.ok) {
-        notify("success", `Verified proposal ${p.projectName}`, "/proposals");
-        load();
-      } else {
-        notify("error", `Failed to verify proposal ${p.projectName}`, "/proposals");
-      }
-    } catch {
-      notify("error", `Failed to verify proposal ${p.projectName}`, "/proposals");
-    } finally {
-      setVerifying(null);
     }
   }
 
@@ -181,60 +153,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
     }
   }
 
-  async function handleAccept(p: Proposal, override = false) {
-    if (!override && !confirm(t("proposals_confirm_accept").replace("{project}", p.projectName))) return;
-    setAccepting(p.id);
-    try {
-      const res = await fetch(`/api/proposals/${p.id}/accept`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ override }),
-      });
-      const data = await res.json() as { success: boolean; proposal: Proposal; contract: { id: string; projectName: string }; leadsAdvanced: number; error?: string; discrepancies?: string[]; requiresOverride?: boolean };
-      if (!res.ok) {
-        if (data.requiresOverride) {
-          const list = (data.discrepancies ?? []).map(d => `• ${d}`).join("\n");
-          if (confirm(`${t("proposals_verification_mismatch")}\n\n${list}\n\n${t("proposals_verification_override_confirm")}`)) {
-            await handleAccept(p, true);
-          }
-          return;
-        }
-        setError(t("proposals_error_accept_failed").replace("{error}", data.error ?? t("proposals_error_unknown")));
-        notify("error", `Failed to accept proposal ${p.projectName}: ${data.error ?? t("proposals_error_unknown")}`, "/proposals");
-        return;
-      }
-      const client = clients.find(c => c.id === p.clientId);
-      setAcceptedResult({
-        proposal: data.proposal,
-        contract: data.contract,
-        leadsAdvanced: data.leadsAdvanced,
-        clientEmail: client?.contactEmail,
-      });
-      notify("success", `Accepted proposal ${p.projectName}, contract ${data.contract.id} created`, "/proposals");
-      load();
-    } catch {
-      setError(t("proposals_error_accept_generic"));
-      notify("error", `Failed to accept proposal ${p.projectName}`, "/proposals");
-    } finally {
-      setAccepting(null);
-    }
-  }
-
-  function openOutlookCompose(result: AcceptedResult) {
-    const to = result.clientEmail ?? "";
-    const subject = encodeURIComponent(t("proposals_email_subject").replace("{project}", result.proposal.projectName));
-    const body = encodeURIComponent(
-      t("proposals_email_greeting").replace("{client}", result.proposal.clientName ?? t("proposals_email_client_fallback")) +
-      t("proposals_email_intro").replace("{project}", result.proposal.projectName) +
-      t("proposals_email_project_label").replace("{project}", result.proposal.projectName) +
-      t("proposals_email_amount_label").replace("{amount}", `${result.proposal.currency} ${result.proposal.estimatedAmount.toLocaleString()}`) +
-      t("proposals_email_contract_label").replace("{contract}", result.contract.id) +
-      t("proposals_email_next_steps") +
-      t("proposals_email_signoff")
-    );
-    window.open(`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${subject}&body=${body}`, "_blank");
-  }
-
   const set = <K extends keyof ProposalForm>(k: K, v: ProposalForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -310,7 +228,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                 <th className="px-4 py-3 text-left">{t("proposals_col_date")}</th>
                 <th className="px-4 py-3 text-right">{t("proposals_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_status")}</th>
-                <th className="px-4 py-3 text-left">{t("proposals_col_verification")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_contract")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_folder")}</th>
                 <th className="px-4 py-3" />
@@ -332,15 +249,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                       {statusLabel(p.status)}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <VerificationBadge
-                      verification={p.verification}
-                      onVerify={() => handleVerify(p)}
-                      verifying={verifying === p.id}
-                      verifyLabel={t("proposals_action_verify")}
-                      reverifyLabel={t("proposals_action_reverify")}
-                    />
-                  </td>
                   <td className="px-4 py-3 text-stone-400 font-mono text-xs">{p.contractId || "—"}</td>
                   <td className="px-4 py-3">
                     {p.folderUrl
@@ -349,16 +257,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
-                      {p.status === "submitted" && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          loading={accepting === p.id}
-                          onClick={() => handleAccept(p)}
-                        >
-                          {t("proposals_action_accept")}
-                        </Button>
-                      )}
                       <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>{t("proposals_action_edit")}</Button>
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)}>{t("proposals_action_delete")}</Button>
                     </div>
@@ -367,58 +265,6 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Post-accept confirmation modal */}
-      {acceptedResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="px-6 py-5 text-center">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-lg font-semibold text-stone-900 mb-1">{t("proposals_accepted_title")}</h2>
-              <p className="text-sm text-stone-500 mb-5">{acceptedResult.proposal.projectName}</p>
-
-              <div className="bg-stone-50 rounded-lg px-4 py-3 text-left space-y-2 mb-5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-stone-500">{t("proposals_label_contract_created")}</span>
-                  <span className="font-mono text-stone-700 text-xs">{acceptedResult.contract.id}</span>
-                </div>
-                {acceptedResult.leadsAdvanced > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">{t("proposals_label_leads_advanced")}</span>
-                    <span className="font-medium text-emerald-600">{acceptedResult.leadsAdvanced}</span>
-                  </div>
-                )}
-                {acceptedResult.clientEmail && (
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">{t("proposals_label_client_email")}</span>
-                    <span className="text-stone-600 text-xs">{acceptedResult.clientEmail}</span>
-                  </div>
-                )}
-              </div>
-
-              <p className="text-xs text-stone-400 mb-4">
-                {t("proposals_accepted_helper")}
-              </p>
-
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="primary"
-                  onClick={() => { openOutlookCompose(acceptedResult); }}
-                >
-                  {t("proposals_send_confirmation")}
-                </Button>
-                <Button variant="secondary" onClick={() => setAcceptedResult(null)}>
-                  {t("proposals_done")}
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
