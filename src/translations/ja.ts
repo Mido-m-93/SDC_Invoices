@@ -1047,6 +1047,7 @@ const ja = {
   outbound_col_verification_contract: "契約との照合",
   outbound_col_verification_proposal: "提案との照合",
   outbound_col_verification_budget: "予算との照合",
+  outbound_col_verification_cash: "入金との照合",
   outbound_action_verify: "検証",
   outbound_action_reverify: "再検証",
   outbound_col_project: "案件",

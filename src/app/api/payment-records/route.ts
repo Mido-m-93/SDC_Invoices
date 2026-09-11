@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPaymentRecordService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
+import { tryAutoVerifyInvoiceCash } from "@/lib/services/cashVerificationService";
 import type { PaymentRecord } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       createdAt: now,
     };
     await getPaymentRecordService().savePaymentRecord(record);
+    await tryAutoVerifyInvoiceCash(record);
     return NextResponse.json({ success: true, record });
   } catch (err) {
     console.error("[API ERROR]", err);

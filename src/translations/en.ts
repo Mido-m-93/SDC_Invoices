@@ -1048,6 +1048,7 @@ const en = {
   outbound_col_verification_contract: "vs Contract",
   outbound_col_verification_proposal: "vs Proposal",
   outbound_col_verification_budget: "vs Budget",
+  outbound_col_verification_cash: "vs Cash",
   outbound_action_verify: "Verify",
   outbound_action_reverify: "Re-verify",
   outbound_col_due_date: "Due Date",

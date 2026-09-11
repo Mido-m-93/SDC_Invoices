@@ -539,6 +539,7 @@ export interface OutboundInvoice {
   verificationContract?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
   verificationProposal?: ConsistencyVerdict;   // AI check: this invoice vs. the contract's proposal
   verificationBudget?: ConsistencyVerdict;     // AI check: this invoice vs. the contract's budget
+  verificationCash?: ConsistencyVerdict;       // AI check: this invoice vs. actual cash received (PaymentRecord)
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
 }

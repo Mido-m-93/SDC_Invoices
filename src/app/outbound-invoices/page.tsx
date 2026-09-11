@@ -112,7 +112,7 @@ function OutboundInvoicesPageInner() {
     }));
   }
 
-  async function handleVerify(inv: OutboundInvoice, checkpoint: "verify" | "verify-proposal" | "verify-budget" = "verify") {
+  async function handleVerify(inv: OutboundInvoice, checkpoint: "verify" | "verify-proposal" | "verify-budget" | "verify-cash" = "verify") {
     const key = `${inv.id}:${checkpoint}`;
     setVerifying(key);
     try {
@@ -340,6 +340,16 @@ function OutboundInvoicesPageInner() {
                           verification={inv.verificationBudget}
                           onVerify={() => handleVerify(inv, "verify-budget")}
                           verifying={verifying === `${inv.id}:verify-budget`}
+                          verifyLabel={t("outbound_action_verify")}
+                          reverifyLabel={t("outbound_action_reverify")}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("outbound_col_verification_cash")}</p>
+                        <VerificationBadge
+                          verification={inv.verificationCash}
+                          onVerify={() => handleVerify(inv, "verify-cash")}
+                          verifying={verifying === `${inv.id}:verify-cash`}
                           verifyLabel={t("outbound_action_verify")}
                           reverifyLabel={t("outbound_action_reverify")}
                         />
