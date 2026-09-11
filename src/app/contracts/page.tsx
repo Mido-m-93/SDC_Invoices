@@ -6,9 +6,9 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
-import { useLanguage } from "@/translations";
+import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import type { Contract, Vendor, Client, Proposal } from "@/types";
+import type { Contract, Vendor, Client, Proposal, Budget } from "@/types";
 import { generateId } from "@/lib/utils";
 
 type ContractForm = Omit<Contract, "id" | "createdAt">;
@@ -18,7 +18,15 @@ const EMPTY_CONTRACT: ContractForm = {
   projectName: "", startDate: "", endDate: "",
   expectedMonthlyAmount: 0, currency: "JPY",
   paymentTerms: "", status: "active",
-  proposalId: "", contractFolderUrl: "",
+  proposalId: "", budgetId: "", contractFolderUrl: "",
+};
+
+const STATUS_COLORS: Record<Contract["status"], string> = {
+  draft: "bg-stone-100 text-stone-600",
+  signed: "bg-blue-50 text-blue-700",
+  active: "bg-emerald-100 text-emerald-700",
+  expired: "bg-stone-100 text-stone-500",
+  cancelled: "bg-red-100 text-red-600",
 };
 
 export default function ContractsPage() {
@@ -28,6 +36,7 @@ export default function ContractsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
@@ -35,6 +44,7 @@ export default function ContractsPage() {
   const [form, setForm] = useState<ContractForm>({ ...EMPTY_CONTRACT });
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyingBudget, setVerifyingBudget] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
@@ -87,23 +97,46 @@ export default function ContractsPage() {
     }
   }
 
+  async function handleVerifyBudget(c: Contract) {
+    setVerifyingBudget(c.id);
+    try {
+      const res = await fetch(`/api/contracts/${c.id}/verify-budget`, { method: "POST" });
+      if (res.ok) {
+        notify("success", `Verified contract vs budget for ${c.projectName || c.id}`, "/contracts");
+        load();
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? t("contracts_sync_failed"));
+        notify("error", data.error ?? `Failed to verify contract vs budget for ${c.projectName || c.id}`, "/contracts");
+      }
+    } catch {
+      setError(t("contracts_sync_failed"));
+      notify("error", `Failed to verify contract vs budget for ${c.projectName || c.id}`, "/contracts");
+    } finally {
+      setVerifyingBudget(null);
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, vRes, clRes, pRes] = await Promise.all([
+      const [cRes, vRes, clRes, pRes, bRes] = await Promise.all([
         fetch("/api/contracts"),
         fetch("/api/vendors"),
         fetch("/api/clients"),
         fetch("/api/proposals"),
+        fetch("/api/budgets"),
       ]);
       const cData = await cRes.json() as { contracts: Contract[] };
       const vData = await vRes.json() as { vendors: Vendor[] };
       const clData = await clRes.json() as { clients: Client[] };
       const pData = await pRes.json() as { proposals: Proposal[] };
+      const bData = await bRes.json() as { budgets: Budget[] };
       setContracts(cData.contracts ?? []);
       setVendors(vData.vendors ?? []);
       setClients(clData.clients ?? []);
       setProposals(pData.proposals ?? []);
+      setBudgets(bData.budgets ?? []);
     } catch {
       setError(t("contracts_load_failed"));
     } finally {
@@ -133,6 +166,7 @@ export default function ContractsPage() {
       paymentTerms: c.paymentTerms,
       status: c.status,
       proposalId: c.proposalId ?? "",
+      budgetId: c.budgetId ?? "",
       contractFolderUrl: c.contractFolderUrl ?? "",
     });
     setShowForm(true);
@@ -150,6 +184,7 @@ export default function ContractsPage() {
         clientId: form.clientId || undefined,
         clientName: form.clientName || undefined,
         proposalId: form.proposalId || undefined,
+        budgetId: form.budgetId || undefined,
         contractFolderUrl: form.contractFolderUrl || undefined,
       };
       const url = editing ? `/api/contracts/${editing.id}` : "/api/contracts";
@@ -278,7 +313,7 @@ export default function ContractsPage() {
                 <th className="px-4 py-3 text-left">{t("contracts_col_period")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_monthly_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_verification")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_verification_combined")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_actions")}</th>
               </tr>
             </thead>
@@ -306,14 +341,8 @@ export default function ContractsPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        c.status === "active" ? "bg-emerald-100 text-emerald-700" :
-                        c.status === "expired" ? "bg-stone-100 text-stone-500" :
-                        "bg-red-100 text-red-600"
-                      }`}>
-                        {c.status === "active" ? t("contracts_status_active") :
-                          c.status === "expired" ? t("contracts_status_expired") :
-                          t("contracts_status_cancelled")}
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                        {t(`contracts_status_${c.status}` as TranslationKey)}
                       </span>
                       {c.contractFolderUrl && (
                         <a href={c.contractFolderUrl} target="_blank" rel="noreferrer" className="ml-2 text-xs text-blue-500 hover:underline">
@@ -322,13 +351,28 @@ export default function ContractsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <VerificationBadge
-                        verification={c.verification}
-                        onVerify={() => handleVerify(c)}
-                        verifying={verifying === c.id}
-                        verifyLabel={t("contracts_action_verify")}
-                        reverifyLabel={t("contracts_action_reverify")}
-                      />
+                      <div className="flex flex-col gap-1.5">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("contracts_col_verification_proposal")}</p>
+                          <VerificationBadge
+                            verification={c.verificationProposal}
+                            onVerify={() => handleVerify(c)}
+                            verifying={verifying === c.id}
+                            verifyLabel={t("contracts_action_verify")}
+                            reverifyLabel={t("contracts_action_reverify")}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("contracts_col_verification_budget")}</p>
+                          <VerificationBadge
+                            verification={c.verificationBudget}
+                            onVerify={() => handleVerifyBudget(c)}
+                            verifying={verifyingBudget === c.id}
+                            verifyLabel={t("contracts_action_verify")}
+                            reverifyLabel={t("contracts_action_reverify")}
+                          />
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 flex gap-2">
                       {c.status === "active" && c.clientId && (
@@ -391,6 +435,8 @@ export default function ContractsPage() {
               </Field>
               <Field label={t("contracts_col_status")}>
                 <select className={input} value={form.status} onChange={(e) => set("status", e.target.value as Contract["status"])}>
+                  <option value="draft">{t("contracts_status_draft")}</option>
+                  <option value="signed">{t("contracts_status_signed")}</option>
                   <option value="active">{t("contracts_status_active")}</option>
                   <option value="expired">{t("contracts_status_expired")}</option>
                   <option value="cancelled">{t("contracts_status_cancelled")}</option>
@@ -429,6 +475,20 @@ export default function ContractsPage() {
                   {form.clientId && !form.proposalId && (
                     <p className="text-xs text-amber-600 mt-1">{t("contracts_field_proposal_required_hint")}</p>
                   )}
+                </Field>
+                <Field label={t("contracts_field_budget_id")}>
+                  <select
+                    className={input}
+                    value={form.budgetId ?? ""}
+                    onChange={e => set("budgetId", e.target.value)}
+                  >
+                    <option value="">{t("contracts_field_budget_none_option")}</option>
+                    {budgets
+                      .filter(b => !form.clientId || b.clientId === form.clientId)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>{b.projectName} — {b.clientName ?? b.clientId}</option>
+                      ))}
+                  </select>
                 </Field>
                 <Field label={t("contracts_field_folder_url")}>
                   <input className={input} value={form.contractFolderUrl ?? ""} onChange={e => set("contractFolderUrl", e.target.value)} placeholder="https://drive.google.com/..." />

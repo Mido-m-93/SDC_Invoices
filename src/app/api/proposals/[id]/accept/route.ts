@@ -68,11 +68,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       proposalId: proposal.id,
       contractFolderUrl: undefined,
       createdAt: now,
-      verification: undefined as ConsistencyVerdict | undefined,
+      verificationProposal: undefined as ConsistencyVerdict | undefined,
     };
 
     // AI checkpoint: Contract ↔ Proposal
-    contract.verification = await tryVerify("contract", contract, "proposal", proposal);
+    contract.verificationProposal = await tryVerify("contract", contract, "proposal", proposal);
 
     try {
       await contractSvc.saveContract(contract);

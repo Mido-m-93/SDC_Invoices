@@ -296,11 +296,12 @@ export interface Contract {
   expectedMonthlyAmount: number;
   currency: string;
   paymentTerms: string;
-  status: "active" | "expired" | "cancelled";
+  status: "draft" | "signed" | "active" | "expired" | "cancelled";
   proposalId?: string;
   budgetId?: string;
   contractFolderUrl?: string;
-  verification?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
+  verificationProposal?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
+  verificationBudget?: ConsistencyVerdict;     // AI check: this contract vs. its budget
   createdAt: string;
 }
 
