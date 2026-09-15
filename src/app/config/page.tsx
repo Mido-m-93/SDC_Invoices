@@ -9,6 +9,7 @@ import { useLanguage } from "@/translations";
 import { fetchConfig, saveConfig, testNotification } from "@/lib/api/client";
 import type { AppConfig } from "@/types";
 import { DEFAULT_CONFIG } from "@/config/defaults";
+import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 
 export default function ConfigPage() {
   const { t } = useLanguage();
@@ -19,6 +20,78 @@ export default function ConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const [username, setUsername] = useState("");
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [usernameSuccess, setUsernameSuccess] = useState<string | null>(null);
+
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+
+  const [mfTestLoading, setMfTestLoading] = useState(false);
+  const [mfTestResult, setMfTestResult] = useState<unknown>(null);
+
+  const handleMfTest = async () => {
+    setMfTestLoading(true);
+    setMfTestResult(null);
+    try {
+      const res = await fetch("/api/auth/moneyforward-payables/test-payee", { method: "POST" });
+      setMfTestResult(await res.json());
+    } catch (err) {
+      setMfTestResult({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+    setMfTestLoading(false);
+  };
+
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const slug = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (slug.length < 2) {
+      setUsernameError(t("settings_username_min_length"));
+      return;
+    }
+    setUsernameLoading(true);
+    setUsernameError(null);
+    setUsernameSuccess(null);
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setUsernameError(t("settings_auth_not_configured")); setUsernameLoading(false); return; }
+    const { error: updateError } = await supabase.auth.updateUser({ data: { username: slug } });
+    if (updateError) {
+      setUsernameError(updateError.message);
+    } else {
+      setUsernameSuccess(t("settings_username_updated").replace("{username}", slug));
+      setUsername("");
+    }
+    setUsernameLoading(false);
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirm) {
+      setPasswordError(t("settings_password_mismatch"));
+      return;
+    }
+    setPasswordLoading(true);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) { setPasswordError(t("settings_auth_not_configured")); setPasswordLoading(false); return; }
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+
+    if (updateError) {
+      setPasswordError(updateError.message);
+    } else {
+      setPasswordSuccess(t("settings_password_updated"));
+      setPassword("");
+      setConfirm("");
+    }
+    setPasswordLoading(false);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -90,6 +163,74 @@ export default function ConfigPage() {
         )}
 
         <div className="space-y-6">
+          {/* Account: change username */}
+          <Card title={t("settings_change_username_title")}>
+            <form onSubmit={handleUsernameSubmit} className="space-y-4">
+              {usernameError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{usernameError}</div>
+              )}
+              {usernameSuccess && (
+                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{usernameSuccess}</div>
+              )}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-stone-700" htmlFor="username">{t("settings_new_username_label")}</label>
+                <input id="username" type="text" autoComplete="username" required value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className={accountInputClass} placeholder={t("settings_username_placeholder")} />
+              </div>
+              <button type="submit" disabled={usernameLoading}
+                className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
+                {usernameLoading ? t("settings_saving") : t("settings_update_username")}
+              </button>
+            </form>
+          </Card>
+
+          {/* Account: change password */}
+          <Card title={t("settings_change_password_title")}>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              {passwordError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{passwordError}</div>
+              )}
+              {passwordSuccess && (
+                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">{passwordSuccess}</div>
+              )}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-stone-700" htmlFor="password">{t("settings_new_password_label")}</label>
+                <input id="password" type="password" autoComplete="new-password" required minLength={6}
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  className={accountInputClass} placeholder={t("settings_password_placeholder")} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-stone-700" htmlFor="confirm">{t("settings_confirm_password_label")}</label>
+                <input id="confirm" type="password" autoComplete="new-password" required minLength={6}
+                  value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                  className={accountInputClass} placeholder={t("settings_password_placeholder")} />
+              </div>
+              <button type="submit" disabled={passwordLoading}
+                className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
+                {passwordLoading ? t("settings_updating") : t("settings_update_password")}
+              </button>
+            </form>
+          </Card>
+
+          {/* Money Forward Payables sandbox test */}
+          <Card title="Money Forward Payables — Sandbox Test">
+            <p className="text-xs text-stone-400 mb-3">
+              Creates a clearly-marked TEST_DO_NOT_USE counterparty, bank account, and payee directly
+              against the connected Money Forward Payables account. Use this to confirm the integration
+              itself works, independent of member matching.
+            </p>
+            <button type="button" onClick={handleMfTest} disabled={mfTestLoading}
+              className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
+              {mfTestLoading ? "Testing…" : "Test MF Sandbox Payee"}
+            </button>
+            {mfTestResult !== null && (
+              <pre className="mt-4 rounded-xl bg-stone-50 border border-stone-200 p-4 text-xs text-stone-700 overflow-auto max-h-80">
+                {JSON.stringify(mfTestResult, null, 2)}
+              </pre>
+            )}
+          </Card>
+
           {/* Completed statuses */}
           <Card title={t("config_completed_statuses")}>
             <p className="text-xs text-stone-400 mb-3">
@@ -343,6 +484,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 const inputClass =
   "w-full text-sm border border-stone-200 rounded-lg px-3 py-2 font-mono text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#2d6a4f] focus:ring-offset-1 bg-white";
+
+const accountInputClass =
+  "w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm text-stone-900 placeholder-stone-400 focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20";
 
 const textareaClass =
   "w-full text-sm border border-stone-200 rounded-lg px-3 py-2 font-mono text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#2d6a4f] focus:ring-offset-1 bg-white resize-y";
