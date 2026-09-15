@@ -11,14 +11,14 @@ type Tab = "pipeline" | "proposals";
 
 export default function PipelineAndProposalPage() {
   const { t } = useLanguage();
-  const [tab, setTab] = useState<Tab>("proposals");
+  const [tab, setTab] = useState<Tab>("pipeline");
 
   return (
     <AppShell>
       <PageHeader title={t("nav_proposals")} subtitle={t("pipeline_and_proposal_subtitle")} />
 
       <div className="mb-5 flex gap-1 border-b border-stone-200">
-        {(["proposals", "pipeline"] as const).map((tb) => (
+        {(["pipeline"] as const).map((tb) => (
           <button
             key={tb}
             onClick={() => setTab(tb)}
@@ -28,7 +28,7 @@ export default function PipelineAndProposalPage() {
                 : "border-transparent text-stone-400 hover:text-stone-600"
             }`}
           >
-            {tb === "proposals" ? t("tab_proposals") : t("tab_pipeline")}
+            {t("tab_pipeline")}
           </button>
         ))}
       </div>
