@@ -24,7 +24,7 @@ type ProposalForm = Omit<Proposal, "id" | "createdAt">;
 const EMPTY: ProposalForm = {
   clientId: "", clientName: "", leadId: "", projectName: "", proposalDate: "",
   estimatedAmount: 0, currency: "JPY", description: "",
-  status: "draft", contractId: "", folderUrl: "",
+  status: "draft", contractId: "", folderUrl: "", preliminaryNoticeDate: null,
 };
 
 interface ProposalsContentProps {
@@ -110,8 +110,29 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       estimatedAmount: p.estimatedAmount, currency: p.currency,
       description: p.description, status: p.status,
       contractId: p.contractId ?? "", folderUrl: p.folderUrl ?? "",
+      preliminaryNoticeDate: p.preliminaryNoticeDate ?? null,
     });
     setShowForm(true);
+  }
+
+  const [markingNotice, setMarkingNotice] = useState<string | null>(null);
+
+  async function handleMarkPreliminaryNotice(p: Proposal) {
+    setMarkingNotice(p.id);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...p, preliminaryNoticeDate: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Marked preliminary notice (内示) received for ${p.projectName}`, "/proposals");
+      load();
+    } catch {
+      notify("error", `Failed to mark preliminary notice for ${p.projectName}`, "/proposals");
+    } finally {
+      setMarkingNotice(null);
+    }
   }
 
   async function handleSave() {
@@ -228,6 +249,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                 <th className="px-4 py-3 text-left">{t("proposals_col_date")}</th>
                 <th className="px-4 py-3 text-right">{t("proposals_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("proposals_col_preliminary_notice")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_contract")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_folder")}</th>
                 <th className="px-4 py-3" />
@@ -248,6 +270,15 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[p.status]}`}>
                       {statusLabel(p.status)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.preliminaryNoticeDate ? (
+                      <span className="text-xs text-emerald-700">✓ {p.preliminaryNoticeDate}</span>
+                    ) : (
+                      <Button variant="ghost" size="sm" loading={markingNotice === p.id} onClick={() => handleMarkPreliminaryNotice(p)}>
+                        {t("proposals_action_mark_preliminary_notice")}
+                      </Button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-stone-400 font-mono text-xs">{p.contractId || "—"}</td>
                   <td className="px-4 py-3">
@@ -328,6 +359,14 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     <option key={v} value={v}>{statusLabel(v)}</option>
                   ))}
                 </select>
+              </Field>
+              <Field label={t("proposals_field_preliminary_notice_date")}>
+                <input
+                  type="date"
+                  className={input}
+                  value={form.preliminaryNoticeDate ?? ""}
+                  onChange={e => set("preliminaryNoticeDate", e.target.value || null)}
+                />
               </Field>
               <div className="border-t border-stone-100 pt-4 space-y-4">
                 <p className="text-xs text-stone-400">{t("proposals_field_pipeline_links")}</p>

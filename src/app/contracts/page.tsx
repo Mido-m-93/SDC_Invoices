@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import type { Contract, Vendor, Client, Proposal, Budget } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ const STATUS_COLORS: Record<Contract["status"], string> = {
 export default function ContractsPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
+  const { user } = useCurrentUser();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -45,6 +47,8 @@ export default function ContractsPage() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [verifyingBudget, setVerifyingBudget] = useState<string | null>(null);
+  const [markingReviewed, setMarkingReviewed] = useState<string | null>(null);
+  const [checkingBilling, setCheckingBilling] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
@@ -114,6 +118,47 @@ export default function ContractsPage() {
       notify("error", `Failed to verify contract vs budget for ${c.projectName || c.id}`, "/contracts");
     } finally {
       setVerifyingBudget(null);
+    }
+  }
+
+  async function updateContractFields(c: Contract, fields: Partial<Contract>) {
+    const res = await fetch(`/api/contracts/${c.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...c, ...fields }),
+    });
+    if (!res.ok) throw new Error(t("contracts_save_failed"));
+  }
+
+  async function handleMarkReviewed(c: Contract) {
+    setMarkingReviewed(c.id);
+    try {
+      await updateContractFields(c, { reviewedAt: new Date().toISOString(), reviewedBy: user ?? "" });
+      notify("success", `Marked contract for ${c.projectName || c.id} as reviewed`, "/contracts");
+      load();
+    } catch {
+      setError(t("contracts_save_failed"));
+      notify("error", `Failed to mark contract for ${c.projectName || c.id} as reviewed`, "/contracts");
+    } finally {
+      setMarkingReviewed(null);
+    }
+  }
+
+  async function handleCheckBillingRules(c: Contract) {
+    setCheckingBilling(c.id);
+    try {
+      await updateContractFields(c, {
+        billingRulesChecked: true,
+        billingRulesCheckedAt: new Date().toISOString(),
+        billingRulesCheckedBy: user ?? "",
+      });
+      notify("success", `Confirmed billing rules for ${c.projectName || c.id}`, "/contracts");
+      load();
+    } catch {
+      setError(t("contracts_save_failed"));
+      notify("error", `Failed to confirm billing rules for ${c.projectName || c.id}`, "/contracts");
+    } finally {
+      setCheckingBilling(null);
     }
   }
 
@@ -314,6 +359,7 @@ export default function ContractsPage() {
                 <th className="px-4 py-3 text-left">{t("contracts_col_monthly_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_verification_combined")}</th>
+                <th className="px-4 py-3 text-left">{t("contracts_col_review_billing")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_actions")}</th>
               </tr>
             </thead>
@@ -371,6 +417,32 @@ export default function ContractsPage() {
                             verifyLabel={t("contracts_action_verify")}
                             reverifyLabel={t("contracts_action_reverify")}
                           />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1.5">
+                        <div>
+                          {c.reviewedAt ? (
+                            <span className="text-xs text-emerald-700" title={c.reviewedBy ?? ""}>
+                              ✓ {t("contracts_reviewed_label")}
+                            </span>
+                          ) : (
+                            <Button variant="ghost" size="sm" loading={markingReviewed === c.id} onClick={() => handleMarkReviewed(c)}>
+                              {t("contracts_action_mark_reviewed")}
+                            </Button>
+                          )}
+                        </div>
+                        <div>
+                          {c.billingRulesChecked ? (
+                            <span className="text-xs text-emerald-700" title={c.billingRulesCheckedBy ?? ""}>
+                              ✓ {t("contracts_billing_checked_label")}
+                            </span>
+                          ) : (
+                            <Button variant="ghost" size="sm" loading={checkingBilling === c.id} onClick={() => handleCheckBillingRules(c)}>
+                              {t("contracts_action_check_billing")}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </td>

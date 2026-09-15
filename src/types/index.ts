@@ -238,6 +238,7 @@ export interface Proposal {
   folderUrl?: string;
   verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
   sourceFileId?: string;   // SharePoint Graph item id, when synced from WorkTogether — used to dedup re-syncs
+  preliminaryNoticeDate?: string | null;   // 内示 — date a preliminary/informal award notice was received, ahead of formal acceptance
   createdAt: string;
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
@@ -302,6 +303,11 @@ export interface Contract {
   contractFolderUrl?: string;
   verificationProposal?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
   verificationBudget?: ConsistencyVerdict;     // AI check: this contract vs. its budget
+  reviewedAt?: string | null;             // reviewed during the regular contract-review meeting
+  reviewedBy?: string | null;
+  billingRulesChecked?: boolean;          // prorated charges, amount, and billing schedule verified
+  billingRulesCheckedAt?: string | null;
+  billingRulesCheckedBy?: string | null;
   createdAt: string;
 }
 

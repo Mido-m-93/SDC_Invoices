@@ -21,6 +21,11 @@ function toRow(c: Contract): Record<string, unknown> {
     contract_folder_url: c.contractFolderUrl ?? null,
     verification_proposal: c.verificationProposal ?? null,
     verification_budget: c.verificationBudget ?? null,
+    reviewed_at: c.reviewedAt ?? null,
+    reviewed_by: c.reviewedBy ?? null,
+    billing_rules_checked: c.billingRulesChecked ?? false,
+    billing_rules_checked_at: c.billingRulesCheckedAt ?? null,
+    billing_rules_checked_by: c.billingRulesCheckedBy ?? null,
     created_at: c.createdAt,
   };
 }
@@ -43,6 +48,11 @@ function fromRow(row: Record<string, unknown>): Contract {
     contractFolderUrl: (row.contract_folder_url as string | null) ?? undefined,
     verificationProposal: (row.verification_proposal as Contract["verificationProposal"]) ?? undefined,
     verificationBudget: (row.verification_budget as Contract["verificationBudget"]) ?? undefined,
+    reviewedAt: (row.reviewed_at as string | null) ?? undefined,
+    reviewedBy: (row.reviewed_by as string | null) ?? undefined,
+    billingRulesChecked: (row.billing_rules_checked as boolean | null) ?? false,
+    billingRulesCheckedAt: (row.billing_rules_checked_at as string | null) ?? undefined,
+    billingRulesCheckedBy: (row.billing_rules_checked_by as string | null) ?? undefined,
     createdAt: row.created_at as string,
   };
 }
