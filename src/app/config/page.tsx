@@ -10,6 +10,7 @@ import { fetchConfig, saveConfig, testNotification } from "@/lib/api/client";
 import type { AppConfig } from "@/types";
 import { DEFAULT_CONFIG } from "@/config/defaults";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
+import { SHOW_MF_SANDBOX_TEST } from "@/lib/featureFlags";
 
 export default function ConfigPage() {
   const { t } = useLanguage();
@@ -214,22 +215,24 @@ export default function ConfigPage() {
           </Card>
 
           {/* Money Forward Payables sandbox test */}
-          <Card title="Money Forward Payables — Sandbox Test">
-            <p className="text-xs text-stone-400 mb-3">
-              Creates a clearly-marked TEST_DO_NOT_USE counterparty, bank account, and payee directly
-              against the connected Money Forward Payables account. Use this to confirm the integration
-              itself works, independent of member matching.
-            </p>
-            <button type="button" onClick={handleMfTest} disabled={mfTestLoading}
-              className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
-              {mfTestLoading ? "Testing…" : "Test MF Sandbox Payee"}
-            </button>
-            {mfTestResult !== null && (
-              <pre className="mt-4 rounded-xl bg-stone-50 border border-stone-200 p-4 text-xs text-stone-700 overflow-auto max-h-80">
-                {JSON.stringify(mfTestResult, null, 2)}
-              </pre>
-            )}
-          </Card>
+          {SHOW_MF_SANDBOX_TEST && (
+            <Card title="Money Forward Payables — Sandbox Test">
+              <p className="text-xs text-stone-400 mb-3">
+                Creates a clearly-marked TEST_DO_NOT_USE counterparty, bank account, and payee directly
+                against the connected Money Forward Payables account. Use this to confirm the integration
+                itself works, independent of member matching.
+              </p>
+              <button type="button" onClick={handleMfTest} disabled={mfTestLoading}
+                className="w-full rounded-xl bg-[#2d6a4f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#235c43] disabled:opacity-60 disabled:cursor-not-allowed">
+                {mfTestLoading ? "Testing…" : "Test MF Sandbox Payee"}
+              </button>
+              {mfTestResult !== null && (
+                <pre className="mt-4 rounded-xl bg-stone-50 border border-stone-200 p-4 text-xs text-stone-700 overflow-auto max-h-80">
+                  {JSON.stringify(mfTestResult, null, 2)}
+                </pre>
+              )}
+            </Card>
+          )}
 
           {/* Completed statuses */}
           <Card title={t("config_completed_statuses")}>
