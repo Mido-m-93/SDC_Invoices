@@ -8,7 +8,7 @@ const ja = {
   app_name_short: "請求書ツール",
   language_toggle: "EN",
   nav_dashboard: "ダッシュボード",
-  nav_proposals: "提案",
+  nav_proposals: "提案一覧",
   nav_invoices: "請求書一覧",
   nav_payment_records: "支払記録",
   nav_logs: "処理ログ",
@@ -432,7 +432,7 @@ const ja = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "取引先",
   nav_contracts: "契約",
-  nav_pipeline_sync: "パイプライン同期",
+  nav_pipeline_sync: "提案一覧",
   nav_clients: "取引先",
   nav_leads: "リード",
   nav_members: "メンバー",

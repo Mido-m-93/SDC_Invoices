@@ -8,7 +8,7 @@ const en = {
   app_name_short: "Invoice Tool",
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
-  nav_proposals: "Proposal",
+  nav_proposals: "Proposals",
   nav_invoices: "Invoices",
   nav_payment_records: "Payments",
   nav_logs: "Logs",
@@ -432,7 +432,7 @@ const en = {
   // ── Vendors ───────────────────────────────────────────────────────────────
   nav_vendors: "Vendors",
   nav_contracts: "Contracts",
-  nav_pipeline_sync: "Pipeline Sync",
+  nav_pipeline_sync: "Proposals",
   nav_clients: "Clients",
   nav_leads: "Leads",
   nav_members: "Members",
