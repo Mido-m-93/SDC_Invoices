@@ -27,7 +27,7 @@ import { getClientService, getLeadService } from "@/lib/services";
 import { extractPipelineRecordsFromText, type ExtractedPipelineItem } from "@/lib/services/ai/pipelineExtraction";
 import { rankClientCandidates, AUTO_LINK_THRESHOLD, similarity } from "@/lib/services/ai/pipelineMatching";
 import { getMockNotionRawText, getMockSharePointPipelineRecords } from "@/lib/services/mock/pipelineSources";
-import { fetchRealSharePointPipelineItems, fetchClientFolderPipelineItems } from "@/lib/services/real/pipelineSharePointSource";
+import { fetchRealSharePointPipelineItems, type PipelineSourceScanDetail } from "@/lib/services/real/pipelineSharePointSource";
 import { fetchRealNotionPipelineItems } from "@/lib/services/real/pipelineNotionSource";
 import {
   loadStagedPipelineRecords,
@@ -54,7 +54,7 @@ export function getSourceConnectionStatus(): Record<PipelineSourceType, "real" |
   return { notion: hasNotion ? "real" : "mock", sharepoint: hasAzure ? "real" : "mock" };
 }
 
-async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipelineItem[]> {
+async function getSourceItems(source: PipelineSourceType): Promise<{ items: ExtractedPipelineItem[]; scan?: PipelineSourceScanDetail[] }> {
   if (source === "notion") {
     // Notion: use the real database once its credentials are configured,
     // falling back to fixture page text otherwise (e.g. local dev without a token).
@@ -68,10 +68,11 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
         detail: "NOTION_TOKEN/NOTION_PIPELINE_DATABASE_ID not configured — using fixture Notion data.",
       });
       const rawText = getMockNotionRawText();
-      return extractPipelineRecordsFromText(rawText).catch((err) => {
+      const items = await extractPipelineRecordsFromText(rawText).catch((err) => {
         console.warn("[pipelineSyncService] Notion extraction failed:", err);
         return [];
       });
+      return { items };
     }
 
     const { items, scan } = await fetchRealNotionPipelineItems();
@@ -83,7 +84,7 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
       detail: `Queried ${scan.pagesFound} page(s) from real Notion database (${scan.batches} extraction batch(es)), extracted ${items.length} record(s).` +
         (scan.timedOutBatches > 0 ? ` WARNING: ${scan.timedOutBatches} batch(es) did not respond within the per-batch timeout and were skipped this run — re-running the sync may pick them up if they're just momentarily slow.` : ""),
     });
-    return items;
+    return { items };
   }
   // SharePoint: use the real site once Azure creds are configured, falling
   // back to fixture data otherwise (e.g. local dev without Graph credentials).
@@ -96,35 +97,42 @@ async function getSourceItems(source: PipelineSourceType): Promise<ExtractedPipe
       source,
       detail: "AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET not configured — using fixture SharePoint data.",
     });
-    return getMockSharePointPipelineRecords();
+    return { items: getMockSharePointPipelineRecords() };
   }
 
-  // The dedicated pipeline tracker folder (fetchRealSharePointPipelineItems)
-  // is scanned alongside each client's own WorkTogether folder
-  // (fetchClientFolderPipelineItems) — the tracker turned out to hold
-  // nothing usable (a shortcut, not real data) in practice, so client
-  // folders are the resilient source. Same pattern as /api/proposals/sync.
-  const [trackerResult, clientFolderResult] = await Promise.all([
-    fetchRealSharePointPipelineItems(),
-    fetchClientFolderPipelineItems(),
-  ]);
-  const items = dedupeExtractedItems([...trackerResult.items, ...clientFolderResult.items]);
-  const scan = [...trackerResult.scan, ...clientFolderResult.scan];
+  // Scoped to only the dedicated pipeline tracker folder
+  // (fetchRealSharePointPipelineItems) — client WorkTogether folders are no
+  // longer scanned here (that data belongs to Proposals sync instead).
+  const trackerResult = await fetchRealSharePointPipelineItems();
+  const items = dedupeExtractedItems(trackerResult.items);
+  const scan = trackerResult.scan;
+  // "(folder)" entries are rare folder-level errors (read failed, depth
+  // limit) meant for the UI's dedicated folder-contents panel, not this
+  // terse audit-log summary — only real file-level results and the
+  // aggregate "(filtered)" line belong here, capped so this can't run away.
+  // Not claiming a total "scanned N files" count here — "(filtered)" is one
+  // entry standing in for many files, so an entry count would understate it.
+  const fileSkips = scan.filter((s) => s.skipped && s.file !== "(folder)");
+  const shown = fileSkips.slice(0, 10).map((s) => `[${s.file}: ${s.skipped}]`).join(" ");
+  const more = fileSkips.length > 10 ? ` (+${fileSkips.length - 10} more, see folder contents panel)` : "";
   await audit({
     actor: "system",
     action: "extract",
     recordId: null,
     source,
-    detail: `Scanned ${scan.length} file(s) in real SharePoint, extracted ${items.length} record(s). ` +
-      scan.filter((s) => s.skipped).map((s) => `[${s.file}: ${s.skipped}]`).join(" "),
+    detail: `SharePoint pipeline sync complete — extracted ${items.length} record(s). ${shown}${more}`,
   });
-  return items;
+  return { items, scan };
 }
 
 export interface RunSyncResult {
   staged: number;
   autoLinked: number;
   needsReview: number;
+  // SharePoint only — the raw folder scan (every file found, and why it was
+  // or wasn't extracted) so the UI can show exactly what's in the source
+  // folder right after a sync, not just a condensed summary string.
+  scan?: PipelineSourceScanDetail[];
 }
 
 // Client identity is the anchor — a company's name extracts consistently
@@ -194,7 +202,7 @@ export async function runPipelineSync(
   source: PipelineSourceType,
   actorName: string
 ): Promise<RunSyncResult> {
-  const items = await getSourceItems(source);
+  const { items, scan } = await getSourceItems(source);
   const clients = await getClientService().listClients();
   const existing = await loadStagedPipelineRecords();
   const itemMatches = matchExistingRecords(source, items, existing);
@@ -269,7 +277,7 @@ export async function runPipelineSync(
     detail: `Sync run: ${items.length} staged, ${autoLinked} auto-linked, ${needsReview} needs review.`,
   });
 
-  return { staged: items.length, autoLinked, needsReview };
+  return { staged: items.length, autoLinked, needsReview, scan };
 }
 
 export async function listStagedRecords(filters?: {

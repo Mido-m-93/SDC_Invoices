@@ -243,6 +243,47 @@ export interface Proposal {
   deletedBy?: string | null;
 }
 
+// ── Budget ───────────────────────────────────────────────────────────────────
+export interface Budget {
+  id: string;
+  clientId: string;
+  clientName?: string;
+  proposalId?: string;     // proposal this budget was raised from
+  projectName: string;
+  budgetAmount: number;
+  currency: string;
+  budgetDate: string;
+  status: "draft" | "confirmed" | "rejected";
+  description: string;
+  folderUrl?: string;
+  verificationProposal?: ConsistencyVerdict;   // AI check: this budget vs. its proposal
+  sourceFileId?: string;
+  createdAt: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+}
+
+// ── Budget Sync (SharePoint → matching → review queue) ───────────────────────
+export type StagedBudgetStatus = "needs_review" | "approved" | "rejected";
+
+export interface StagedBudgetRecord {
+  id: string;
+  fileId: string;
+  fileName: string;
+  folder: string;
+  rawClientName: string;
+  projectName: string;
+  budgetDate: string | null;
+  budgetAmount: number | null;
+  currency: string;
+  matchCandidates: PipelineMatchCandidate[];
+  status: StagedBudgetStatus;
+  reviewerComment: string | null;
+  createdBudgetId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Contract master ───────────────────────────────────────────────────────────
 export interface Contract {
   id: string;
@@ -255,10 +296,12 @@ export interface Contract {
   expectedMonthlyAmount: number;
   currency: string;
   paymentTerms: string;
-  status: "active" | "expired" | "cancelled";
+  status: "draft" | "signed" | "active" | "expired" | "cancelled";
   proposalId?: string;
+  budgetId?: string;
   contractFolderUrl?: string;
-  verification?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
+  verificationProposal?: ConsistencyVerdict;   // AI check: this contract vs. its proposal
+  verificationBudget?: ConsistencyVerdict;     // AI check: this contract vs. its budget
   createdAt: string;
 }
 
@@ -493,7 +536,10 @@ export interface OutboundInvoice {
   billingDate?: string;
   driveFileId?: string;
   driveFileUrl?: string;
-  verification?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
+  verificationContract?: ConsistencyVerdict;   // AI check: this invoice vs. its linked contract
+  verificationProposal?: ConsistencyVerdict;   // AI check: this invoice vs. the contract's proposal
+  verificationBudget?: ConsistencyVerdict;     // AI check: this invoice vs. the contract's budget
+  verificationCash?: ConsistencyVerdict;       // AI check: this invoice vs. actual cash received (PaymentRecord)
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
 }

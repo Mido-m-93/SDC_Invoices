@@ -4,9 +4,8 @@ import { runPipelineSync, listStagedRecords, getSourceConnectionStatus } from "@
 import type { PipelineSourceType, PipelineRecordStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
-// SharePoint sync now also walks every client's own WorkTogether folder
-// (fetchClientFolderPipelineItems), same shape of work as /api/proposals/sync
-// — matches its 300s budget rather than the lighter single-tracker-folder scan.
+// SharePoint sync scans only the dedicated pipeline tracker folder — AI
+// extraction per file can still be slow, so keep the longer budget.
 export const maxDuration = 300;
 
 const VALID_SOURCES: PipelineSourceType[] = ["notion", "sharepoint"];

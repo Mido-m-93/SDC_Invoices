@@ -20,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     if (!contract) return NextResponse.json({ error: `Contract ${invoice.contractId} not found` }, { status: 404 });
 
     const verdict = await verifyConsistency("outbound invoice", invoice, "contract", contract);
-    const updated = { ...invoice, verification: verdict };
+    const updated = { ...invoice, verificationContract: verdict };
     await invoiceSvc.saveInvoice(updated);
 
     return NextResponse.json({ success: true, verdict, invoice: updated });

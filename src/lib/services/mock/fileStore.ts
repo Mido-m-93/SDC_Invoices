@@ -22,6 +22,8 @@ import type {
   StagedPipelineRecord,
   PipelineSyncAuditEntry,
   StagedProposalRecord,
+  Budget,
+  StagedBudgetRecord,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -48,6 +50,8 @@ interface MockStore {
   stagedPipelineRecords: StagedPipelineRecord[];
   pipelineAuditLog: PipelineSyncAuditEntry[];
   stagedProposalRecords: StagedProposalRecord[];
+  budgets: Budget[];
+  stagedBudgetRecords: StagedBudgetRecord[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -109,6 +113,8 @@ export function readStore(): MockStore {
     stagedPipelineRecords: [],
     pipelineAuditLog: [],
     stagedProposalRecords: [],
+    budgets: [],
+    stagedBudgetRecords: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -134,6 +140,8 @@ export function readStore(): MockStore {
       stagedPipelineRecords: store.stagedPipelineRecords ?? [],
       pipelineAuditLog:      store.pipelineAuditLog ?? [],
       stagedProposalRecords: store.stagedProposalRecords ?? [],
+      budgets:               store.budgets ?? [],
+      stagedBudgetRecords:   store.stagedBudgetRecords ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -358,6 +366,40 @@ export function restoreProposal(id: string): void {
   writeStore(store);
 }
 
+// ── Budgets ───────────────────────────────────────────────────────────────────
+
+export function loadBudgets(): Budget[] {
+  return readStore().budgets.filter((b) => !b.deletedAt);
+}
+
+export function loadDeletedBudgets(): Budget[] {
+  return readStore().budgets.filter((b) => !!b.deletedAt);
+}
+
+export function saveBudget(budget: Budget): void {
+  const store = readStore();
+  const idx = store.budgets.findIndex((b) => b.id === budget.id);
+  if (idx >= 0) store.budgets[idx] = budget;
+  else store.budgets.push(budget);
+  writeStore(store);
+}
+
+// Soft delete — mirrors SupabaseBudgetService so mock/real storage behave the
+// same for the Delete + Undo + Archives flow.
+export function deleteBudget(id: string, deletedBy?: string): void {
+  const store = readStore();
+  const b = store.budgets.find((b) => b.id === id);
+  if (b) { b.deletedAt = new Date().toISOString(); b.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restoreBudget(id: string): void {
+  const store = readStore();
+  const b = store.budgets.find((b) => b.id === id);
+  if (b) { b.deletedAt = null; b.deletedBy = null; }
+  writeStore(store);
+}
+
 // ── Payment records ───────────────────────────────────────────────────────────
 
 export function loadPaymentRecords(): PaymentRecord[] {
@@ -568,5 +610,23 @@ export function saveStagedProposalRecord(record: StagedProposalRecord): void {
   const idx = store.stagedProposalRecords.findIndex((r) => r.id === record.id);
   if (idx >= 0) store.stagedProposalRecords[idx] = record;
   else store.stagedProposalRecords.push(record);
+  writeStore(store);
+}
+
+// ── Budget sync — staged records ──────────────────────────────────────────────
+
+export function loadStagedBudgetRecords(): StagedBudgetRecord[] {
+  return readStore().stagedBudgetRecords;
+}
+
+export function findStagedBudgetRecordByFileId(fileId: string): StagedBudgetRecord | null {
+  return readStore().stagedBudgetRecords.find((r) => r.fileId === fileId) ?? null;
+}
+
+export function saveStagedBudgetRecord(record: StagedBudgetRecord): void {
+  const store = readStore();
+  const idx = store.stagedBudgetRecords.findIndex((r) => r.id === record.id);
+  if (idx >= 0) store.stagedBudgetRecords[idx] = record;
+  else store.stagedBudgetRecords.push(record);
   writeStore(store);
 }

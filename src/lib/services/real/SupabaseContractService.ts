@@ -17,8 +17,10 @@ function toRow(c: Contract): Record<string, unknown> {
     payment_terms: c.paymentTerms,
     status: c.status,
     proposal_id: c.proposalId ?? null,
+    budget_id: c.budgetId ?? null,
     contract_folder_url: c.contractFolderUrl ?? null,
-    verification: c.verification ?? null,
+    verification_proposal: c.verificationProposal ?? null,
+    verification_budget: c.verificationBudget ?? null,
     created_at: c.createdAt,
   };
 }
@@ -37,8 +39,10 @@ function fromRow(row: Record<string, unknown>): Contract {
     paymentTerms: row.payment_terms as string,
     status: row.status as Contract["status"],
     proposalId: (row.proposal_id as string | null) ?? undefined,
+    budgetId: (row.budget_id as string | null) ?? undefined,
     contractFolderUrl: (row.contract_folder_url as string | null) ?? undefined,
-    verification: (row.verification as Contract["verification"]) ?? undefined,
+    verificationProposal: (row.verification_proposal as Contract["verificationProposal"]) ?? undefined,
+    verificationBudget: (row.verification_budget as Contract["verificationBudget"]) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

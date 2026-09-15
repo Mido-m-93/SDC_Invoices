@@ -56,15 +56,29 @@ export interface GraphDriveItem {
   size?: number;
 }
 
-function toDriveItems(
-  value?: Array<{ id: string; name: string; file?: object; folder?: object; size?: number }>
-): GraphDriveItem[] {
+interface RawDriveItem { id: string; name: string; file?: object; folder?: object; size?: number }
+
+function toDriveItems(value?: RawDriveItem[]): GraphDriveItem[] {
   return (value ?? []).map((item) => ({
     id:       item.id,
     name:     item.name,
     isFolder: !!item.folder,
     size:     item.size,
   }));
+}
+
+/** Follows @odata.nextLink so a folder with more than one page of children (>200 items) isn't silently truncated. */
+async function graphGetAllPages(firstUrl: string, token: string): Promise<RawDriveItem[]> {
+  const items: RawDriveItem[] = [];
+  let url: string | undefined = firstUrl;
+  while (url) {
+    const res: Response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!res.ok) throw new Error(`Graph ${url} → ${res.status}: ${await res.text()}`);
+    const data = await res.json() as { value?: RawDriveItem[]; "@odata.nextLink"?: string };
+    items.push(...(data.value ?? []));
+    url = data["@odata.nextLink"];
+  }
+  return items;
 }
 
 /** List the immediate children of a folder addressed by path, relative to the site's default drive root. */
@@ -74,13 +88,11 @@ export async function listFolderChildren(
   token: string
 ): Promise<GraphDriveItem[]> {
   const folder = folderPath.split("/").map(encodeURIComponent).join("/");
-  const data = await graphGet<{
-    value?: Array<{ id: string; name: string; file?: object; folder?: object; size?: number }>;
-  }>(
-    `/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder,size`,
+  const items = await graphGetAllPages(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder,size`,
     token
   );
-  return toDriveItems(data.value);
+  return toDriveItems(items);
 }
 
 /** List the immediate children of a folder addressed by its drive-item id (for recursing into subfolders). */
@@ -89,13 +101,11 @@ export async function listItemsByFolderId(
   folderId: string,
   token: string
 ): Promise<GraphDriveItem[]> {
-  const data = await graphGet<{
-    value?: Array<{ id: string; name: string; file?: object; folder?: object; size?: number }>;
-  }>(
-    `/sites/${siteId}/drive/items/${folderId}/children?$top=200&$select=id,name,file,folder,size`,
+  const items = await graphGetAllPages(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${folderId}/children?$top=200&$select=id,name,file,folder,size`,
     token
   );
-  return toDriveItems(data.value);
+  return toDriveItems(items);
 }
 
 export interface GraphSearchResult {

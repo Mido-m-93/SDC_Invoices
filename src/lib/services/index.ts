@@ -28,6 +28,7 @@ import type {
   IVendorService,
   IContractService,
   IProposalService,
+  IBudgetService,
   IPaymentRecordService,
   INotificationService,
   IReminderService,
@@ -51,6 +52,7 @@ import {
   MockVendorService,
   MockContractService,
   MockProposalService,
+  MockBudgetService,
   MockPaymentRecordService,
   MockClientService,
   MockLeadService,
@@ -82,6 +84,7 @@ import { SupabaseMemberService } from "./real/SupabaseMemberService";
 import { SupabaseAccountingService } from "./real/SupabaseAccountingService";
 import { SupabaseReportingService } from "./real/SupabaseReportingService";
 import { SupabaseProposalService } from "./real/SupabaseProposalService";
+import { SupabaseBudgetService } from "./real/SupabaseBudgetService";
 import { SupabasePaymentRecordService } from "./real/SupabasePaymentRecordService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
@@ -100,6 +103,7 @@ let _dashboard: IDashboardService | undefined;
 let _vendor: IVendorService | undefined;
 let _contract: IContractService | undefined;
 let _proposal: IProposalService | undefined;
+let _budget: IBudgetService | undefined;
 let _paymentRecord: IPaymentRecordService | undefined;
 let _expense: IExpenseService | undefined;
 let _outboundInvoice: IOutboundInvoiceService | undefined;
@@ -259,6 +263,16 @@ export function getProposalService(): IProposalService {
       : new SupabaseProposalService();
   }
   return _proposal;
+}
+
+// ── Budget ────────────────────────────────────────────────────────────────────
+export function getBudgetService(): IBudgetService {
+  if (!_budget) {
+    _budget = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+      ? new MockBudgetService()
+      : new SupabaseBudgetService();
+  }
+  return _budget;
 }
 
 // ── Payment Record ────────────────────────────────────────────────────────────

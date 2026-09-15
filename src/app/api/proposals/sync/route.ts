@@ -2,14 +2,19 @@
 // Scans the 30_WorkTogether SharePoint folder for proposal files,
 // AI-extracts client name / project name / amount, and upserts them
 // into the proposals table so Stage 3 & 4 validation have real data.
+//
+// No review gate: a file whose extracted client name doesn't confidently
+// match an existing client gets a new client created from that raw name
+// (same fallback the old staged-review "Approve" used to do by hand) —
+// sync always finishes with either a saved proposal or a logged failure,
+// never a pending item waiting on a human.
 import "server-only";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { getProposalService, getClientService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { rankClientCandidates, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
-import { findStagedProposalRecordByFileId, saveStagedProposalRecord } from "@/lib/services/stagedProposalStore";
-import type { Proposal, StagedProposalRecord } from "@/types";
+import type { Proposal, Client } from "@/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // SharePoint + AI extraction can take time
@@ -20,6 +25,7 @@ export async function POST() {
 
   const { fetchSharePointProposals, fetchClientFolderProposals } = await import("@/lib/services/real/proposalSharePointSource");
   const service = getProposalService();
+  const clientSvc = getClientService();
 
   let result: Awaited<ReturnType<typeof fetchSharePointProposals>>;
   try {
@@ -37,7 +43,7 @@ export async function POST() {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }
 
-  const clients = await getClientService().listClients();
+  let clients = await clientSvc.listClients();
   const existingFileIds = new Set(
     (await service.listProposals()).map((p) => p.sourceFileId).filter((id): id is string => !!id)
   );
@@ -45,10 +51,10 @@ export async function POST() {
   const saved: string[] = [];
   const failed: string[] = [];
   let skipped = 0;
-  let staged = 0;
+  let clientsCreated = 0;
 
   for (const item of result.items) {
-    const { fields, fileName, folder, fileId } = item;
+    const { fields, fileName, fileId } = item;
 
     // Already imported this exact SharePoint file in a prior sync — skip so
     // re-running sync doesn't create a duplicate proposal every time.
@@ -57,49 +63,54 @@ export async function POST() {
       continue;
     }
 
-    // proposals.client_id is a NOT NULL foreign key into clients(id) — an
-    // unresolved "" clientId fails that constraint on every insert, so a
-    // confident client match is required before we can save at all. Anything
-    // below the auto-link threshold goes to the review queue instead of
-    // failing outright, so a human can pick (or create) the right client.
     const rawClientName = fields.clientName ?? "";
     const candidates = rankClientCandidates(rawClientName, clients);
     const [topCandidate] = candidates;
-    if (!topCandidate || topCandidate.score < AUTO_LINK_THRESHOLD) {
-      const alreadyStaged = await findStagedProposalRecordByFileId(fileId);
-      if (alreadyStaged) {
-        failed.push(fileName);
-        continue;
-      }
+
+    let clientId: string;
+    let clientName: string;
+    if (topCandidate && topCandidate.score >= AUTO_LINK_THRESHOLD) {
+      clientId = topCandidate.clientId;
+      clientName = topCandidate.clientName;
+    } else {
+      // No confident match — create a new client from the raw name rather
+      // than staging for review.
       const now = new Date().toISOString();
-      const stagedRecord: StagedProposalRecord = {
-        id: generateId("sprop"),
-        fileId,
-        fileName,
-        folder,
-        rawClientName,
-        projectName: fields.projectName ?? fileName,
-        proposalDate: fields.proposalDate,
-        estimatedAmount: fields.estimatedAmount,
-        currency: fields.currency,
-        matchCandidates: candidates,
-        status: "needs_review",
-        reviewerComment: null,
-        createdProposalId: null,
+      const newClient: Client = {
+        id: generateId("cli"),
+        name: rawClientName || fileName,
+        legalName: "",
+        industry: "",
+        contactName: "",
+        contactEmail: "",
+        contactPhone: "",
+        address: "",
+        country: "JP",
+        taxRegistrationNumber: "",
+        status: "prospect",
+        notes: "Created from proposal SharePoint sync (no confident client match).",
+        aliases: [],
         createdAt: now,
         updatedAt: now,
       };
-      await saveStagedProposalRecord(stagedRecord);
-      staged++;
-      failed.push(fileName);
-      continue;
+      try {
+        await clientSvc.saveClient(newClient);
+        clients = [...clients, newClient];
+        clientsCreated++;
+        clientId = newClient.id;
+        clientName = newClient.name;
+      } catch (err) {
+        console.error(`[proposals/sync] Failed to create client for "${fileName}":`, err);
+        failed.push(fileName);
+        continue;
+      }
     }
 
     const today = new Date().toISOString().slice(0, 10);
     const proposal: Proposal = {
       id: generateId("prop"),
-      clientId: topCandidate.clientId,
-      clientName: topCandidate.clientName,
+      clientId,
+      clientName,
       leadId: undefined,
       projectName: fields.projectName ?? fileName,
       proposalDate: fields.proposalDate ?? today,
@@ -125,7 +136,7 @@ export async function POST() {
     saved: saved.length,
     failed: failed.length,
     skipped,
-    staged,
+    clientsCreated,
     savedNames: saved,
     failedNames: failed,
     scan: result.scan,

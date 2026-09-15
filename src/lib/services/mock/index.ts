@@ -14,6 +14,7 @@ import type {
   IVendorService,
   IContractService,
   IProposalService,
+  IBudgetService,
   IPaymentRecordService,
   IClientService,
   ILeadService,
@@ -32,6 +33,7 @@ import type {
   Vendor,
   Contract,
   Proposal,
+  Budget,
   PaymentRecord,
   Client,
   Lead,
@@ -77,6 +79,11 @@ import {
   saveProposal,
   deleteProposal,
   restoreProposal,
+  loadBudgets,
+  loadDeletedBudgets,
+  saveBudget,
+  deleteBudget,
+  restoreBudget,
   loadPaymentRecords,
   savePaymentRecord,
   deletePaymentRecord,
@@ -408,6 +415,25 @@ export class MockProposalService implements IProposalService {
   }
   async listDeletedProposals(): Promise<Proposal[]> {
     return loadDeletedProposals();
+  }
+}
+
+// ── Mock Budget Service ───────────────────────────────────────────────────────
+export class MockBudgetService implements IBudgetService {
+  async listBudgets(): Promise<Budget[]> {
+    return loadBudgets();
+  }
+  async saveBudget(budget: Budget): Promise<void> {
+    saveBudget(budget);
+  }
+  async deleteBudget(id: string, deletedBy?: string): Promise<void> {
+    deleteBudget(id, deletedBy);
+  }
+  async restoreBudget(id: string): Promise<void> {
+    restoreBudget(id);
+  }
+  async listDeletedBudgets(): Promise<Budget[]> {
+    return loadDeletedBudgets();
   }
 }
 

@@ -9,14 +9,24 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-const SALES_HREFS = ["/leads", "/proposals", "/contracts", "/pipeline-sync", "/outbound-invoices"];
+const SALES_HREFS = ["/proposals", "/budget", "/leads", "/pipeline-sync", "/outbound-invoices"];
 
 const SALES_ITEMS = [
+  { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
+  { key: "nav_budget" as const, href: "/budget", icon: BudgetIcon },
   { key: "nav_pipeline_sync" as const, href: "/pipeline-sync", icon: SyncIcon },
   { key: "nav_leads" as const, href: "/leads", icon: LeadIcon },
-  { key: "nav_proposals" as const, href: "/proposals", icon: ProposalIcon },
-  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
   { key: "nav_outbound_invoices" as const, href: "/outbound-invoices", icon: SendIcon },
+];
+
+// Hidden from the sidebar for now — reachable directly by URL, kept out of
+// nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
+const SALES_HIDDEN_KEYS = ["nav_pipeline_sync", "nav_leads", "nav_outbound_invoices"];
+
+const CONTRACT_HREFS = ["/contracts"];
+
+const CONTRACT_ITEMS = [
+  { key: "nav_contracts" as const, href: "/contracts", icon: ContractIcon },
 ];
 
 const MEMBERS_HREFS = ["/members", "/invoices", "/expenses"];
@@ -27,14 +37,20 @@ const MEMBERS_ITEMS = [
   { key: "nav_expenses" as const, href: "/expenses", icon: ReceiptIcon },
 ];
 
-const FINANCE_HREFS = ["/payment-records", "/accounting", "/close-checklist", "/reporting"];
+const FINANCE_HREFS = ["/cash-collection", "/cash-payment", "/payment-records", "/accounting", "/close-checklist", "/reporting"];
 
 const FINANCE_ITEMS = [
+  { key: "nav_cash_collection" as const, href: "/cash-collection", icon: PaymentIcon },
+  { key: "nav_cash_payment" as const, href: "/cash-payment", icon: PaymentIcon },
   { key: "nav_payment_records" as const, href: "/payment-records", icon: PaymentIcon },
   { key: "nav_accounting" as const, href: "/accounting", icon: AccountingIcon },
   { key: "nav_close_checklist" as const, href: "/close-checklist", icon: ChecklistIcon },
   { key: "nav_reporting" as const, href: "/reporting", icon: ChartIcon },
 ];
+
+// Hidden from the sidebar for now — reachable directly by URL, kept out of
+// nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
+const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
 const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users"];
 
@@ -133,7 +149,34 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SALES_ITEMS.map(({ key, href, icon: Icon }) => {
+              {SALES_ITEMS.filter(({ key }) => !SALES_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                  >
+                    <Icon size={14} />
+                    <span>{t(key)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Contract group */}
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
+              <ContractIcon size={15} />
+              <span>{t("nav_group_contract")}</span>
+            </div>
+
+            <div className="ml-3 border-l border-white/10 pl-2">
+              {CONTRACT_ITEMS.map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -160,7 +203,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {MEMBERS_ITEMS.map(({ key, href, icon: Icon }) => {
+              {MEMBERS_ITEMS.filter(({ key }) => key !== "nav_members").map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -187,7 +230,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {FINANCE_ITEMS.map(({ key, href, icon: Icon }) => {
+              {FINANCE_ITEMS.filter(({ key }) => !FINANCE_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -441,6 +484,16 @@ function ProposalIcon({ size = 18 }: { size?: number }) {
       <polyline points="14,2 14,8 20,8" />
       <path d="M8 14c1.5-.5 1.5-1.5 1.5-2.5S8.5 10 8 10" />
       <path d="M12 14c1.5-.5 1.5-1.5 1.5-2.5S12.5 10 12 10" />
+    </svg>
+  );
+}
+
+function BudgetIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v10" />
+      <path d="M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5S10.3 12 12 12s3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5" />
     </svg>
   );
 }

@@ -15,6 +15,7 @@ import type {
   Vendor,
   Contract,
   Proposal,
+  Budget,
   PaymentRecord,
   PaymentRecordStatus,
   ReminderType,
@@ -202,6 +203,15 @@ export interface IProposalService {
   deleteProposal(id: string, deletedBy?: string): Promise<void>;
   restoreProposal(id: string): Promise<void>;
   listDeletedProposals(): Promise<Proposal[]>;
+}
+
+// ── Budget service ─────────────────────────────────────────────────────────────
+export interface IBudgetService {
+  listBudgets(): Promise<Budget[]>;
+  saveBudget(budget: Budget): Promise<void>;
+  deleteBudget(id: string, deletedBy?: string): Promise<void>;
+  restoreBudget(id: string): Promise<void>;
+  listDeletedBudgets(): Promise<Budget[]>;
 }
 
 // ── Payment record service ────────────────────────────────────────────────────

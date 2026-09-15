@@ -21,7 +21,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     if (!proposal) return NextResponse.json({ error: `Proposal ${contract.proposalId} not found` }, { status: 404 });
 
     const verdict = await verifyConsistency("contract", contract, "proposal", proposal);
-    const updated = { ...contract, verification: verdict };
+    const updated = { ...contract, verificationProposal: verdict };
     await contractSvc.saveContract(updated);
 
     return NextResponse.json({ success: true, verdict, contract: updated });

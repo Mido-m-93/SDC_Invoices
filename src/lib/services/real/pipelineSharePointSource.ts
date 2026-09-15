@@ -10,6 +10,10 @@
 // extractPipelineRecordsFromText() already used for the Notion source — this
 // works regardless of the tracker's exact schema and only needs adjusting if
 // the extraction prompt needs tuning, not a code change per column.
+//
+// Scoped to only this dedicated pipeline tracker folder — client
+// WorkTogether folders (03_Project/04_Partner) are not scanned here; that
+// data belongs to Proposals sync instead (see proposalSharePointSource.ts).
 
 import "server-only";
 import {
@@ -32,46 +36,48 @@ const PIPELINE_FOLDER_PATHS = (process.env.MICROSOFT_PIPELINE_FOLDER_PATH
   .map((s) => s.trim())
   .filter(Boolean);
 
-// Same client/project folders proposalSharePointSource already reads
-// successfully (30_WorkTogether/03_Project/<client>, .../04_Partner/<client>).
-// The dedicated pipeline tracker folder above turned out to hold nothing
-// usable (a Windows shortcut, not real data) — this augments the tracker
-// scan with pipeline signal pulled straight from each client's own folder.
-const PROJECT_FOLDER_PATHS = (process.env.MICROSOFT_PROJECT_FOLDERS ?? "30_WorkTogether/03_Project,30_WorkTogether/04_Partner")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-// Same cleanup regex used by proposalSharePointSource.ts (client folder
-// names carry numeric prefixes and trailing project codes/dates) — kept
-// local per this codebase's existing precedent of each sync service owning
-// its own copy rather than sharing a util.
-function cleanFolderName(rawName: string): string {
-  return rawName
-    .replace(/^\d+'?\s*[_\-.]\s*/, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+(contract|agreement|nda|signed|draft|final|v\d+|\d{4}(-\d{2,4})?)(\s+.*)?$/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+// Client folders hold every kind of document (NDAs, invoices, meeting
+// decks, org charts...), not just deal-tracking ones — running AI
+// extraction on all of them is both wasteful and, at real scale (100+
+// client folders per category), enough LLM calls to blow the route's 300s
+// budget outright (confirmed: a full unfiltered sync hit a 504 timeout).
+// Same technique as looksLikeProposal in proposalSharePointSource.ts, plus
+// pipeline-tracking-specific terms (status/progress/meeting notes) since a
+// deal's stage often lives in those rather than a formal proposal doc.
+function looksLikePipelineDoc(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.includes("proposal") ||
+    lower.includes("提案") ||
+    lower.includes("見積") ||
+    lower.includes("quote") ||
+    lower.includes("quotation") ||
+    lower.includes("offer") ||
+    lower.includes("sow") ||
+    lower.includes("statement of work") ||
+    lower.includes("scope of work") ||
+    lower.includes("プロポーザル") ||
+    lower.includes("商談") ||
+    lower.includes("案件") ||
+    lower.includes("pipeline") ||
+    lower.includes("パイプライン") ||
+    lower.includes("status") ||
+    lower.includes("ステータス") ||
+    lower.includes("進捗") ||
+    lower.includes("議事録") ||
+    lower.includes("meeting") ||
+    lower.includes("tracker") ||
+    lower.includes("summary") ||
+    lower.includes("概要")
+  );
 }
 
-// Runs `fn` over `items` with at most `limit` in flight — same rationale as
-// proposalSharePointSource.ts's copy: Graph listing + AI extraction are both
-// slow enough that a client-folder tree with dozens of clients would risk
-// the route's timeout run one-at-a-time.
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  async function worker() {
-    while (true) {
-      const i = next++;
-      if (i >= items.length) return;
-      results[i] = await fn(items[i]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
-}
+// Hard ceiling on files actually sent to extraction per sync run,
+// independent of how well looksLikePipelineDoc narrows things down — a
+// guaranteed way to stay inside the route's time budget rather than
+// trusting the keyword filter alone. Files beyond this are logged as
+// skipped, not silently dropped.
+const MAX_FILES_PER_SYNC = 120;
 
 async function fileToText(siteId: string, token: string, item: GraphDriveItem): Promise<string | null> {
   const lower = item.name.toLowerCase();
@@ -129,6 +135,66 @@ export interface PipelineSourceScanDetail {
   skipped?: string;
 }
 
+// Runs `fn` over `items` with at most `limit` in flight — the category
+// folders each hold many per-client subfolders (confirmed via a real scan:
+// 10_Pipeline/01_企業 alone had a dozen+ client folders), so walking them
+// one at a time would be slow across a whole tree of categories.
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// Real structure turned out to be 10_Pipeline/<category>/<client>/<files> —
+// one level deeper than originally assumed. Rather than hardcode that exact
+// depth (a client folder could itself have a project subfolder in some
+// cases), this walks the whole subtree under each category folder, capped
+// at MAX_DEPTH as a safety valve against an unexpectedly deep or cyclical
+// structure — 10_Pipeline itself is scoped separately via PIPELINE_FOLDER_PATHS,
+// so this never risks crawling the wider site.
+const MAX_DEPTH = 6;
+
+async function walkFolder(
+  siteId: string,
+  token: string,
+  folderId: string,
+  folderLabel: string,
+  depth: number,
+  files: GraphDriveItem[],
+  scan: PipelineSourceScanDetail[]
+): Promise<void> {
+  if (depth > MAX_DEPTH) {
+    scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: `max recursion depth (${MAX_DEPTH}) reached` });
+    return;
+  }
+  let children: GraphDriveItem[];
+  try {
+    children = await listItemsByFolderId(siteId, folderId, token);
+  } catch (err) {
+    scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
+    return;
+  }
+  const subFiles = children.filter((c) => !c.isFolder);
+  const subFolders = children.filter((c) => c.isFolder);
+  // Not logging every folder visited here — with a real tree this size
+  // (thousands of folders), that flooded both the audit summary and the
+  // folder-contents panel with noise. Genuine problems (read failures, depth
+  // limit) still get logged above/below; a plain "found nothing" is normal
+  // and not worth a scan entry per folder.
+  files.push(...subFiles);
+  await mapWithConcurrency(subFolders, 6, (sub) =>
+    walkFolder(siteId, token, sub.id, `${folderLabel}/${sub.name}`, depth + 1, files, scan)
+  );
+}
+
 /**
  * Scan the configured pipeline folder(s), extract structured deal records
  * from every readable file via Claude, and return them all flattened.
@@ -154,112 +220,37 @@ export async function fetchRealSharePointPipelineItems(): Promise<{
       continue;
     }
 
-    // One level of recursion into subfolders (deal-per-folder layouts), same depth
-    // as the debug inspector and the member-contract sync.
-    const files: GraphDriveItem[] = [];
-    for (const entry of topLevel) {
-      if (!entry.isFolder) { files.push(entry); continue; }
-      try {
-        const children = await listItemsByFolderId(siteId, entry.id, token);
-        files.push(...children.filter((c) => !c.isFolder));
-      } catch (err) {
-        scan.push({ folder: folderPath, file: entry.name, extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
-      }
+    const allFiles: GraphDriveItem[] = topLevel.filter((e) => !e.isFolder);
+    const subfolders = topLevel.filter((e) => e.isFolder);
+    await mapWithConcurrency(subfolders, 6, (entry) =>
+      walkFolder(siteId, token, entry.id, `${folderPath}/${entry.name}`, 1, allFiles, scan)
+    );
+
+    const candidateFiles = allFiles.filter((file) => looksLikePipelineDoc(file.name));
+    // At real scale (thousands of files per category) logging every single
+    // non-matching file individually flooded the folder-contents panel —
+    // one aggregate line carries the same signal.
+    const irrelevantCount = allFiles.length - candidateFiles.length;
+    if (irrelevantCount > 0) {
+      scan.push({ folder: folderPath, file: "(filtered)", extracted: 0, skipped: `${irrelevantCount} file(s) skipped as not pipeline-relevant` });
+    }
+    const files = candidateFiles.slice(0, MAX_FILES_PER_SYNC);
+    for (const skipped of candidateFiles.slice(MAX_FILES_PER_SYNC)) {
+      scan.push({ folder: folderPath, file: skipped.name, extracted: 0, skipped: `per-sync file limit (${MAX_FILES_PER_SYNC}) reached` });
     }
 
-    for (const file of files) {
+    // Extraction is AI-per-file and now runs across every client folder in
+    // every category — sequential would risk the route's 300s budget once
+    // this actually finds the real file tree, so bound concurrency instead
+    // (same rationale as proposalSharePointSource.ts's extraction pass).
+    await mapWithConcurrency(files, 4, async (file) => {
       const extracted = await extractItemsFromFile(siteId, token, file);
       if (extracted === null) {
         scan.push({ folder: folderPath, file: file.name, extracted: 0, skipped: "unsupported file type" });
-        continue;
+        return;
       }
       items.push(...extracted);
       scan.push({ folder: folderPath, file: file.name, extracted: extracted.length });
-    }
-  }
-
-  return { items, scan };
-}
-
-// Client folders in practice hold almost entirely PDF/docx proposal
-// documents, not spreadsheets (confirmed by a real scan: 106 files, nearly
-// all skipped as "no supported documents found" when this only covered
-// xlsx/csv/txt) — narrowing to those types made this scan find almost
-// nothing. Proposal sync already reads the same files for proposal-specific
-// fields (amount, date), but pipeline extraction pulls different signal
-// (deal stage, contact, notes) that proposals don't capture, so re-reading
-// them here is intentional, not duplicate work.
-function hasSupportedExtension(name: string): boolean {
-  const lower = name.toLowerCase();
-  return [".xlsx", ".xls", ".csv", ".txt", ".docx", ".doc", ".pdf"].some((ext) => lower.endsWith(ext));
-}
-
-/**
- * Walk each client/project folder under 30_WorkTogether/03_Project and
- * .../04_Partner (MICROSOFT_PROJECT_FOLDERS), extract pipeline-shaped
- * records from every readable document inside, and use the (cleaned) folder
- * name as the authoritative client name — same rationale as
- * fetchClientFolderProposals() in proposalSharePointSource.ts: SharePoint is
- * already organized per-client, more reliable than free-text AI extraction
- * of a client name from document content.
- */
-export async function fetchClientFolderPipelineItems(): Promise<{
-  items: ExtractedPipelineItem[];
-  scan: PipelineSourceScanDetail[];
-}> {
-  const token = await getGraphToken();
-  const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
-
-  const items: ExtractedPipelineItem[] = [];
-  const scan: PipelineSourceScanDetail[] = [];
-
-  for (const parentPath of PROJECT_FOLDER_PATHS) {
-    let clientFolders: GraphDriveItem[];
-    try {
-      clientFolders = (await listFolderChildren(siteId, parentPath, token)).filter((c) => c.isFolder);
-    } catch (err) {
-      scan.push({ folder: parentPath, file: "(folder)", extracted: 0, skipped: `folder not accessible: ${String(err)}` });
-      continue;
-    }
-
-    const pending: Array<{ file: GraphDriveItem; clientName: string; folderLabel: string }> = [];
-
-    await mapWithConcurrency(clientFolders, 6, async (clientFolder) => {
-      const clientName = cleanFolderName(clientFolder.name);
-      const folderLabel = `${parentPath}/${clientFolder.name}`;
-      if (!clientName) {
-        scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: "could not derive client name from folder" });
-        return;
-      }
-
-      let children: GraphDriveItem[];
-      try {
-        children = await listItemsByFolderId(siteId, clientFolder.id, token);
-      } catch (err) {
-        scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: `subfolder read failed: ${String(err)}` });
-        return;
-      }
-
-      const files = children.filter((c) => !c.isFolder && hasSupportedExtension(c.name));
-      if (files.length === 0) {
-        scan.push({ folder: folderLabel, file: "(folder)", extracted: 0, skipped: "no supported documents found" });
-        return;
-      }
-
-      for (const file of files) pending.push({ file, clientName, folderLabel });
-    });
-
-    await mapWithConcurrency(pending, 4, async ({ file, clientName, folderLabel }) => {
-      const extracted = await extractItemsFromFile(siteId, token, file);
-      if (extracted === null) {
-        scan.push({ folder: folderLabel, file: file.name, extracted: 0, skipped: "unsupported file type" });
-        return;
-      }
-      // Folder name is authoritative per client-folder structure — override
-      // whatever AI extracted (or guessed) from the document content.
-      const withFolderClientName = extracted.map((item) => ({ ...item, rawClientName: clientName }));
-      items.push(...withFolderClientName);
-      scan.push({ folder: folderLabel, file: file.name, extracted: extracted.length });
     });
   }
 
