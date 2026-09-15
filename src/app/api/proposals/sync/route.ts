@@ -1,5 +1,5 @@
 // POST /api/proposals/sync
-// Scans the 30_WorkTogether SharePoint folder for proposal files,
+// Scans the 30_WorkTogether/02_Pipeline/10_Pipeline SharePoint folder for proposal files,
 // AI-extracts client name / project name / amount, and upserts them
 // into the proposals table so Stage 3 & 4 validation have real data.
 //
@@ -23,21 +23,13 @@ export async function POST() {
   const { user, response } = await requireAuth();
   if (!user) return response!;
 
-  const { fetchSharePointProposals, fetchClientFolderProposals } = await import("@/lib/services/real/proposalSharePointSource");
+  const { fetchSharePointProposals } = await import("@/lib/services/real/proposalSharePointSource");
   const service = getProposalService();
   const clientSvc = getClientService();
 
   let result: Awaited<ReturnType<typeof fetchSharePointProposals>>;
   try {
-    const [flatScan, clientFolderScan] = await Promise.all([
-      fetchSharePointProposals(),
-      fetchClientFolderProposals(),
-    ]);
-    const seenFileIds = new Set(flatScan.items.map((i) => i.fileId));
-    result = {
-      items: [...flatScan.items, ...clientFolderScan.items.filter((i) => !seenFileIds.has(i.fileId))],
-      scan: [...flatScan.scan, ...clientFolderScan.scan],
-    };
+    result = await fetchSharePointProposals();
   } catch (err) {
     console.error("[proposals/sync] SharePoint scan failed:", err);
     return NextResponse.json({ error: String(err) }, { status: 502 });
