@@ -54,9 +54,10 @@ export interface GraphDriveItem {
   name: string;
   isFolder: boolean;
   size?: number;
+  webUrl?: string;
 }
 
-interface RawDriveItem { id: string; name: string; file?: object; folder?: object; size?: number }
+interface RawDriveItem { id: string; name: string; file?: object; folder?: object; size?: number; webUrl?: string }
 
 function toDriveItems(value?: RawDriveItem[]): GraphDriveItem[] {
   return (value ?? []).map((item) => ({
@@ -64,6 +65,7 @@ function toDriveItems(value?: RawDriveItem[]): GraphDriveItem[] {
     name:     item.name,
     isFolder: !!item.folder,
     size:     item.size,
+    webUrl:   item.webUrl,
   }));
 }
 
@@ -89,7 +91,7 @@ export async function listFolderChildren(
 ): Promise<GraphDriveItem[]> {
   const folder = folderPath.split("/").map(encodeURIComponent).join("/");
   const items = await graphGetAllPages(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder,size`,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder,size,webUrl`,
     token
   );
   return toDriveItems(items);
@@ -102,7 +104,7 @@ export async function listItemsByFolderId(
   token: string
 ): Promise<GraphDriveItem[]> {
   const items = await graphGetAllPages(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${folderId}/children?$top=200&$select=id,name,file,folder,size`,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${folderId}/children?$top=200&$select=id,name,file,folder,size,webUrl`,
     token
   );
   return toDriveItems(items);

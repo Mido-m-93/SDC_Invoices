@@ -50,7 +50,7 @@ export default function ContractsPage() {
   const [markingReviewed, setMarkingReviewed] = useState<string | null>(null);
   const [checkingBilling, setCheckingBilling] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<Contract | null>(null);
-  const [folderFiles, setFolderFiles] = useState<{ name: string; isFolder: boolean; size: number | null }[] | null>(null);
+  const [folderFiles, setFolderFiles] = useState<{ name: string; isFolder: boolean; size: number | null; webUrl: string | null }[] | null>(null);
   const [folderFilesError, setFolderFilesError] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -635,7 +635,13 @@ export default function ContractsPage() {
                 <ul className="divide-y divide-stone-100">
                   {folderFiles.map((f) => (
                     <li key={f.name} className="py-2 flex items-center justify-between text-sm">
-                      <span className="text-stone-700 truncate">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
+                      {f.webUrl ? (
+                        <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                          {f.isFolder ? "📁 " : "📄 "}{f.name}
+                        </a>
+                      ) : (
+                        <span className="text-stone-700 truncate">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
+                      )}
                       {!f.isFolder && f.size != null && (
                         <span className="text-xs text-stone-400 shrink-0 ml-3">{Math.round(f.size / 1024)} KB</span>
                       )}
