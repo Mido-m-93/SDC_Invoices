@@ -4,7 +4,7 @@
 
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 export type NotificationKind = "info" | "success" | "error";
 
@@ -27,9 +27,36 @@ interface NotificationsContextValue {
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 const MAX_NOTIFICATIONS = 50;
+const STORAGE_KEY = "notifications:v1";
+
+function loadPersisted(): Notification[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+  // Notifications used to live only in memory, so a page refresh silently
+  // wiped the whole bell out — persist to localStorage so they survive
+  // reloads and new tabs, same browser only.
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    setNotifications(loadPersisted());
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    } catch {
+      // best-effort persistence only (private mode, storage full, etc.)
+    }
+  }, [notifications]);
 
   const notify = useCallback((kind: NotificationKind, message: string, href?: string) => {
     setNotifications((prev) => {
