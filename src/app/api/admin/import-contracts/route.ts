@@ -1,10 +1,11 @@
 // POST /api/admin/import-contracts
 // Reads the SharePoint Client/Vendor/Partner contract folders (same tree
-// BusinessContractSyncService scans) and bulk-creates bare Contract records
-// (clientName only, dates/amount left blank) for every folder that actually
-// has a PDF inside — so a later /api/contracts/sync run has something to
-// match against and can backfill dates/amount from the real document.
-// Skips folders with no PDF and names that already exist as a Contract.
+// BusinessContractSyncService scans) and bulk-creates a bare Contract record
+// (clientName only, dates/amount left blank) for every folder found — so
+// every real client/vendor/partner shows up in the app, whether or not it
+// has a PDF yet. A later /api/contracts/sync run matches and backfills
+// dates/amount from the real document for the ones that do have a PDF.
+// Skips names that already exist as a Contract.
 
 import { NextResponse } from "next/server";
 import { getContractService } from "@/lib/services";
@@ -15,7 +16,6 @@ import {
   getGraphToken,
   resolveSiteId,
   listFolderChildren,
-  listItemsByFolderId,
   type GraphDriveItem,
 } from "@/lib/services/real/graphClient";
 import type { Contract } from "@/types";
@@ -27,12 +27,6 @@ const BUSINESS_SUBFOLDERS = (process.env.MICROSOFT_BUSINESS_CONTRACTS_FOLDERS ??
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-
-async function hasPdf(siteId: string, token: string, item: GraphDriveItem): Promise<boolean> {
-  if (!item.isFolder) return item.name.toLowerCase().endsWith(".pdf");
-  const children = await listItemsByFolderId(siteId, item.id, token);
-  return children.some((c) => !c.isFolder && c.name.toLowerCase().endsWith(".pdf"));
-}
 
 export async function POST() {
   const { user, response } = await requireAuth();
@@ -48,7 +42,7 @@ export async function POST() {
       existing.map((c) => c.clientName?.toLowerCase()).filter((n): n is string => !!n)
     );
 
-    const results: { folder: string; name: string; status: "added" | "skipped_exists" | "skipped_no_pdf" }[] = [];
+    const results: { folder: string; name: string; status: "added" | "skipped_exists" }[] = [];
 
     for (const folder of BUSINESS_SUBFOLDERS) {
       const folderPath = `${CONTRACTS_PARENT}/${folder}`;
@@ -61,11 +55,6 @@ export async function POST() {
       }
 
       for (const item of items) {
-        if (!(await hasPdf(siteId, token, item).catch(() => false))) {
-          results.push({ folder, name: item.name, status: "skipped_no_pdf" });
-          continue;
-        }
-
         if (existingNames.has(item.name.toLowerCase())) {
           results.push({ folder, name: item.name, status: "skipped_exists" });
           continue;

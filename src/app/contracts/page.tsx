@@ -49,6 +49,10 @@ export default function ContractsPage() {
   const [verifyingBudget, setVerifyingBudget] = useState<string | null>(null);
   const [markingReviewed, setMarkingReviewed] = useState<string | null>(null);
   const [checkingBilling, setCheckingBilling] = useState<string | null>(null);
+  const [viewingFiles, setViewingFiles] = useState<Contract | null>(null);
+  const [folderFiles, setFolderFiles] = useState<{ name: string; isFolder: boolean; size: number | null }[] | null>(null);
+  const [folderFilesError, setFolderFilesError] = useState<string | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
@@ -285,6 +289,26 @@ export default function ContractsPage() {
     }
   }
 
+  async function handleViewFiles(c: Contract) {
+    setViewingFiles(c);
+    setFolderFiles(null);
+    setFolderFilesError(null);
+    setLoadingFiles(true);
+    try {
+      const res = await fetch(`/api/contracts/${c.id}/folder-files`);
+      const data = await res.json() as { files?: typeof folderFiles; error?: string };
+      if (!res.ok) {
+        setFolderFilesError(data.error ?? t("contracts_files_failed"));
+        return;
+      }
+      setFolderFiles(data.files ?? []);
+    } catch {
+      setFolderFilesError(t("contracts_files_failed"));
+    } finally {
+      setLoadingFiles(false);
+    }
+  }
+
   const set = <K extends keyof ContractForm>(k: K, v: ContractForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -468,6 +492,9 @@ export default function ContractsPage() {
                           {t("contracts_action_create_invoice")}
                         </Link>
                       )}
+                      {c.clientName && (
+                        <Button variant="ghost" size="sm" onClick={() => handleViewFiles(c)}>{t("contracts_action_view_files")}</Button>
+                      )}
                       <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("contracts_action_edit")}</Button>
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("contracts_action_delete")}</Button>
                     </td>
@@ -586,6 +613,36 @@ export default function ContractsPage() {
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
               <Button variant="primary" loading={saving} onClick={handleSave}>{t("contracts_save_button")}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingFiles && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]" onClick={() => setViewingFiles(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{viewingFiles.clientName}</h2>
+              <button onClick={() => setViewingFiles(null)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5">
+              {loadingFiles && <p className="text-sm text-stone-500">{t("contracts_files_loading")}</p>}
+              {folderFilesError && <p className="text-sm text-red-600">{folderFilesError}</p>}
+              {folderFiles && folderFiles.length === 0 && (
+                <p className="text-sm text-stone-500">{t("contracts_files_empty")}</p>
+              )}
+              {folderFiles && folderFiles.length > 0 && (
+                <ul className="divide-y divide-stone-100">
+                  {folderFiles.map((f) => (
+                    <li key={f.name} className="py-2 flex items-center justify-between text-sm">
+                      <span className="text-stone-700 truncate">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
+                      {!f.isFolder && f.size != null && (
+                        <span className="text-xs text-stone-400 shrink-0 ml-3">{Math.round(f.size / 1024)} KB</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
