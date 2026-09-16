@@ -6,6 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
+import MembersContractTab from "@/components/contracts/MembersContractTab";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -34,6 +35,7 @@ export default function ContractsPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
   const { user } = useCurrentUser();
+  const [tab, setTab] = useState<"contracts" | "members">("contracts");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -369,16 +371,38 @@ export default function ContractsPage() {
         title={t("contracts_title")}
         subtitle={t("contracts_subtitle")}
         actions={
-          <div className="flex gap-2">
-            <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
-            {contracts.length > 0 && (
-              <Button variant="secondary" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
-            )}
-            <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
-          </div>
+          tab === "contracts" ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
+              {contracts.length > 0 && (
+                <Button variant="secondary" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
+              )}
+              <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
+            </div>
+          ) : null
         }
       />
 
+      <div className="mb-5 flex gap-1 border-b border-stone-200">
+        {(["contracts", "members"] as const).map((tb) => (
+          <button
+            key={tb}
+            onClick={() => setTab(tb)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === tb
+                ? "border-[#1a3d2b] text-[#1a3d2b]"
+                : "border-transparent text-stone-400 hover:text-stone-600"
+            }`}
+          >
+            {tb === "contracts" ? t("contracts_tab_contracts") : t("contracts_tab_members")}
+          </button>
+        ))}
+      </div>
+
+      {tab === "members" ? (
+        <MembersContractTab />
+      ) : (
+        <>
       {contracts.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
           <input
@@ -727,6 +751,8 @@ export default function ContractsPage() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </AppShell>
   );

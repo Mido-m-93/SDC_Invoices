@@ -811,6 +811,15 @@ const ja = {
 
   // ── Contracts page ────────────────────────────────────────────────────────
   contracts_title: "契約",
+  contracts_tab_contracts: "契約",
+  contracts_tab_members: "メンバー契約",
+  members_contract_subtitle: "SharePointの03_Memberフォルダを読み取り専用で表示します。同期はフォルダの再スキャンのみで、データベースには保存されません。",
+  members_contract_sync_button: "SharePointから同期",
+  members_contract_sync_result: "{count}件のメンバーフォルダが見つかりました",
+  members_contract_sync_failed: "メンバーフォルダの同期に失敗しました",
+  members_contract_empty_title: "「SharePointから同期」をクリックしてメンバー契約フォルダを読み込んでください。",
+  members_contract_no_results: "メンバーフォルダが見つかりません。",
+  members_contract_no_files: "このフォルダにファイルはありません。",
   contracts_subtitle: "取引先・クライアントとの契約 — 請求書検証とパイプライン管理に使用されます",
   contracts_add_button: "＋ 契約を追加",
   contracts_sync_button: "SharePointから同期",
