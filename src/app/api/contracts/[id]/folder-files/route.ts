@@ -51,14 +51,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       if (!match) continue;
 
       if (!match.isFolder) {
-        return NextResponse.json({ category, folderName: match.name, files: [{ name: match.name, isFolder: false, size: match.size ?? null }] });
+        return NextResponse.json({ category, folderName: match.name, files: [{ name: match.name, isFolder: false, size: match.size ?? null, webUrl: match.webUrl ?? null }] });
       }
 
       const children = await listItemsByFolderId(siteId, match.id, token);
       return NextResponse.json({
         category,
         folderName: match.name,
-        files: children.map((c) => ({ name: c.name, isFolder: c.isFolder, size: c.size ?? null })),
+        files: children.map((c) => ({ name: c.name, isFolder: c.isFolder, size: c.size ?? null, webUrl: c.webUrl ?? null })),
       });
     }
 
