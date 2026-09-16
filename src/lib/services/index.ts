@@ -9,7 +9,7 @@
 //   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService
 //   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService      (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_VALIDATION     = "false" → use RealValidationService  (not yet implemented)
-//   NEXT_PUBLIC_USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
+//   USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
 //   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
 //   NEXT_PUBLIC_USE_MOCK_NOTIFICATION   = "false" → use TeamsNotificationService
 //
@@ -157,7 +157,7 @@ function getValidationService(): IValidationService {
 // ── Storage (Supabase) ────────────────────────────────────────────────────────
 export function getStorageService(): IStorageService {
   if (!_storage) {
-    _storage = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _storage = isMock("USE_MOCK_STORAGE")
       ? new MockStorageService()
       : new SupabaseStorageService();
   }
@@ -177,7 +177,7 @@ function getDashboardService(): IDashboardService {
 // ── Vendor ───────────────────────────────────────────────────────────────────
 export function getVendorService(): IVendorService {
   if (!_vendor) {
-    _vendor = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _vendor = isMock("USE_MOCK_STORAGE")
       ? new MockVendorService()
       : new SupabaseVendorService();
   }
@@ -187,7 +187,7 @@ export function getVendorService(): IVendorService {
 // ── Contract ──────────────────────────────────────────────────────────────────
 export function getContractService(): IContractService {
   if (!_contract) {
-    _contract = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _contract = isMock("USE_MOCK_STORAGE")
       ? new MockContractService()
       : new SupabaseContractService();
   }
@@ -216,7 +216,7 @@ export async function getNotificationService(): Promise<INotificationService> {
 export async function getReminderService(): Promise<IReminderService> {
   const notif = await getNotificationService();
   const paymentTermsDays = parseInt(process.env.PAYMENT_TERMS_DAYS ?? "30");
-  return isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+  return isMock("USE_MOCK_STORAGE")
     ? new MockReminderService(notif)
     : new SupabaseReminderService(notif, paymentTermsDays);
 }
@@ -248,7 +248,7 @@ export function getCloseChecklistService(): ICloseChecklistService {
 // ── Close service — lightweight checklist + bank sync (Phase 10) ──────────────
 export function getCloseService(): ICloseService {
   if (!_close) {
-    _close = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _close = isMock("USE_MOCK_STORAGE")
       ? new MockCloseService()
       : new SupabaseCloseService();
   }
@@ -258,7 +258,7 @@ export function getCloseService(): ICloseService {
 // ── Proposal ──────────────────────────────────────────────────────────────────
 export function getProposalService(): IProposalService {
   if (!_proposal) {
-    _proposal = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _proposal = isMock("USE_MOCK_STORAGE")
       ? new MockProposalService()
       : new SupabaseProposalService();
   }
@@ -268,7 +268,7 @@ export function getProposalService(): IProposalService {
 // ── Budget ────────────────────────────────────────────────────────────────────
 export function getBudgetService(): IBudgetService {
   if (!_budget) {
-    _budget = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _budget = isMock("USE_MOCK_STORAGE")
       ? new MockBudgetService()
       : new SupabaseBudgetService();
   }
@@ -278,7 +278,7 @@ export function getBudgetService(): IBudgetService {
 // ── Payment Record ────────────────────────────────────────────────────────────
 export function getPaymentRecordService(): IPaymentRecordService {
   if (!_paymentRecord) {
-    _paymentRecord = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE")
+    _paymentRecord = isMock("USE_MOCK_STORAGE")
       ? new MockPaymentRecordService()
       : new SupabasePaymentRecordService();
   }
@@ -287,31 +287,31 @@ export function getPaymentRecordService(): IPaymentRecordService {
 
 // ── Client ────────────────────────────────────────────────────────────────────
 export function getClientService(): IClientService {
-  if (!_client) _client = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockClientService() : new SupabaseClientService();
+  if (!_client) _client = isMock("USE_MOCK_STORAGE") ? new MockClientService() : new SupabaseClientService();
   return _client;
 }
 
 // ── Lead ──────────────────────────────────────────────────────────────────────
 export function getLeadService(): ILeadService {
-  if (!_lead) _lead = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockLeadService() : new SupabaseLeadService();
+  if (!_lead) _lead = isMock("USE_MOCK_STORAGE") ? new MockLeadService() : new SupabaseLeadService();
   return _lead;
 }
 
 // ── Member ────────────────────────────────────────────────────────────────────
 export function getMemberService(): IMemberService {
-  if (!_member) _member = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockMemberService() : new SupabaseMemberService();
+  if (!_member) _member = isMock("USE_MOCK_STORAGE") ? new MockMemberService() : new SupabaseMemberService();
   return _member;
 }
 
 // ── Accounting ────────────────────────────────────────────────────────────────
 export function getAccountingService(): IAccountingService {
-  if (!_accounting) _accounting = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockAccountingService() : new SupabaseAccountingService();
+  if (!_accounting) _accounting = isMock("USE_MOCK_STORAGE") ? new MockAccountingService() : new SupabaseAccountingService();
   return _accounting;
 }
 
 // ── Reporting ─────────────────────────────────────────────────────────────────
 export function getReportingService(): IReportingService {
-  if (!_reporting) _reporting = isMock("NEXT_PUBLIC_USE_MOCK_STORAGE") ? new MockReportingService() : new SupabaseReportingService();
+  if (!_reporting) _reporting = isMock("USE_MOCK_STORAGE") ? new MockReportingService() : new SupabaseReportingService();
   return _reporting;
 }
 
@@ -325,7 +325,7 @@ function logServiceModes(): void {
     ["Sheets",       "NEXT_PUBLIC_USE_MOCK_SHEETS"],
     ["Drive",        "NEXT_PUBLIC_USE_MOCK_DRIVE"],
     ["Validation",   "NEXT_PUBLIC_USE_MOCK_VALIDATION"],
-    ["Storage",      "NEXT_PUBLIC_USE_MOCK_STORAGE"],
+    ["Storage",      "USE_MOCK_STORAGE"],
     ["Dashboard",    "NEXT_PUBLIC_USE_MOCK_DASHBOARD"],
     ["Notification", "NEXT_PUBLIC_USE_MOCK_NOTIFICATION"],
   ];
