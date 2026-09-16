@@ -27,6 +27,8 @@ function toRow(c: Contract): Record<string, unknown> {
     billing_rules_checked_at: c.billingRulesCheckedAt ?? null,
     billing_rules_checked_by: c.billingRulesCheckedBy ?? null,
     created_at: c.createdAt,
+    deleted_at: c.deletedAt ?? null,
+    deleted_by: c.deletedBy ?? null,
   };
 }
 
@@ -54,6 +56,8 @@ function fromRow(row: Record<string, unknown>): Contract {
     billingRulesCheckedAt: (row.billing_rules_checked_at as string | null) ?? undefined,
     billingRulesCheckedBy: (row.billing_rules_checked_by as string | null) ?? undefined,
     createdAt: row.created_at as string,
+    deletedAt: (row.deleted_at as string | null) ?? undefined,
+    deletedBy: (row.deleted_by as string | null) ?? undefined,
   };
 }
 
@@ -66,6 +70,7 @@ export class SupabaseContractService implements IContractService {
     const { data, error } = await this.db
       .from("contracts")
       .select("*")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) throw new Error(`listContracts: ${error.message}`);
     return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
@@ -78,8 +83,31 @@ export class SupabaseContractService implements IContractService {
     if (error) throw new Error(`saveContract: ${error.message}`);
   }
 
-  async deleteContract(id: string): Promise<void> {
-    const { error } = await this.db.from("contracts").delete().eq("id", id);
+  // Soft delete — sets deleted_at/deleted_by instead of removing the row, so
+  // it can be restored from the Archives page instead of being lost.
+  async deleteContract(id: string, deletedBy?: string): Promise<void> {
+    const { error } = await this.db
+      .from("contracts")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy ?? null })
+      .eq("id", id);
     if (error) throw new Error(`deleteContract: ${error.message}`);
+  }
+
+  async restoreContract(id: string): Promise<void> {
+    const { error } = await this.db
+      .from("contracts")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", id);
+    if (error) throw new Error(`restoreContract: ${error.message}`);
+  }
+
+  async listDeletedContracts(): Promise<Contract[]> {
+    const { data, error } = await this.db
+      .from("contracts")
+      .select("*")
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    if (error) throw new Error(`listDeletedContracts: ${error.message}`);
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>));
   }
 }

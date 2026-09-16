@@ -193,7 +193,9 @@ export interface IVendorService {
 export interface IContractService {
   listContracts(): Promise<Contract[]>;
   saveContract(contract: Contract): Promise<void>;
-  deleteContract(id: string): Promise<void>;
+  deleteContract(id: string, deletedBy?: string): Promise<void>;
+  restoreContract(id: string): Promise<void>;
+  listDeletedContracts(): Promise<Contract[]>;
 }
 
 // ── Proposal service ──────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
-import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun } from "@/types";
+import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun, Contract } from "@/types";
 
 interface ArchivedAppUser {
   id: string;
@@ -14,11 +14,12 @@ interface ArchivedAppUser {
   archivedBy: string | null;
 }
 
-type ModuleKey = "proposals" | "budgets" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs" | "users";
+type ModuleKey = "proposals" | "budgets" | "contracts" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs" | "users";
 
 const MODULE_LABEL: Record<ModuleKey, string> = {
   proposals: "Proposal",
   budgets: "Budget",
+  contracts: "Contract",
   pipeline_sync: "Pipeline Sync",
   expenses: "Expense",
   outbound_invoices: "Outbound Invoice",
@@ -60,6 +61,18 @@ function toArchivedBudget(b: Budget): ArchivedItem {
     subtitle: b.clientName ?? "",
     deletedAt: b.deletedAt ?? null,
     deletedBy: b.deletedBy ?? null,
+  };
+}
+
+function toArchivedContract(c: Contract): ArchivedItem {
+  return {
+    key: `contracts:${c.id}`,
+    module: "contracts",
+    id: c.id,
+    title: c.clientName || c.projectName || "(untitled contract)",
+    subtitle: c.projectName && c.clientName ? c.projectName : "",
+    deletedAt: c.deletedAt ?? null,
+    deletedBy: c.deletedBy ?? null,
   };
 }
 
@@ -138,6 +151,7 @@ function toArchivedUser(u: ArchivedAppUser): ArchivedItem {
 const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
   proposals: (id) => `/api/proposals/${id}/restore`,
   budgets: (id) => `/api/budgets/${id}/restore`,
+  contracts: (id) => `/api/contracts/${id}/restore`,
   pipeline_sync: (id) => `/api/pipeline-sync/${id}/undelete`,
   expenses: (id) => `/api/expenses/${id}/restore`,
   outbound_invoices: (id) => `/api/outbound-invoices/${id}/restore`,
@@ -158,9 +172,10 @@ export default function ArchivesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [proposalsRes, budgetsRes, pipelineRes, expensesRes, outboundRes, invoicesRes, logsRes, usersRes] = await Promise.all([
+      const [proposalsRes, budgetsRes, contractsRes, pipelineRes, expensesRes, outboundRes, invoicesRes, logsRes, usersRes] = await Promise.all([
         fetch("/api/proposals/deleted"),
         fetch("/api/budgets/deleted"),
+        fetch("/api/contracts/deleted"),
         fetch("/api/pipeline-sync/deleted"),
         fetch("/api/expenses/deleted"),
         fetch("/api/outbound-invoices/deleted"),
@@ -168,9 +183,10 @@ export default function ArchivesPage() {
         fetch("/api/runs/deleted"),
         fetch("/api/users/deleted"),
       ]);
-      const [proposalsData, budgetsData, pipelineData, expensesData, outboundData, invoicesData, logsData, usersData] = await Promise.all([
+      const [proposalsData, budgetsData, contractsData, pipelineData, expensesData, outboundData, invoicesData, logsData, usersData] = await Promise.all([
         proposalsRes.json() as Promise<{ proposals?: Proposal[] }>,
         budgetsRes.json() as Promise<{ budgets?: Budget[] }>,
+        contractsRes.json() as Promise<{ contracts?: Contract[] }>,
         pipelineRes.json() as Promise<{ records?: StagedPipelineRecord[] }>,
         expensesRes.json() as Promise<{ claims?: ExpenseClaim[] }>,
         outboundRes.json() as Promise<{ invoices?: OutboundInvoice[] }>,
@@ -182,6 +198,7 @@ export default function ArchivesPage() {
       const all: ArchivedItem[] = [
         ...(proposalsData.proposals ?? []).map(toArchivedProposal),
         ...(budgetsData.budgets ?? []).map(toArchivedBudget),
+        ...(contractsData.contracts ?? []).map(toArchivedContract),
         ...(pipelineData.records ?? []).map(toArchivedPipeline),
         ...(expensesData.claims ?? []).map(toArchivedExpense),
         ...(outboundData.invoices ?? []).map(toArchivedOutboundInvoice),
@@ -226,6 +243,7 @@ export default function ArchivesPage() {
     all: items.length,
     proposals: items.filter((i) => i.module === "proposals").length,
     budgets: items.filter((i) => i.module === "budgets").length,
+    contracts: items.filter((i) => i.module === "contracts").length,
     pipeline_sync: items.filter((i) => i.module === "pipeline_sync").length,
     expenses: items.filter((i) => i.module === "expenses").length,
     outbound_invoices: items.filter((i) => i.module === "outbound_invoices").length,
@@ -239,7 +257,7 @@ export default function ArchivesPage() {
     <AppShell>
       <PageHeader
         title="Archives"
-        subtitle="Deleted items from Proposals, Budget, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users — restore anything moved here by mistake."
+        subtitle="Deleted items from Proposals, Budget, Contracts, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users — restore anything moved here by mistake."
       />
 
       {error && (
@@ -250,7 +268,7 @@ export default function ArchivesPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(["all", "proposals", "budgets", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs", "users"] as const).map((f) => (
+        {(["all", "proposals", "budgets", "contracts", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs", "users"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

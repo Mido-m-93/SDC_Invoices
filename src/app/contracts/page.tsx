@@ -53,6 +53,8 @@ export default function ContractsPage() {
   const [folderFiles, setFolderFiles] = useState<{ name: string; isFolder: boolean; size: number | null; webUrl: string | null }[] | null>(null);
   const [folderFilesError, setFolderFilesError] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [search, setSearch] = useState("");
+  const [deletingAll, setDeletingAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
@@ -279,14 +281,50 @@ export default function ContractsPage() {
   async function handleDelete(id: string) {
     if (!confirm(t("contracts_delete_confirm"))) return;
     const target = contracts.find((c) => c.id === id);
+    const label = target?.clientName || target?.projectName || id;
     try {
       await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-      notify("success", `Deleted contract ${target?.projectName ?? id}`, "/contracts");
+      notify("info", `Deleted contract ${label} — restore from Archives if needed`, "/archives");
       load();
     } catch (err) {
       setError(t("contracts_save_failed"));
-      notify("error", `Failed to delete contract ${target?.projectName ?? id}: ${String(err)}`, "/contracts");
+      notify("error", `Failed to delete contract ${label}: ${String(err)}`, "/contracts");
     }
+  }
+
+  // Bounded-concurrency bulk delete (soft delete — see handleDelete) so a
+  // large list doesn't fire 50+ simultaneous requests.
+  async function handleDeleteAll() {
+    const target = filteredContracts;
+    if (target.length === 0) return;
+    if (!confirm(t("contracts_delete_all_confirm").replace("{count}", String(target.length)))) return;
+
+    setDeletingAll(true);
+    setError(null);
+    let succeeded = 0;
+    let failed = 0;
+    const queue = [...target];
+    const CONCURRENCY = 5;
+    async function worker() {
+      let item;
+      while ((item = queue.shift())) {
+        try {
+          const res = await fetch(`/api/contracts/${item.id}`, { method: "DELETE" });
+          if (res.ok) succeeded++; else failed++;
+        } catch {
+          failed++;
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, target.length) }, worker));
+
+    setDeletingAll(false);
+    notify(
+      failed === 0 ? "info" : "error",
+      `Deleted ${succeeded} contract${succeeded === 1 ? "" : "s"}${failed > 0 ? `, ${failed} failed` : ""} — restore from Archives if needed`,
+      "/archives"
+    );
+    load();
   }
 
   async function handleViewFiles(c: Contract) {
@@ -316,6 +354,15 @@ export default function ContractsPage() {
   const resolvedClientName = (c: Contract) =>
     c.clientName || clients.find(cl => cl.id === c.clientId)?.name || null;
 
+  const filteredContracts = (() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return contracts;
+    return contracts.filter((c) =>
+      [resolvedClientName(c), c.vendorId && vendorName(c.vendorId), c.projectName]
+        .some((field) => field?.toLowerCase().includes(query))
+    );
+  })();
+
   return (
     <AppShell>
       <PageHeader
@@ -324,10 +371,32 @@ export default function ContractsPage() {
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
+            {contracts.length > 0 && (
+              <Button variant="ghost" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
+            )}
             <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
           </div>
         }
       />
+
+      {contracts.length > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <input
+            className={`${input} max-w-xs`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("contracts_search_placeholder")}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-xs text-stone-400 hover:text-stone-600">
+              {t("contracts_search_clear")}
+            </button>
+          )}
+          <span className="text-xs text-stone-400">
+            {filteredContracts.length} / {contracts.length} {t("contracts_search_shown")}
+          </span>
+        </div>
+      )}
 
       {syncMsg && (
         <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700">
@@ -387,11 +456,16 @@ export default function ContractsPage() {
           <p className="text-stone-400 text-sm">{t("contracts_empty_title")}</p>
           <Button variant="primary" className="mt-4" onClick={openNew}>{t("contracts_empty_add_button")}</Button>
         </div>
+      ) : filteredContracts.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">{t("contracts_search_no_results")}</p>
+        </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_vendor")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_project")}</th>
@@ -404,10 +478,11 @@ export default function ContractsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {contracts.map((c) => {
+              {filteredContracts.map((c, idx) => {
                 const clientDisplay = resolvedClientName(c);
                 return (
                   <tr key={c.id} className="hover:bg-stone-50">
+                    <td className="px-4 py-3 text-stone-400">{idx + 1}</td>
                     <td className="px-4 py-3 font-medium text-stone-800">
                       {c.vendorId ? vendorName(c.vendorId) : <span className="text-stone-400">—</span>}
                     </td>

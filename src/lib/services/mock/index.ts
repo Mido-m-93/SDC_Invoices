@@ -72,8 +72,10 @@ import {
   saveVendor,
   deleteVendor,
   loadContracts,
+  loadDeletedContracts,
   saveContract,
   deleteContract,
+  restoreContract,
   loadProposals,
   loadDeletedProposals,
   saveProposal,
@@ -394,8 +396,14 @@ export class MockContractService implements IContractService {
   async saveContract(contract: Contract): Promise<void> {
     saveContract(contract);
   }
-  async deleteContract(id: string): Promise<void> {
-    deleteContract(id);
+  async deleteContract(id: string, deletedBy?: string): Promise<void> {
+    deleteContract(id, deletedBy);
+  }
+  async restoreContract(id: string): Promise<void> {
+    restoreContract(id);
+  }
+  async listDeletedContracts(): Promise<Contract[]> {
+    return loadDeletedContracts();
   }
 }
 
