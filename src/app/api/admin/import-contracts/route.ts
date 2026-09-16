@@ -74,6 +74,7 @@ export async function POST() {
         const contract: Contract = {
           id: generateId("con"),
           vendorId: "",
+          clientId: "",
           clientName: item.name,
           projectName: "",
           startDate: "",
