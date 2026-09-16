@@ -671,10 +671,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
             <div className="flex items-start justify-between border-b border-stone-100 px-6 py-5">
               <div>
                 <p className="text-xs font-mono uppercase tracking-widest text-stone-400 mb-0.5">
-                  AI Validation · {SOURCE_LABEL[validationPanel.record.source]}
+                  {t("validate_panel_title")} · {SOURCE_LABEL[validationPanel.record.source]}
                 </p>
                 <h2 className="text-base font-semibold text-stone-900">
-                  <span className="mr-1 font-normal text-stone-400">Client:</span>
+                  <span className="mr-1 font-normal text-stone-400">{t("validate_client_label")}</span>
                   {validationPanel.record.rawClientName}
                 </h2>
                 <p className="text-xs text-stone-500 mt-0.5">{validationPanel.record.projectName || "—"}</p>
@@ -690,8 +690,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   : "border-amber-200 bg-amber-50 text-amber-800"
               }`}>
                 {allGreen
-                  ? "✓ All checks passed"
-                  : "⚠ Some checks need review"}
+                  ? t("validate_all_passed")
+                  : t("validate_needs_review")}
               </div>
             )}
 
@@ -699,110 +699,110 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {validationPanel.loading ? (
                 <div className="flex items-center justify-center py-16 text-sm text-stone-400">
-                  Running AI checks…
+                  {t("validate_running")}
                 </div>
               ) : panelResult ? (
                 <div>
                   {/* Stage 1 */}
                   <ValidationStage
                     number={1}
-                    title="Client exists in system?"
-                    subtitle="Matched against contracts and proposals"
+                    title={t("validate_stage1_title")}
+                    subtitle={t("validate_stage1_subtitle")}
                     pass={panelResult.stages.clientExists.pass}
                     warn={false}
                     lines={
                       panelResult.stages.clientExists.pass
                         ? [
                             panelResult.stages.clientExists.contractCount > 0
-                              ? `✓ Found in ${panelResult.stages.clientExists.contractCount} contract(s)`
+                              ? t("validate_found_contracts").replace("{count}", String(panelResult.stages.clientExists.contractCount))
                               : "",
                             panelResult.stages.clientExists.proposalCount > 0
-                              ? `✓ Found in ${panelResult.stages.clientExists.proposalCount} proposal(s)`
+                              ? t("validate_found_proposals").replace("{count}", String(panelResult.stages.clientExists.proposalCount))
                               : "",
                           ].filter(Boolean)
-                        : ["No matching client found in contracts or proposals"]
+                        : [t("validate_stage1_fail")]
                     }
                   />
 
                   {/* Stage 2 */}
                   <ValidationStage
                     number={2}
-                    title="Contract exists for this client?"
-                    subtitle="Name match + amount comparison"
+                    title={t("validate_stage2_title")}
+                    subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.contractMatch.found && (panelResult.stages.contractMatch.amountClose.close || panelResult.stages.contractMatch.amountClose.diffPct === null)}
                     warn={panelResult.stages.contractMatch.found && panelResult.stages.contractMatch.amountClose.diffPct !== null && !panelResult.stages.contractMatch.amountClose.close}
                     lines={(() => {
                       const c = panelResult.stages.contractMatch;
-                      if (!c.found) return ["No contract found for this client"];
+                      if (!c.found) return [t("validate_stage2_fail")];
                       const lines = [
-                        `✓ Matched: "${c.contract!.projectName}" (${c.contract!.score}% name match)`,
+                        t("validate_matched").replace("{name}", c.contract!.projectName).replace("{score}", String(c.contract!.score)),
                         c.contract!.expectedMonthlyAmount
-                          ? `Expected: ${c.contract!.currency} ${c.contract!.expectedMonthlyAmount.toLocaleString()}/mo`
+                          ? t("validate_expected_amount").replace("{currency}", c.contract!.currency).replace("{amount}", c.contract!.expectedMonthlyAmount.toLocaleString())
                           : "",
                         c.amountClose.diffPct !== null
                           ? c.amountClose.close
-                            ? `✓ Amount within ${c.amountClose.diffPct}% of contract`
-                            : `⚠ Amount differs by ${c.amountClose.diffPct}% from contract`
+                            ? t("validate_amount_within").replace("{pct}", String(c.amountClose.diffPct))
+                            : t("validate_amount_differs").replace("{pct}", String(c.amountClose.diffPct))
                           : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
                     link={panelResult.stages.contractMatch.contract?.folderUrl ?? null}
-                    linkLabel="View Contract"
+                    linkLabel={t("validate_view_contract")}
                   />
 
                   {/* Stage 3 */}
                   <ValidationStage
                     number={3}
-                    title="Proposal exists for this client?"
-                    subtitle="Name match + amount comparison"
+                    title={t("validate_stage3_title")}
+                    subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.proposalMatch.found && (panelResult.stages.proposalMatch.amountClose.close || panelResult.stages.proposalMatch.amountClose.diffPct === null)}
                     warn={panelResult.stages.proposalMatch.found && panelResult.stages.proposalMatch.amountClose.diffPct !== null && !panelResult.stages.proposalMatch.amountClose.close}
                     lines={(() => {
                       const p = panelResult.stages.proposalMatch;
-                      if (!p.found) return ["No proposal found for this client"];
+                      if (!p.found) return [t("validate_stage3_fail")];
                       const lines = [
-                        `✓ Matched: "${p.proposal!.projectName}" (${p.proposal!.score}% name match)`,
+                        t("validate_matched").replace("{name}", p.proposal!.projectName).replace("{score}", String(p.proposal!.score)),
                         p.proposal!.estimatedAmount
-                          ? `Proposed: ${p.proposal!.currency} ${p.proposal!.estimatedAmount.toLocaleString()}`
+                          ? t("validate_proposed_amount").replace("{currency}", p.proposal!.currency).replace("{amount}", p.proposal!.estimatedAmount.toLocaleString())
                           : "",
                         p.amountClose.diffPct !== null
                           ? p.amountClose.close
-                            ? `✓ Amount within ${p.amountClose.diffPct}% of proposal`
-                            : `⚠ Amount differs by ${p.amountClose.diffPct}% from proposal`
+                            ? t("validate_amount_within_proposal").replace("{pct}", String(p.amountClose.diffPct))
+                            : t("validate_amount_differs_proposal").replace("{pct}", String(p.amountClose.diffPct))
                           : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
                     link={panelResult.stages.proposalMatch.proposal?.folderUrl ?? null}
-                    linkLabel="View Proposal"
+                    linkLabel={t("validate_view_proposal")}
                   />
 
                   {/* Stage 4 */}
                   <ValidationStage
                     number={4}
-                    title="Budget exists for this client?"
-                    subtitle="Name match + amount comparison"
+                    title={t("validate_stage4_title")}
+                    subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.budgetMatch.found && (panelResult.stages.budgetMatch.amountClose.close || panelResult.stages.budgetMatch.amountClose.diffPct === null)}
                     warn={panelResult.stages.budgetMatch.found && panelResult.stages.budgetMatch.amountClose.diffPct !== null && !panelResult.stages.budgetMatch.amountClose.close}
                     lines={(() => {
                       const b = panelResult.stages.budgetMatch;
-                      if (!b.found) return ["No budget found for this client"];
+                      if (!b.found) return [t("validate_stage4_fail")];
                       const lines = [
-                        `✓ Matched: "${b.budget!.projectName}" (${b.budget!.score}% name match)`,
+                        t("validate_matched").replace("{name}", b.budget!.projectName).replace("{score}", String(b.budget!.score)),
                         b.budget!.budgetAmount
-                          ? `Budgeted: ${b.budget!.currency} ${b.budget!.budgetAmount.toLocaleString()}`
+                          ? t("validate_budgeted_amount").replace("{currency}", b.budget!.currency).replace("{amount}", b.budget!.budgetAmount.toLocaleString())
                           : "",
                         b.amountClose.diffPct !== null
                           ? b.amountClose.close
-                            ? `✓ Amount within ${b.amountClose.diffPct}% of budget`
-                            : `⚠ Amount differs by ${b.amountClose.diffPct}% from budget`
+                            ? t("validate_amount_within_budget").replace("{pct}", String(b.amountClose.diffPct))
+                            : t("validate_amount_differs_budget").replace("{pct}", String(b.amountClose.diffPct))
                           : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
                     link={panelResult.stages.budgetMatch.budget?.folderUrl ?? null}
-                    linkLabel="View Budget"
+                    linkLabel={t("validate_view_budget")}
                   />
 
                   {/* Stage 5: Proposal ↔ Contract cross-check */}
@@ -812,11 +812,11 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                       return (
                         <ValidationStage
                           number={5}
-                          title="Proposal ↔ Contract amount match"
-                          subtitle="Cross-check: do proposal and contract agree?"
+                          title={t("validate_stage5_title")}
+                          subtitle={t("validate_stage5_subtitle")}
                           pass={false}
                           warn={false}
-                          lines={["Skipped — need both a matched contract and proposal to compare"]}
+                          lines={[t("validate_stage5_skipped")]}
                           isLast
                         />
                       );
@@ -826,18 +826,18 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     return (
                       <ValidationStage
                         number={5}
-                        title="Proposal ↔ Contract amount match"
-                        subtitle="Cross-check: do proposal and contract agree?"
+                        title={t("validate_stage5_title")}
+                        subtitle={t("validate_stage5_subtitle")}
                         pass={close}
                         warn={!close && diffPct !== null}
                         lines={[
-                          `Proposal: ${cross.currency} ${cross.proposalAmount?.toLocaleString() ?? "—"}`,
-                          `Contract: ${cross.currency} ${cross.contractAmount?.toLocaleString() ?? "—"}`,
+                          t("validate_proposal_amount_line").replace("{currency}", cross.currency).replace("{amount}", cross.proposalAmount?.toLocaleString() ?? "—"),
+                          t("validate_contract_amount_line").replace("{currency}", cross.currency).replace("{amount}", cross.contractAmount?.toLocaleString() ?? "—"),
                           diffPct !== null
                             ? close
-                              ? `✓ Amounts match within ${diffPct}%`
-                              : `⚠ Amounts differ by ${diffPct}% — review before proceeding`
-                            : "Could not compare amounts",
+                              ? t("validate_amounts_match").replace("{pct}", String(diffPct))
+                              : t("validate_amounts_differ").replace("{pct}", String(diffPct))
+                            : t("validate_could_not_compare"),
                         ]}
                         isLast
                       />
@@ -845,14 +845,14 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   })()}
                 </div>
               ) : (
-                <p className="text-sm text-red-600">Could not run validation.</p>
+                <p className="text-sm text-red-600">{t("validate_could_not_run")}</p>
               )}
             </div>
 
             {/* Footer actions */}
             <div className="border-t border-stone-100 px-6 py-4 flex justify-end">
               <Button variant="secondary" size="sm" onClick={() => setValidationPanel(null)}>
-                Close
+                {t("validate_close")}
               </Button>
             </div>
           </div>
@@ -877,11 +877,12 @@ function ValidationStage({
   linkLabel?: string;
   isLast?: boolean;
 }) {
+  const { t } = useLanguage();
   const status = warn ? "warn" : pass ? "pass" : "fail";
   const colors = {
-    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: "Passed" },
-    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: "Review" },
-    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: "Not found" },
+    pass: { card: "bg-emerald-50 border-emerald-200", num: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-700", text: "text-emerald-700", icon: "✓", label: t("validate_badge_passed") },
+    warn: { card: "bg-amber-50 border-amber-200",    num: "bg-amber-400",   badge: "bg-amber-100 text-amber-700",   text: "text-amber-700",   icon: "⚠", label: t("validate_badge_review") },
+    fail: { card: "bg-red-50 border-red-200",         num: "bg-red-500",     badge: "bg-red-100 text-red-700",       text: "text-red-700",     icon: "✕", label: t("validate_badge_not_found") },
   }[status];
 
   return (
