@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
@@ -18,9 +19,20 @@ const EMPTY_VENDOR: Omit<Vendor, "id" | "createdAt"> = {
   status: "active",
 };
 
+// Page is unlinked from navigation and not needed right now — redirect away
+// rather than deleting the page/routes, so it's easy to bring back later.
+const HIDDEN = true;
+
 export default function VendorsPage() {
+  const router = useRouter();
   const { t } = useLanguage();
   const { notify } = useNotifications();
+
+  useEffect(() => {
+    if (HIDDEN) router.replace("/dashboard");
+  }, [router]);
+
+  if (HIDDEN) return null;
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
