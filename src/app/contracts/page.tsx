@@ -53,6 +53,30 @@ export default function ContractsPage() {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
   const [showSyncDetails, setShowSyncDetails] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  async function handleImport() {
+    setImporting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/import-contracts", { method: "POST" });
+      const data = await res.json() as { added?: number; skipped?: number; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? t("contracts_import_failed"));
+        notify("error", `Contract import failed: ${data.error ?? t("contracts_import_failed")}`, "/contracts");
+        return;
+      }
+      notify("success", t("contracts_import_result")
+        .replace("{added}", String(data.added ?? 0))
+        .replace("{skipped}", String(data.skipped ?? 0)), "/contracts");
+      load();
+    } catch {
+      setError(t("contracts_import_failed"));
+      notify("error", t("contracts_import_failed"), "/contracts");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -283,6 +307,7 @@ export default function ContractsPage() {
         subtitle={t("contracts_subtitle")}
         actions={
           <div className="flex gap-2">
+            <Button variant="secondary" loading={importing} onClick={handleImport}>{t("contracts_import_button")}</Button>
             <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
             <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
           </div>
