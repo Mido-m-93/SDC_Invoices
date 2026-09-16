@@ -315,7 +315,11 @@ export function deleteVendor(id: string): void {
 // ── Contracts ─────────────────────────────────────────────────────────────────
 
 export function loadContracts(): Contract[] {
-  return readStore().contracts;
+  return readStore().contracts.filter((c) => !c.deletedAt);
+}
+
+export function loadDeletedContracts(): Contract[] {
+  return readStore().contracts.filter((c) => !!c.deletedAt);
 }
 
 export function saveContract(contract: Contract): void {
@@ -326,9 +330,19 @@ export function saveContract(contract: Contract): void {
   writeStore(store);
 }
 
-export function deleteContract(id: string): void {
+// Soft delete — mirrors SupabaseContractService so mock/real storage behave
+// the same for the Delete + Undo + Archives flow.
+export function deleteContract(id: string, deletedBy?: string): void {
   const store = readStore();
-  store.contracts = store.contracts.filter((c) => c.id !== id);
+  const c = store.contracts.find((c) => c.id === id);
+  if (c) { c.deletedAt = new Date().toISOString(); c.deletedBy = deletedBy ?? null; }
+  writeStore(store);
+}
+
+export function restoreContract(id: string): void {
+  const store = readStore();
+  const c = store.contracts.find((c) => c.id === id);
+  if (c) { c.deletedAt = null; c.deletedBy = null; }
   writeStore(store);
 }
 

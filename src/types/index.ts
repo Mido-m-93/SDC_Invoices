@@ -309,6 +309,8 @@ export interface Contract {
   billingRulesCheckedAt?: string | null;
   billingRulesCheckedBy?: string | null;
   createdAt: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
 }
 
 // ── Payment record ────────────────────────────────────────────────────────────

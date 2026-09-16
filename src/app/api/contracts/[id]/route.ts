@@ -23,7 +23,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { user, response } = await requireAuth();
   if (!user) return response!;
   try {
-    await getContractService().deleteContract(params.id);
+    await getContractService().deleteContract(params.id, user.email);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[API ERROR]", err);
