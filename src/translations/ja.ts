@@ -812,7 +812,6 @@ const ja = {
   contracts_add_button: "＋ 契約を追加",
   contracts_sync_button: "SharePointから同期",
   contracts_sync_result: "同期完了: {updated}件更新 / {matched}件一致 / {total}件スキャン",
-  contracts_import_button: "SharePointからインポート",
   contracts_import_result: "インポート完了: {added}件追加 / {skipped}件スキップ",
   contracts_import_failed: "契約のインポートに失敗しました",
   contracts_sync_failed: "契約の同期に失敗しました",

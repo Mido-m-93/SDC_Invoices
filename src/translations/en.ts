@@ -812,7 +812,6 @@ const en = {
   contracts_add_button: "+ Add Contract",
   contracts_sync_button: "Sync from SharePoint",
   contracts_sync_result: "Synced: {updated} updated / {matched} matched / {total} files scanned",
-  contracts_import_button: "Import from SharePoint",
   contracts_import_result: "Imported: {added} added / {skipped} skipped",
   contracts_import_failed: "Contract import failed",
   contracts_sync_failed: "Contract sync failed",

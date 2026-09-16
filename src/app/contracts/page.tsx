@@ -53,37 +53,23 @@ export default function ContractsPage() {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncDetails, setSyncDetails] = useState<Array<{ folder: string; file: string; matchedContractId: string | null; updated: boolean; reason?: string }> | null>(null);
   const [showSyncDetails, setShowSyncDetails] = useState(false);
-  const [importing, setImporting] = useState(false);
 
-  async function handleImport() {
-    setImporting(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/import-contracts", { method: "POST" });
-      const data = await res.json() as { added?: number; skipped?: number; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? t("contracts_import_failed"));
-        notify("error", `Contract import failed: ${data.error ?? t("contracts_import_failed")}`, "/contracts");
-        return;
-      }
-      notify("success", t("contracts_import_result")
-        .replace("{added}", String(data.added ?? 0))
-        .replace("{skipped}", String(data.skipped ?? 0)), "/contracts");
-      load();
-    } catch {
-      setError(t("contracts_import_failed"));
-      notify("error", t("contracts_import_failed"), "/contracts");
-    } finally {
-      setImporting(false);
-    }
-  }
-
+  // One button: import any missing Contract records from SharePoint first,
+  // then run the match/sync against the now-complete set.
   async function handleSync() {
     setSyncing(true);
     setSyncMsg(null);
     setSyncDetails(null);
     setError(null);
     try {
+      const importRes = await fetch("/api/admin/import-contracts", { method: "POST" });
+      const importData = await importRes.json() as { added?: number; skipped?: number; error?: string };
+      if (!importRes.ok) {
+        setError(importData.error ?? t("contracts_import_failed"));
+        notify("error", `Contract import failed: ${importData.error ?? t("contracts_import_failed")}`, "/contracts");
+        return;
+      }
+
       const res = await fetch("/api/contracts/sync", { method: "POST" });
       const data = await res.json() as { matched?: number; updated?: number; skipped?: number; total?: number; error?: string; details?: typeof syncDetails };
       if (!res.ok) {
@@ -91,12 +77,18 @@ export default function ContractsPage() {
         notify("error", `Contract sync failed: ${data.error ?? t("contracts_sync_failed")}`, "/contracts");
         return;
       }
-      setSyncMsg(t("contracts_sync_result")
-        .replace("{updated}", String(data.updated ?? 0))
-        .replace("{matched}", String(data.matched ?? 0))
-        .replace("{total}", String(data.total ?? 0)));
+      setSyncMsg(
+        t("contracts_import_result")
+          .replace("{added}", String(importData.added ?? 0))
+          .replace("{skipped}", String(importData.skipped ?? 0))
+        + " — "
+        + t("contracts_sync_result")
+          .replace("{updated}", String(data.updated ?? 0))
+          .replace("{matched}", String(data.matched ?? 0))
+          .replace("{total}", String(data.total ?? 0))
+      );
       setSyncDetails(data.details ?? []);
-      notify("success", `Synced contracts: ${data.updated ?? 0} updated of ${data.total ?? 0} total`, "/contracts");
+      notify("success", `Imported ${importData.added ?? 0}, synced: ${data.updated ?? 0} updated of ${data.total ?? 0} total`, "/contracts");
       load();
     } catch {
       setError(t("contracts_sync_failed"));
@@ -307,7 +299,6 @@ export default function ContractsPage() {
         subtitle={t("contracts_subtitle")}
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" loading={importing} onClick={handleImport}>{t("contracts_import_button")}</Button>
             <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
             <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
           </div>
