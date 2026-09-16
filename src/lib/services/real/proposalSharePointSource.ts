@@ -100,6 +100,7 @@ export interface ProposalScanItem {
   fileName: string;
   folder: string;
   fileId: string;
+  fileUrl: string;
 }
 
 export interface ProposalScanDetail {
@@ -166,7 +167,7 @@ export async function fetchSharePointProposals(): Promise<{
         scan.push({ folder: folderPath, file: file.name, extracted: false, skipped: "no extractable fields" });
         return;
       }
-      items.push({ fields, fileName: file.name, folder: folderPath, fileId: file.id });
+      items.push({ fields, fileName: file.name, folder: folderPath, fileId: file.id, fileUrl: file.webUrl ?? "" });
       scan.push({ folder: folderPath, file: file.name, extracted: true });
     });
   }
