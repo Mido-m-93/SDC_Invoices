@@ -811,7 +811,7 @@ const ja = {
 
   // ── Contracts page ────────────────────────────────────────────────────────
   contracts_title: "契約",
-  contracts_tab_contracts: "契約",
+  contracts_tab_contracts: "クライアント契約",
   contracts_tab_members: "メンバー契約",
   members_contract_subtitle: "SharePointの03_Memberフォルダを読み取り専用で表示します。同期はフォルダの再スキャンのみで、データベースには保存されません。",
   members_contract_sync_button: "SharePointから同期",
