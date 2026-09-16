@@ -27,7 +27,7 @@ import {
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { SHOW_DASHBOARD_NO_DATA_BANNER } from "@/lib/featureFlags";
-import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Lead } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal } from "@/types";
 import type { TranslationKey } from "@/translations";
 import clsx from "clsx";
 
@@ -66,8 +66,7 @@ export default function DashboardPage() {
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     clients:  { total: number; active: number; prospects: number } | null;
     proposals: { total: number; open: number; accepted: number } | null;
-    leads:    { total: number; newCount: number; pipelineValue: number } | null;
-  }>({ expenses: null, clients: null, proposals: null, leads: null });
+  }>({ expenses: null, clients: null, proposals: null });
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -158,11 +157,10 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, clientRes, proposalRes, leadRes] = await Promise.allSettled([
+      const [expRes, clientRes, proposalRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
         fetch("/api/clients").then((r) => r.json() as Promise<{ clients: Client[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
-        fetch("/api/leads").then((r) => r.json() as Promise<{ leads: Lead[] }>),
       ]);
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
@@ -183,11 +181,6 @@ export default function DashboardPage() {
         proposals: proposalRes.status === "fulfilled" ? (() => {
           const ps = proposalRes.value.proposals ?? [];
           return { total: ps.length, open: ps.filter((p) => p.status === "submitted").length, accepted: ps.filter((p) => p.status === "accepted").length };
-        })() : null,
-        leads: leadRes.status === "fulfilled" ? (() => {
-          const ls = leadRes.value.leads ?? [];
-          const active = ls.filter((l) => !["won","lost"].includes(l.stage));
-          return { total: ls.length, newCount: ls.filter((l) => l.stage === "new").length, pipelineValue: active.reduce((s, l) => s + (l.estimatedValue ?? 0), 0) };
         })() : null,
       });
     }
@@ -341,23 +334,10 @@ export default function DashboardPage() {
         />
 
         {/* ── Module summary cards ──────────────────────────────────── */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <ModuleCard
-            href="/invoices" label={t("nav_invoices")} icon={<InvoiceModIcon />}
-            primary={stats?.totalRows ?? "—"}
-            subs={[
-              { label: t("ready"),          value: stats?.ready ?? 0,          color: (stats?.ready ?? 0) > 0 ? "green" : "neutral" },
-              { label: t("review_required"), value: stats?.reviewRequired ?? 0, color: (stats?.reviewRequired ?? 0) > 0 ? "amber" : "neutral" },
-            ]}
-          />
-          <ModuleCard
-            href="/expenses" label={t("nav_expenses")} icon={<ExpenseModIcon />}
-            primary={moduleData.expenses ? `¥${moduleData.expenses.pendingAmount.toLocaleString()}` : "—"}
-            subs={[
-              { label: t("dashboard_stat_pending"),    value: (moduleData.expenses?.submitted ?? 0) + (moduleData.expenses?.underReview ?? 0), color: (moduleData.expenses?.submitted ?? 0) > 0 ? "amber" : "neutral" },
-              { label: t("dashboard_stat_violations"), value: moduleData.expenses?.violations ?? 0, color: (moduleData.expenses?.violations ?? 0) > 0 ? "red" : "neutral" },
-            ]}
-          />
+        {/* Invoices and Expenses each already get a full detail section below,
+            so they're left out here to avoid showing the same numbers twice.
+            Leads dropped per request — not tracked on this dashboard. */}
+        <div className="mb-8 grid grid-cols-2 gap-3 max-w-md">
           <ModuleCard
             href="/clients" label={t("nav_clients")} icon={<ClientModIcon />}
             primary={moduleData.clients?.total ?? "—"}
@@ -372,14 +352,6 @@ export default function DashboardPage() {
             subs={[
               { label: t("dashboard_stat_open"),     value: moduleData.proposals?.open ?? 0,     color: (moduleData.proposals?.open ?? 0) > 0 ? "amber" : "neutral" },
               { label: t("dashboard_stat_accepted"), value: moduleData.proposals?.accepted ?? 0, color: "green" },
-            ]}
-          />
-          <ModuleCard
-            href="/leads" label={t("nav_leads")} icon={<LeadModIcon />}
-            primary={moduleData.leads?.total ?? "—"}
-            subs={[
-              { label: t("dashboard_stat_new"),      value: moduleData.leads?.newCount ?? 0, color: (moduleData.leads?.newCount ?? 0) > 0 ? "amber" : "neutral" },
-              { label: t("dashboard_stat_pipeline"), value: moduleData.leads ? `¥${(moduleData.leads.pipelineValue / 1_000_000).toFixed(1)}M` : "—", color: "neutral" },
             ]}
           />
         </div>
@@ -470,7 +442,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label={t("total_rows")} value={stats.totalRows} icon={<ListIcon />}
                 active={activeFilter === "ALL"} onClick={() => handleCardClick("ALL")} />
               <StatCard label={t("ready")} value={stats.ready} accent="green" icon={<CheckCircleIcon />}
@@ -479,6 +451,8 @@ export default function DashboardPage() {
                 active={activeFilter === "REVIEW_REQUIRED"} onClick={() => handleCardClick("REVIEW_REQUIRED")} />
               <StatCard label={t("saved")} value={stats.saved} accent="blue" icon={<FolderIcon />}
                 active={activeFilter === "SAVED"} onClick={() => handleCardClick("SAVED")} />
+            </div>
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <StatCard label={t("errors")} value={stats.errors} accent="red" icon={<XCircleIcon />}
                 active={activeFilter === "ERRORS"} onClick={() => handleCardClick("ERRORS")} />
               <StatCard label={t("missing_attachment")} value={stats.missingAttachment} accent="red" icon={<AttachIcon />}
@@ -660,13 +634,6 @@ function ProposalModIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
-  );
-}
-function LeadModIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.16 12 19.79 19.79 0 0 1 1.05 3.42 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z" />
     </svg>
   );
 }
