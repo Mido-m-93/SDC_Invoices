@@ -922,6 +922,7 @@ const ja = {
   // ── Pipeline & Proposal (tabbed combination page) ───────────────────────────
   pipeline_and_proposal_subtitle: "パイプラインの生データから、追跡可能な提案へ",
   tab_pipeline: "パイプライン",
+  pipeline_view_proposals_link: "提案を見る",
   tab_proposals: "提案",
 
   // ── Budget ─────────────────────────────────────────────────────────────────

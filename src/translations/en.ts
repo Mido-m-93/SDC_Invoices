@@ -922,6 +922,7 @@ const en = {
   // ── Pipeline & Proposal (tabbed combination page) ───────────────────────────
   pipeline_and_proposal_subtitle: "From raw pipeline lead to a tracked proposal",
   tab_pipeline: "Pipeline",
+  pipeline_view_proposals_link: "View Proposals",
   tab_proposals: "Proposals",
 
   // ── Budget ─────────────────────────────────────────────────────────────────

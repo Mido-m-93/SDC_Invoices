@@ -15,7 +15,21 @@ export default function PipelineAndProposalPage() {
 
   return (
     <AppShell>
-      <PageHeader title={t("nav_proposals")} subtitle={t("pipeline_and_proposal_subtitle")} />
+      <PageHeader
+        title={t("nav_proposals")}
+        subtitle={t("pipeline_and_proposal_subtitle")}
+        actions={
+          tab === "pipeline" ? (
+            <button onClick={() => setTab("proposals")} className="text-sm text-blue-600 hover:underline">
+              {t("pipeline_view_proposals_link")} →
+            </button>
+          ) : (
+            <button onClick={() => setTab("pipeline")} className="text-sm text-blue-600 hover:underline">
+              ← {t("tab_pipeline")}
+            </button>
+          )
+        }
+      />
 
       <div className="mb-5 flex gap-1 border-b border-stone-200">
         {(["pipeline"] as const).map((tb) => (
