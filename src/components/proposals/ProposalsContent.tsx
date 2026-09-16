@@ -25,6 +25,7 @@ const EMPTY: ProposalForm = {
   clientId: "", clientName: "", leadId: "", projectName: "", proposalDate: "",
   estimatedAmount: 0, currency: "JPY", description: "",
   status: "draft", contractId: "", folderUrl: "", preliminaryNoticeDate: null,
+  quoteSheetCreatedAt: null, quoteSheetUrl: "", internalApprovalAt: null,
 };
 
 interface ProposalsContentProps {
@@ -111,11 +112,15 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       description: p.description, status: p.status,
       contractId: p.contractId ?? "", folderUrl: p.folderUrl ?? "",
       preliminaryNoticeDate: p.preliminaryNoticeDate ?? null,
+      quoteSheetCreatedAt: p.quoteSheetCreatedAt ?? null, quoteSheetUrl: p.quoteSheetUrl ?? "",
+      internalApprovalAt: p.internalApprovalAt ?? null,
     });
     setShowForm(true);
   }
 
   const [markingNotice, setMarkingNotice] = useState<string | null>(null);
+  const [markingQuote, setMarkingQuote] = useState<string | null>(null);
+  const [markingApproval, setMarkingApproval] = useState<string | null>(null);
 
   async function handleMarkPreliminaryNotice(p: Proposal) {
     setMarkingNotice(p.id);
@@ -132,6 +137,42 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       notify("error", `Failed to mark preliminary notice for ${p.projectName}`, "/proposals");
     } finally {
       setMarkingNotice(null);
+    }
+  }
+
+  async function handleMarkQuoteCreated(p: Proposal) {
+    setMarkingQuote(p.id);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...p, quoteSheetCreatedAt: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Marked quote/price sheet created for ${p.projectName}`, "/proposals");
+      load();
+    } catch {
+      notify("error", `Failed to mark quote sheet created for ${p.projectName}`, "/proposals");
+    } finally {
+      setMarkingQuote(null);
+    }
+  }
+
+  async function handleMarkInternalApproval(p: Proposal) {
+    setMarkingApproval(p.id);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...p, internalApprovalAt: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Marked internal approval complete for ${p.projectName}`, "/proposals");
+      load();
+    } catch {
+      notify("error", `Failed to mark internal approval for ${p.projectName}`, "/proposals");
+    } finally {
+      setMarkingApproval(null);
     }
   }
 
@@ -249,6 +290,8 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                 <th className="px-4 py-3 text-left">{t("proposals_col_date")}</th>
                 <th className="px-4 py-3 text-right">{t("proposals_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_status")}</th>
+                <th className="px-4 py-3 text-left">{t("proposals_col_quote_sheet")}</th>
+                <th className="px-4 py-3 text-left">{t("proposals_col_internal_approval")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_preliminary_notice")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_contract")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_folder")}</th>
@@ -270,6 +313,28 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[p.status]}`}>
                       {statusLabel(p.status)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.quoteSheetCreatedAt ? (
+                      p.quoteSheetUrl ? (
+                        <a href={p.quoteSheetUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 hover:underline">✓ {p.quoteSheetCreatedAt}</a>
+                      ) : (
+                        <span className="text-xs text-emerald-700">✓ {p.quoteSheetCreatedAt}</span>
+                      )
+                    ) : (
+                      <Button variant="ghost" size="sm" loading={markingQuote === p.id} onClick={() => handleMarkQuoteCreated(p)}>
+                        {t("proposals_action_mark_quote_sheet")}
+                      </Button>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.internalApprovalAt ? (
+                      <span className="text-xs text-emerald-700">✓ {p.internalApprovalAt}</span>
+                    ) : (
+                      <Button variant="ghost" size="sm" loading={markingApproval === p.id} onClick={() => handleMarkInternalApproval(p)}>
+                        {t("proposals_action_mark_internal_approval")}
+                      </Button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {p.preliminaryNoticeDate ? (
@@ -359,6 +424,25 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     <option key={v} value={v}>{statusLabel(v)}</option>
                   ))}
                 </select>
+              </Field>
+              <Field label={t("proposals_field_quote_sheet_url")}>
+                <input className={input} value={form.quoteSheetUrl ?? ""} onChange={e => set("quoteSheetUrl", e.target.value)} placeholder="https://..." />
+              </Field>
+              <Field label={t("proposals_field_quote_sheet_date")}>
+                <input
+                  type="date"
+                  className={input}
+                  value={form.quoteSheetCreatedAt ?? ""}
+                  onChange={e => set("quoteSheetCreatedAt", e.target.value || null)}
+                />
+              </Field>
+              <Field label={t("proposals_field_internal_approval_date")}>
+                <input
+                  type="date"
+                  className={input}
+                  value={form.internalApprovalAt ?? ""}
+                  onChange={e => set("internalApprovalAt", e.target.value || null)}
+                />
               </Field>
               <Field label={t("proposals_field_preliminary_notice_date")}>
                 <input

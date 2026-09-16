@@ -239,6 +239,9 @@ export interface Proposal {
   verification?: ConsistencyVerdict;   // AI check: this proposal vs. its lead
   sourceFileId?: string;   // SharePoint Graph item id, when synced from WorkTogether — used to dedup re-syncs
   preliminaryNoticeDate?: string | null;   // 内示 — date a preliminary/informal award notice was received, ahead of formal acceptance
+  quoteSheetCreatedAt?: string | null;     // Internal Approval step 2-1 — date a quote/price sheet was prepared
+  quoteSheetUrl?: string;                  // link to that quote/price sheet document
+  internalApprovalAt?: string | null;      // Internal Approval step 2-2 — date internal interviews/consent were completed
   createdAt: string;
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
@@ -642,6 +645,8 @@ export interface Lead {
   proposalId: string | null;
   notes: string;
   lostReason: string;
+  salesforceRegisteredAt?: string | null;   // Deal Registration step 1-2 — date this deal was registered in Salesforce
+  salesforceUrl?: string;                   // link to the Salesforce record
   createdAt: string;
   updatedAt: string;
 }

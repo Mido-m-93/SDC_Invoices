@@ -29,6 +29,7 @@ const EMPTY_FORM: Omit<Lead, "id" | "createdAt" | "updatedAt" | "proposalId"> = 
   title: "", clientId: "", clientName: "", contactName: "", contactEmail: "",
   source: "inbound", stage: "new", estimatedValue: 0, currency: "JPY",
   probability: 0, expectedCloseDate: "", assignedTo: "", notes: "", lostReason: "",
+  salesforceRegisteredAt: null, salesforceUrl: "",
 };
 
 export default function LeadsPage() {
@@ -159,6 +160,26 @@ export default function LeadsPage() {
     } catch (err) {
       setError(t("leads_save_failed"));
       notify("error", `Failed to delete lead ${target?.title ?? id}: ${String(err)}`, "/leads");
+    }
+  }
+
+  const [markingSalesforce, setMarkingSalesforce] = useState<string | null>(null);
+
+  async function handleMarkSalesforce(l: Lead) {
+    setMarkingSalesforce(l.id);
+    try {
+      const res = await fetch(`/api/leads/${l.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...l, salesforceRegisteredAt: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Marked "${l.title}" registered with Salesforce`, "/leads");
+      load();
+    } catch {
+      notify("error", `Failed to mark "${l.title}" registered with Salesforce`, "/leads");
+    } finally {
+      setMarkingSalesforce(null);
     }
   }
 
@@ -296,6 +317,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 text-left">{t("leads_col_probability")}</th>
                 <th className="px-4 py-3 text-left">{t("leads_col_expected_close")}</th>
                 <th className="px-4 py-3 text-left">{t("leads_col_assigned_to")}</th>
+                <th className="px-4 py-3 text-left">{t("leads_col_salesforce")}</th>
                 <th className="px-4 py-3 text-left">{t("leads_col_actions")}</th>
               </tr>
             </thead>
@@ -315,6 +337,19 @@ export default function LeadsPage() {
                   <td className="px-4 py-3 text-stone-600">{l.probability > 0 ? `${l.probability}%` : "—"}</td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{l.expectedCloseDate || "—"}</td>
                   <td className="px-4 py-3 text-stone-600">{l.assignedTo || "—"}</td>
+                  <td className="px-4 py-3">
+                    {l.salesforceRegisteredAt ? (
+                      l.salesforceUrl ? (
+                        <a href={l.salesforceUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 hover:underline">✓ {l.salesforceRegisteredAt}</a>
+                      ) : (
+                        <span className="text-xs text-emerald-700">✓ {l.salesforceRegisteredAt}</span>
+                      )
+                    ) : (
+                      <Button variant="ghost" size="sm" loading={markingSalesforce === l.id} onClick={() => handleMarkSalesforce(l)}>
+                        {t("leads_action_mark_salesforce")}
+                      </Button>
+                    )}
+                  </td>
                   <td className="px-4 py-3 flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(l)}>{t("leads_action_edit")}</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(l.id)}>{t("leads_action_delete")}</Button>
@@ -403,6 +438,9 @@ export default function LeadsPage() {
                   <input className={input} value={form.lostReason} onChange={(e) => set("lostReason", e.target.value)} placeholder={t("leads_field_lost_reason_placeholder")} />
                 </Field>
               )}
+              <Field label={t("leads_field_salesforce_url")}>
+                <input className={input} value={form.salesforceUrl ?? ""} onChange={(e) => set("salesforceUrl", e.target.value)} placeholder="https://yourorg.lightning.force.com/..." />
+              </Field>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
