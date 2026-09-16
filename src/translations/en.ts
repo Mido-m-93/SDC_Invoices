@@ -811,6 +811,15 @@ const en = {
 
   // ── Contracts page ────────────────────────────────────────────────────────
   contracts_title: "Contracts",
+  contracts_tab_contracts: "Contracts",
+  contracts_tab_members: "Members Contract",
+  members_contract_subtitle: "Read-only view of the SharePoint 03_Member contract folder — sync to rescan, nothing is saved to the database.",
+  members_contract_sync_button: "Sync from SharePoint",
+  members_contract_sync_result: "Found {count} member folder(s)",
+  members_contract_sync_failed: "Failed to sync member folders",
+  members_contract_empty_title: "Click \"Sync from SharePoint\" to load member contract folders.",
+  members_contract_no_results: "No member folders found.",
+  members_contract_no_files: "No files in this folder.",
   contracts_subtitle: "Vendor and client contracts — used for invoice validation and pipeline tracking",
   contracts_add_button: "+ Add Contract",
   contracts_sync_button: "Sync from SharePoint",
