@@ -114,8 +114,9 @@ export default function ContractsPage() {
         notify("success", `Verified contract for ${c.projectName || c.id}`, "/contracts");
         load();
       } else {
-        setError(t("contracts_sync_failed"));
-        notify("error", `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? t("contracts_sync_failed"));
+        notify("error", data.error ?? `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
       }
     } catch {
       setError(t("contracts_sync_failed"));
@@ -546,6 +547,11 @@ export default function ContractsPage() {
                             verifyLabel={t("contracts_action_verify")}
                             reverifyLabel={t("contracts_action_reverify")}
                           />
+                          {c.clientName && (
+                            <button onClick={() => handleViewFiles(c)} className="block text-xs text-blue-600 hover:underline mt-0.5">
+                              {t("contracts_action_view_files")}
+                            </button>
+                          )}
                         </div>
                         <div>
                           <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("contracts_col_verification_budget")}</p>
