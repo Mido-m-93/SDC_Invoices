@@ -36,22 +36,35 @@ export async function POST() {
   }
 
   let clients = await clientSvc.listClients();
-  const existingFileIds = new Set(
-    (await service.listProposals()).map((p) => p.sourceFileId).filter((id): id is string => !!id)
+  const existingProposals = await service.listProposals();
+  const bySourceFileId = new Map(
+    existingProposals.filter((p) => p.sourceFileId).map((p) => [p.sourceFileId as string, p])
   );
 
   const saved: string[] = [];
   const failed: string[] = [];
   let skipped = 0;
+  let folderUrlsBackfilled = 0;
   let clientsCreated = 0;
 
   for (const item of result.items) {
-    const { fields, fileName, fileId } = item;
+    const { fields, fileName, fileId, fileUrl } = item;
 
     // Already imported this exact SharePoint file in a prior sync — skip so
-    // re-running sync doesn't create a duplicate proposal every time.
-    if (existingFileIds.has(fileId)) {
+    // re-running sync doesn't create a duplicate proposal every time. Older
+    // proposals synced before folderUrl was captured get backfilled here
+    // instead of needing a separate one-off migration.
+    const existing = bySourceFileId.get(fileId);
+    if (existing) {
       skipped++;
+      if (!existing.folderUrl && fileUrl) {
+        try {
+          await service.saveProposal({ ...existing, folderUrl: fileUrl });
+          folderUrlsBackfilled++;
+        } catch (err) {
+          console.error(`[proposals/sync] Failed to backfill folderUrl for "${fileName}":`, err);
+        }
+      }
       continue;
     }
 
@@ -111,7 +124,7 @@ export async function POST() {
       description: `Synced from SharePoint: ${fileName}`,
       status: "submitted",
       contractId: undefined,
-      folderUrl: undefined,
+      folderUrl: fileUrl || undefined,
       sourceFileId: fileId,
       createdAt: new Date().toISOString(),
     };
@@ -128,6 +141,7 @@ export async function POST() {
     saved: saved.length,
     failed: failed.length,
     skipped,
+    folderUrlsBackfilled,
     clientsCreated,
     savedNames: saved,
     failedNames: failed,

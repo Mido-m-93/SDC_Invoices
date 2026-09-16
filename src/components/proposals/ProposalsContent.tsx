@@ -49,20 +49,20 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
   const [form, setForm] = useState<ProposalForm>({ ...EMPTY });
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; clientsCreated: number; savedNames: string[] } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; clientsCreated: number; folderUrlsBackfilled: number; savedNames: string[] } | null>(null);
 
   async function handleSyncFromSharePoint() {
     setSyncing(true);
     setSyncResult(null);
     try {
       const res = await fetch("/api/proposals/sync", { method: "POST" });
-      const data = await res.json() as { saved: number; failed: number; clientsCreated: number; savedNames: string[]; error?: string };
+      const data = await res.json() as { saved: number; failed: number; clientsCreated: number; folderUrlsBackfilled: number; savedNames: string[]; error?: string };
       if (!res.ok) {
         notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/proposals");
         return;
       }
       setSyncResult(data);
-      notify("success", `Synced ${data.saved} proposal(s) from SharePoint${data.clientsCreated > 0 ? `, ${data.clientsCreated} new client(s) created` : ""}`, "/proposals");
+      notify("success", `Synced ${data.saved} proposal(s) from SharePoint${data.clientsCreated > 0 ? `, ${data.clientsCreated} new client(s) created` : ""}${data.folderUrlsBackfilled > 0 ? `, ${data.folderUrlsBackfilled} folder link(s) backfilled` : ""}`, "/proposals");
       load();
     } catch {
       notify("error", "SharePoint sync failed", "/proposals");
