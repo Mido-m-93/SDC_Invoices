@@ -372,7 +372,7 @@ export default function ContractsPage() {
           <div className="flex gap-2">
             <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("contracts_sync_button")}</Button>
             {contracts.length > 0 && (
-              <Button variant="ghost" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
+              <Button variant="danger" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
             )}
             <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
           </div>
@@ -571,7 +571,7 @@ export default function ContractsPage() {
                         <Button variant="ghost" size="sm" onClick={() => handleViewFiles(c)}>{t("contracts_action_view_files")}</Button>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("contracts_action_edit")}</Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("contracts_action_delete")}</Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDelete(c.id)}>{t("contracts_action_delete")}</Button>
                     </td>
                   </tr>
                 );
