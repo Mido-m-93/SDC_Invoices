@@ -24,19 +24,30 @@ export async function POST(req: NextRequest) {
   if (!user) return response!;
   try {
     const body = await req.json() as Partial<Vendor>;
+    const svc = getVendorService();
+
+    // Guard against duplicate vendors: a new (no id) submission for a name
+    // that already exists updates that vendor instead of inserting another
+    // row — saveVendor() only dedupes by id, not by name.
+    let existing: Vendor | undefined;
+    if (!body.id && body.name) {
+      const name = body.name.toLowerCase();
+      existing = (await svc.listVendors()).find((v) => v.name.toLowerCase() === name);
+    }
+
     const vendor: Vendor = {
-      id: body.id || generateId(),
-      name: body.name ?? "",
-      aliases: body.aliases ?? [],
-      taxRegistrationNumber: body.taxRegistrationNumber ?? "",
-      bankAccountLast4: body.bankAccountLast4 ?? "",
-      defaultReviewer: body.defaultReviewer ?? "",
-      defaultProject: body.defaultProject ?? "",
-      status: body.status ?? "active",
-      createdAt: body.createdAt ?? new Date().toISOString(),
+      id: existing?.id ?? body.id ?? generateId(),
+      name: body.name ?? existing?.name ?? "",
+      aliases: body.aliases ?? existing?.aliases ?? [],
+      taxRegistrationNumber: body.taxRegistrationNumber ?? existing?.taxRegistrationNumber ?? "",
+      bankAccountLast4: body.bankAccountLast4 ?? existing?.bankAccountLast4 ?? "",
+      defaultReviewer: body.defaultReviewer ?? existing?.defaultReviewer ?? "",
+      defaultProject: body.defaultProject ?? existing?.defaultProject ?? "",
+      status: body.status ?? existing?.status ?? "active",
+      createdAt: existing?.createdAt ?? body.createdAt ?? new Date().toISOString(),
     };
-    await getVendorService().saveVendor(vendor);
-    return NextResponse.json({ success: true, vendor });
+    await svc.saveVendor(vendor);
+    return NextResponse.json({ success: true, vendor, deduped: !!existing });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
