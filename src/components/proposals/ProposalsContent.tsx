@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import VerificationBadge from "@/components/ui/VerificationBadge";
 import ClientPicker from "@/components/ui/ClientPicker";
 import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
@@ -25,7 +26,7 @@ const EMPTY: ProposalForm = {
   clientId: "", clientName: "", leadId: "", projectName: "", proposalDate: "",
   estimatedAmount: 0, currency: "JPY", description: "",
   status: "draft", contractId: "", folderUrl: "", preliminaryNoticeDate: null,
-  quoteSheetCreatedAt: null, quoteSheetUrl: "", internalApprovalAt: null,
+  quoteSheetCreatedAt: null, quoteSheetUrl: "", quoteSheetAmount: null, internalApprovalAt: null,
 };
 
 interface ProposalsContentProps {
@@ -113,6 +114,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       contractId: p.contractId ?? "", folderUrl: p.folderUrl ?? "",
       preliminaryNoticeDate: p.preliminaryNoticeDate ?? null,
       quoteSheetCreatedAt: p.quoteSheetCreatedAt ?? null, quoteSheetUrl: p.quoteSheetUrl ?? "",
+      quoteSheetAmount: p.quoteSheetAmount ?? null,
       internalApprovalAt: p.internalApprovalAt ?? null,
     });
     setShowForm(true);
@@ -155,6 +157,26 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       notify("error", `Failed to mark quote sheet created for ${p.projectName}`, "/proposals");
     } finally {
       setMarkingQuote(null);
+    }
+  }
+
+  const [verifyingQuoteSheet, setVerifyingQuoteSheet] = useState<string | null>(null);
+
+  async function handleVerifyQuoteSheet(p: Proposal) {
+    setVerifyingQuoteSheet(p.id);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}/verify-quote-sheet`, { method: "POST" });
+      if (res.ok) {
+        notify("success", `Verified quote sheet for ${p.projectName}`, "/proposals");
+        load();
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        notify("error", data.error ?? `Failed to verify quote sheet for ${p.projectName}`, "/proposals");
+      }
+    } catch {
+      notify("error", `Failed to verify quote sheet for ${p.projectName}`, "/proposals");
+    } finally {
+      setVerifyingQuoteSheet(null);
     }
   }
 
@@ -316,11 +338,22 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                   </td>
                   <td className="px-4 py-3">
                     {p.quoteSheetCreatedAt ? (
-                      p.quoteSheetUrl ? (
-                        <a href={p.quoteSheetUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 hover:underline">✓ {p.quoteSheetCreatedAt}</a>
-                      ) : (
-                        <span className="text-xs text-emerald-700">✓ {p.quoteSheetCreatedAt}</span>
-                      )
+                      <div className="flex flex-col items-start gap-1">
+                        {p.quoteSheetUrl ? (
+                          <a href={p.quoteSheetUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-700 hover:underline">✓ {p.quoteSheetCreatedAt}</a>
+                        ) : (
+                          <span className="text-xs text-emerald-700">✓ {p.quoteSheetCreatedAt}</span>
+                        )}
+                        {p.quoteSheetAmount != null && (
+                          <VerificationBadge
+                            verification={p.verificationQuoteSheet}
+                            onVerify={() => handleVerifyQuoteSheet(p)}
+                            verifying={verifyingQuoteSheet === p.id}
+                            verifyLabel={t("proposals_action_verify_quote_sheet")}
+                            reverifyLabel={t("proposals_action_reverify_quote_sheet")}
+                          />
+                        )}
+                      </div>
                     ) : (
                       <Button variant="ghost" size="sm" loading={markingQuote === p.id} onClick={() => handleMarkQuoteCreated(p)}>
                         {t("proposals_action_mark_quote_sheet")}
@@ -427,6 +460,15 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               </Field>
               <Field label={t("proposals_field_quote_sheet_url")}>
                 <input className={input} value={form.quoteSheetUrl ?? ""} onChange={e => set("quoteSheetUrl", e.target.value)} placeholder="https://..." />
+              </Field>
+              <Field label={t("proposals_field_quote_sheet_amount")}>
+                <input
+                  type="number"
+                  className={input}
+                  value={form.quoteSheetAmount ?? ""}
+                  onChange={e => set("quoteSheetAmount", e.target.value === "" ? null : Number(e.target.value))}
+                  placeholder="0"
+                />
               </Field>
               <Field label={t("proposals_field_quote_sheet_date")}>
                 <input
