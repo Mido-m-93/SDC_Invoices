@@ -241,6 +241,8 @@ export interface Proposal {
   preliminaryNoticeDate?: string | null;   // 内示 — date a preliminary/informal award notice was received, ahead of formal acceptance
   quoteSheetCreatedAt?: string | null;     // Internal Approval step 2-1 — date a quote/price sheet was prepared
   quoteSheetUrl?: string;                  // link to that quote/price sheet document
+  quoteSheetAmount?: number | null;        // amount stated on that quote/price sheet, for AI verification against estimatedAmount
+  verificationQuoteSheet?: ConsistencyVerdict;   // AI check: quote/price sheet amount vs. this proposal's estimatedAmount
   internalApprovalAt?: string | null;      // Internal Approval step 2-2 — date internal interviews/consent were completed
   createdAt: string;
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
