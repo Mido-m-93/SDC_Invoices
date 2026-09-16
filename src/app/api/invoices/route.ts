@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    console.log(`[GET /api/invoices] month=${month} mock_sheets=${process.env.NEXT_PUBLIC_USE_MOCK_SHEETS} mock_storage=${process.env.NEXT_PUBLIC_USE_MOCK_STORAGE} azure_tenant=${!!process.env.AZURE_TENANT_ID}`);
+    console.log(`[GET /api/invoices] month=${month} mock_sheets=${process.env.NEXT_PUBLIC_USE_MOCK_SHEETS} mock_storage=${process.env.USE_MOCK_STORAGE} azure_tenant=${!!process.env.AZURE_TENANT_ID}`);
 
     // Storage and Sheets are independent data sources — fetch concurrently
     // instead of sequentially. Sheets is the slow one (Microsoft Graph round

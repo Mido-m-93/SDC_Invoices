@@ -1,7 +1,7 @@
 // lib/services/stagedProposalStore.ts — Proposal Sync review-queue persistence facade
 //
 // Same split as pipelineSyncStore.ts: file-based mock storage locally, real
-// Supabase storage in production (NEXT_PUBLIC_USE_MOCK_STORAGE=false).
+// Supabase storage in production (USE_MOCK_STORAGE=false).
 
 import "server-only";
 import type { StagedProposalRecord } from "@/types";
@@ -9,7 +9,7 @@ import * as mockStore from "./mock/fileStore";
 import * as supabaseStore from "./real/SupabaseStagedProposalStore";
 
 function isMock(): boolean {
-  return process.env.NEXT_PUBLIC_USE_MOCK_STORAGE !== "false";
+  return process.env.USE_MOCK_STORAGE !== "false";
 }
 
 export async function loadStagedProposalRecords(): Promise<StagedProposalRecord[]> {

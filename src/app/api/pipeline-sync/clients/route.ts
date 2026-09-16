@@ -1,5 +1,5 @@
 // Mock-only clients endpoint for the Pipeline Sync review UI.
-// Deliberately bypasses getClientService() (which follows NEXT_PUBLIC_USE_MOCK_STORAGE,
+// Deliberately bypasses getClientService() (which follows USE_MOCK_STORAGE,
 // "false"/real-Supabase in this project) so reviewing/creating clients while testing
 // pipeline sync never writes real data. Swap to getClientService() once verified.
 import { NextRequest, NextResponse } from "next/server";
