@@ -252,6 +252,14 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         linkLabel="View Contract"
         isLast
       />
+      {submission?.invoiceAttachment && (
+        <a
+          href={`/api/files/sharepoint-download?url=${encodeURIComponent(submission.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${submission.payerName || submission.id}.pdf`)}`}
+          className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800"
+        >
+          ⬇ Download Invoice PDF
+        </a>
+      )}
     </div>
   );
 }

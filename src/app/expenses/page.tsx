@@ -685,6 +685,14 @@ export default function ExpensesPage() {
                 linkLabel="View Receipt"
                 isLast
               />
+              {validationPanel.claim.receiptUrl && (
+                <a
+                  href={`/api/files/sharepoint-download?url=${encodeURIComponent(validationPanel.claim.receiptUrl)}&filename=${encodeURIComponent(validationPanel.claim.receiptFilename || `receipt_${validationPanel.claim.submittedBy}`)}`}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800"
+                >
+                  ⬇ Download Receipt PDF
+                </a>
+              )}
             </div>
 
             <div className="sticky bottom-0 bg-white border-t border-stone-100 px-6 py-4">
