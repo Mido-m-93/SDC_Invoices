@@ -325,11 +325,13 @@ const en = {
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",
+  dashboard_stat_submitted: "Submitted",
   dashboard_stat_violations: "Violations",
   dashboard_stat_active: "Active",
   dashboard_stat_prospects: "Prospects",
   dashboard_stat_open: "Open",
   dashboard_stat_accepted: "Accepted",
+  dashboard_stat_expiring_soon: "Expiring Soon",
   dashboard_stat_new: "New",
   dashboard_stat_pipeline: "Pipeline",
   dashboard_invoice_processing: "Invoice Processing",

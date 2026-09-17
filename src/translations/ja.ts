@@ -325,11 +325,13 @@ const ja = {
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "保留中",
+  dashboard_stat_submitted: "申請中",
   dashboard_stat_violations: "違反",
   dashboard_stat_active: "アクティブ",
   dashboard_stat_prospects: "見込み客",
   dashboard_stat_open: "進行中",
   dashboard_stat_accepted: "受注済み",
+  dashboard_stat_expiring_soon: "期限間近",
   dashboard_stat_new: "新規",
   dashboard_stat_pipeline: "パイプライン",
   dashboard_invoice_processing: "請求書処理",

@@ -27,8 +27,9 @@ import {
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { SHOW_DASHBOARD_NO_DATA_BANNER } from "@/lib/featureFlags";
-import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Contract } from "@/types";
 import type { TranslationKey } from "@/translations";
+import { computeContractStats } from "@/lib/contractStats";
 import clsx from "clsx";
 
 const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
@@ -55,6 +56,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [expandedModule, setExpandedModule] = useState<"invoices" | "expenses" | null>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceListItem[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
@@ -66,7 +68,8 @@ export default function DashboardPage() {
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     clients:  { total: number; active: number; prospects: number } | null;
     proposals: { total: number; open: number; accepted: number } | null;
-  }>({ expenses: null, clients: null, proposals: null });
+    contracts: { total: number; active: number; expiringSoon: number } | null;
+  }>({ expenses: null, clients: null, proposals: null, contracts: null });
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -157,10 +160,11 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, clientRes, proposalRes] = await Promise.allSettled([
+      const [expRes, clientRes, proposalRes, contractRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
         fetch("/api/clients").then((r) => r.json() as Promise<{ clients: Client[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
+        fetch("/api/contracts").then((r) => r.json() as Promise<{ contracts: Contract[] }>),
       ]);
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
@@ -182,6 +186,9 @@ export default function DashboardPage() {
           const ps = proposalRes.value.proposals ?? [];
           return { total: ps.length, open: ps.filter((p) => p.status === "submitted").length, accepted: ps.filter((p) => p.status === "accepted").length };
         })() : null,
+        contracts: contractRes.status === "fulfilled"
+          ? computeContractStats(contractRes.value.contracts ?? [], new Date())
+          : null,
       });
     }
     load().catch(() => {});
@@ -324,6 +331,8 @@ export default function DashboardPage() {
     }
   };
 
+  const contractsExpiringSoon = moduleData.contracts?.expiringSoon ?? 0;
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl">
@@ -333,11 +342,37 @@ export default function DashboardPage() {
           actions={<MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />}
         />
 
-        {/* ── Module summary cards ──────────────────────────────────── */}
-        {/* Invoices and Expenses each already get a full detail section below,
-            so they're left out here to avoid showing the same numbers twice.
-            Leads dropped per request — not tracked on this dashboard. */}
-        <div className="mb-8 grid grid-cols-2 gap-3 max-w-md">
+        {/* ── Module overview grid ──────────────────────────────────── */}
+        {/* Leads not tracked on this dashboard. */}
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <ModuleCard
+            active={expandedModule === "invoices"}
+            onClick={() => setExpandedModule((m) => (m === "invoices" ? null : "invoices"))}
+            label={t("nav_invoices")} icon={<InvoiceModIcon />}
+            primary={stats?.totalRows ?? "—"}
+            subs={[
+              { label: t("ready"),           value: stats?.ready ?? 0,           color: "green" },
+              { label: t("review_required"), value: stats?.reviewRequired ?? 0,  color: (stats?.reviewRequired ?? 0) > 0 ? "amber" : "neutral" },
+            ]}
+          />
+          <ModuleCard
+            active={expandedModule === "expenses"}
+            onClick={() => setExpandedModule((m) => (m === "expenses" ? null : "expenses"))}
+            label={t("nav_expenses")} icon={<ExpenseModIcon />}
+            primary={moduleData.expenses?.total ?? "—"}
+            subs={[
+              { label: t("dashboard_stat_submitted"),  value: moduleData.expenses?.submitted ?? 0,  color: (moduleData.expenses?.submitted ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_violations"), value: moduleData.expenses?.violations ?? 0, color: (moduleData.expenses?.violations ?? 0) > 0 ? "red" : "neutral" },
+            ]}
+          />
+          <ModuleCard
+            href="/contracts" label={t("nav_contracts")} icon={<ContractModIcon />}
+            primary={moduleData.contracts?.total ?? "—"}
+            subs={[
+              { label: t("dashboard_stat_active"),         value: moduleData.contracts?.active ?? 0,       color: "green" },
+              { label: t("dashboard_stat_expiring_soon"),  value: contractsExpiringSoon, color: contractsExpiringSoon > 0 ? "amber" : "neutral" },
+            ]}
+          />
           <ModuleCard
             href="/clients" label={t("nav_clients")} icon={<ClientModIcon />}
             primary={moduleData.clients?.total ?? "—"}
@@ -356,172 +391,180 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* ── Invoice processing section header ─────────────────────── */}
-        <div className="flex items-center gap-2 mb-4">
-          <InvoiceModIcon size={14} />
-          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">{t("dashboard_invoice_processing")}</p>
-          <span className="text-xs text-stone-300 ml-1">— {month}</span>
-        </div>
+        {/* ── Invoices expanded panel ───────────────────────────────── */}
+        {expandedModule === "invoices" && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <InvoiceModIcon size={14} />
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">{t("dashboard_invoice_processing")}</p>
+              <span className="text-xs text-stone-300 ml-1">— {month}</span>
+            </div>
 
-        {/* Action bar */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          <Button
-            variant="primary"
-            size="md"
-            loading={loading}
-            onClick={handleLoadInvoices}
-            icon={<RefreshIcon />}
-          >
-            {t("load_invoices")}
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            loading={validating}
-            onClick={handleRunValidation}
-            icon={<CheckIcon />}
-          >
-            {t("run_validation")}
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            loading={saving}
-            onClick={handleSaveReadyFiles}
-            icon={<SaveIcon />}
-          >
-            {t("save_ready_files")}
-          </Button>
-        </div>
-
-        {/* Error banner */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 flex items-center justify-between gap-4">
-            <span className="font-mono">{error}</span>
-            <Link href="/invoices" className="shrink-0">
-              <Button variant="secondary" size="sm">
-                {language === "ja" ? "請求書一覧へ →" : "Go to Invoices →"}
+            {/* Action bar */}
+            <div className="flex flex-wrap gap-3 mb-8">
+              <Button
+                variant="primary"
+                size="md"
+                loading={loading}
+                onClick={handleLoadInvoices}
+                icon={<RefreshIcon />}
+              >
+                {t("load_invoices")}
               </Button>
-            </Link>
-          </div>
-        )}
+              <Button
+                variant="secondary"
+                size="md"
+                loading={validating}
+                onClick={handleRunValidation}
+                icon={<CheckIcon />}
+              >
+                {t("run_validation")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                loading={saving}
+                onClick={handleSaveReadyFiles}
+                icon={<SaveIcon />}
+              >
+                {t("save_ready_files")}
+              </Button>
+            </div>
 
-        {/* Save success banner */}
-        {savedCount !== null && (
-          <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 text-sm text-emerald-700 flex items-center justify-between">
-            <span>{t("dashboard_save_success").replace("{count}", String(savedCount))}</span>
-            <button onClick={() => setSavedCount(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">×</button>
-          </div>
-        )}
-
-        {/* Stats grid */}
-        {loading && !stats ? (
-          <div className="flex items-center justify-center h-48 text-stone-400 text-sm">
-            {t("loading")}
-          </div>
-        ) : stats ? (
-          <>
-            {/* Empty state — no invoices loaded yet */}
-            {SHOW_DASHBOARD_NO_DATA_BANNER && stats.totalRows === 0 && !loading && (
-              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-6 py-5 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">
-                    {language === "ja" ? "請求書データがまだ読み込まれていません" : "No invoice data loaded yet"}
-                  </p>
-                  <p className="text-xs text-amber-600 mt-0.5">
-                    {language === "ja"
-                      ? "請求書一覧ページでCSVファイルをアップロードしてください。"
-                      : "Go to the Invoices page and upload your CSV file to get started."}
-                  </p>
-                </div>
+            {/* Error banner */}
+            {error && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700 flex items-center justify-between gap-4">
+                <span className="font-mono">{error}</span>
                 <Link href="/invoices" className="shrink-0">
-                  <Button variant="secondary" size="sm" icon={<UploadIcon />}>
-                    {language === "ja" ? "CSVをアップロード" : "Upload CSV"}
-                  </Button>
-                </Link>
-              </div>
-            )}
-
-            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label={t("total_rows")} value={stats.totalRows} icon={<ListIcon />}
-                active={activeFilter === "ALL"} onClick={() => handleCardClick("ALL")} />
-              <StatCard label={t("ready")} value={stats.ready} accent="green" icon={<CheckCircleIcon />}
-                active={activeFilter === "READY"} onClick={() => handleCardClick("READY")} />
-              <StatCard label={t("review_required")} value={stats.reviewRequired} accent="amber" icon={<AlertIcon />}
-                active={activeFilter === "REVIEW_REQUIRED"} onClick={() => handleCardClick("REVIEW_REQUIRED")} />
-              <StatCard label={t("saved")} value={stats.saved} accent="blue" icon={<FolderIcon />}
-                active={activeFilter === "SAVED"} onClick={() => handleCardClick("SAVED")} />
-            </div>
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <StatCard label={t("errors")} value={stats.errors} accent="red" icon={<XCircleIcon />}
-                active={activeFilter === "ERRORS"} onClick={() => handleCardClick("ERRORS")} />
-              <StatCard label={t("missing_attachment")} value={stats.missingAttachment} accent="red" icon={<AttachIcon />}
-                active={activeFilter === "MISSING_ATTACHMENT"} onClick={() => handleCardClick("MISSING_ATTACHMENT")} />
-              <StatCard label={t("already_processed")} value={stats.alreadyProcessed} accent="slate" icon={<ArchiveIcon />}
-                active={activeFilter === "ALREADY_PROCESSED"} onClick={() => handleCardClick("ALREADY_PROCESSED")} />
-            </div>
-
-            {/* ── Expense claims strip ──────────────────────────────────────── */}
-            {moduleData.expenses && <ExpenseStrip data={moduleData.expenses} language={language} />}
-
-            {/* ── Phase 7: Reminder Status ──────────────────────────────────── */}
-            <ReminderStatusSection
-              summary={reminderSummary}
-              sending={sendingReminder}
-              result={reminderResult}
-              onSend={handleSendReminders}
-              language={language}
-              t={t}
-            />
-
-            {/* Invoice drawer — shown when a card is active */}
-            {activeFilter && (
-              <div ref={drawerRef}>
-              <InvoiceDrawer
-                filter={activeFilter}
-                items={invoiceItems}
-                loading={invoicesLoading}
-                t={t}
-                onView={setSelectedItem}
-                onApprove={handleApprove}
-                approvingId={approvingId}
-                onClose={() => setActiveFilter(null)}
-              />
-              </div>
-            )}
-
-            {lastUpdated && (
-              <p className="text-xs text-stone-400">
-                {t("last_updated")}: {formatTimestamp(lastUpdated, language)}
-              </p>
-            )}
-
-            {stats.reviewRequired > 0 && (
-              <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">
-                    {stats.reviewRequired}{" "}
-                    {language === "ja"
-                      ? "件の請求書が確認待ちです"
-                      : `invoice${stats.reviewRequired > 1 ? "s" : ""} require review`}
-                  </p>
-                  <p className="text-xs text-amber-600 mt-0.5">
-                    {language === "ja"
-                      ? "請求書一覧で詳細を確認してください"
-                      : "Check the invoice list for details"}
-                  </p>
-                </div>
-                <Link href="/invoices">
                   <Button variant="secondary" size="sm">
-                    {t("nav_invoices")} →
+                    {language === "ja" ? "請求書一覧へ →" : "Go to Invoices →"}
                   </Button>
                 </Link>
               </div>
             )}
-          </>
-        ) : (
-          !error && <div className="text-sm text-stone-400">{t("no_data")}</div>
+
+            {/* Save success banner */}
+            {savedCount !== null && (
+              <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 text-sm text-emerald-700 flex items-center justify-between">
+                <span>{t("dashboard_save_success").replace("{count}", String(savedCount))}</span>
+                <button onClick={() => setSavedCount(null)} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">×</button>
+              </div>
+            )}
+
+            {/* Stats grid */}
+            {loading && !stats ? (
+              <div className="flex items-center justify-center h-48 text-stone-400 text-sm">
+                {t("loading")}
+              </div>
+            ) : stats ? (
+              <>
+                {/* Empty state — no invoices loaded yet */}
+                {SHOW_DASHBOARD_NO_DATA_BANNER && stats.totalRows === 0 && !loading && (
+                  <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-6 py-5 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        {language === "ja" ? "請求書データがまだ読み込まれていません" : "No invoice data loaded yet"}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        {language === "ja"
+                          ? "請求書一覧ページでCSVファイルをアップロードしてください。"
+                          : "Go to the Invoices page and upload your CSV file to get started."}
+                      </p>
+                    </div>
+                    <Link href="/invoices" className="shrink-0">
+                      <Button variant="secondary" size="sm" icon={<UploadIcon />}>
+                        {language === "ja" ? "CSVをアップロード" : "Upload CSV"}
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+
+                <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard label={t("total_rows")} value={stats.totalRows} icon={<ListIcon />}
+                    active={activeFilter === "ALL"} onClick={() => handleCardClick("ALL")} />
+                  <StatCard label={t("ready")} value={stats.ready} accent="green" icon={<CheckCircleIcon />}
+                    active={activeFilter === "READY"} onClick={() => handleCardClick("READY")} />
+                  <StatCard label={t("review_required")} value={stats.reviewRequired} accent="amber" icon={<AlertIcon />}
+                    active={activeFilter === "REVIEW_REQUIRED"} onClick={() => handleCardClick("REVIEW_REQUIRED")} />
+                  <StatCard label={t("saved")} value={stats.saved} accent="blue" icon={<FolderIcon />}
+                    active={activeFilter === "SAVED"} onClick={() => handleCardClick("SAVED")} />
+                </div>
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <StatCard label={t("errors")} value={stats.errors} accent="red" icon={<XCircleIcon />}
+                    active={activeFilter === "ERRORS"} onClick={() => handleCardClick("ERRORS")} />
+                  <StatCard label={t("missing_attachment")} value={stats.missingAttachment} accent="red" icon={<AttachIcon />}
+                    active={activeFilter === "MISSING_ATTACHMENT"} onClick={() => handleCardClick("MISSING_ATTACHMENT")} />
+                  <StatCard label={t("already_processed")} value={stats.alreadyProcessed} accent="slate" icon={<ArchiveIcon />}
+                    active={activeFilter === "ALREADY_PROCESSED"} onClick={() => handleCardClick("ALREADY_PROCESSED")} />
+                </div>
+
+                {/* Invoice drawer — shown when a card is active */}
+                {activeFilter && (
+                  <div ref={drawerRef}>
+                  <InvoiceDrawer
+                    filter={activeFilter}
+                    items={invoiceItems}
+                    loading={invoicesLoading}
+                    t={t}
+                    onView={setSelectedItem}
+                    onApprove={handleApprove}
+                    approvingId={approvingId}
+                    onClose={() => setActiveFilter(null)}
+                  />
+                  </div>
+                )}
+
+                {lastUpdated && (
+                  <p className="text-xs text-stone-400">
+                    {t("last_updated")}: {formatTimestamp(lastUpdated, language)}
+                  </p>
+                )}
+
+                {stats.reviewRequired > 0 && (
+                  <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        {stats.reviewRequired}{" "}
+                        {language === "ja"
+                          ? "件の請求書が確認待ちです"
+                          : `invoice${stats.reviewRequired > 1 ? "s" : ""} require review`}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        {language === "ja"
+                          ? "請求書一覧で詳細を確認してください"
+                          : "Check the invoice list for details"}
+                      </p>
+                    </div>
+                    <Link href="/invoices">
+                      <Button variant="secondary" size="sm">
+                        {t("nav_invoices")} →
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </>
+            ) : (
+              !error && <div className="text-sm text-stone-400">{t("no_data")}</div>
+            )}
+          </div>
         )}
+
+        {/* ── Expenses expanded panel ───────────────────────────────── */}
+        {expandedModule === "expenses" && moduleData.expenses && (
+          <div className="mb-8">
+            <ExpenseStrip data={moduleData.expenses} language={language} />
+          </div>
+        )}
+
+        {/* ── Phase 7: Reminder Status ──────────────────────────────────── */}
+        <ReminderStatusSection
+          summary={reminderSummary}
+          sending={sendingReminder}
+          result={reminderResult}
+          onSend={handleSendReminders}
+          language={language}
+          t={t}
+        />
       </div>
 
       {selectedItem && (
@@ -535,8 +578,9 @@ export default function DashboardPage() {
 
 interface SubStat { label: string; value: string | number; color?: "green" | "amber" | "red" | "neutral" }
 
-function ModuleCard({ href, label, icon, primary, subs }: {
-  href: string; label: string; icon: React.ReactNode;
+function ModuleCard({ href, onClick, active, label, icon, primary, subs }: {
+  href?: string; onClick?: () => void; active?: boolean;
+  label: string; icon: React.ReactNode;
   primary: string | number; subs: SubStat[];
 }) {
   const colorClass = (c?: SubStat["color"]) =>
@@ -545,8 +589,13 @@ function ModuleCard({ href, label, icon, primary, subs }: {
     c === "red"     ? "text-red-500" :
     "text-stone-400";
 
-  return (
-    <Link href={href} className="group flex flex-col rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 hover:shadow-sm transition-all">
+  const className = clsx(
+    "group flex flex-col rounded-xl border bg-white p-4 hover:shadow-sm transition-all text-left w-full",
+    active ? "border-[#1a3d2b] ring-1 ring-[#1a3d2b]" : "border-stone-200 hover:border-stone-300"
+  );
+
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[9px] font-bold tracking-widest uppercase text-stone-400">{label}</span>
         <span className="text-stone-300 group-hover:text-stone-400 transition-colors">{icon}</span>
@@ -560,8 +609,13 @@ function ModuleCard({ href, label, icon, primary, subs }: {
           </span>
         ))}
       </div>
-    </Link>
+    </>
   );
+
+  if (href) {
+    return <Link href={href} className={className}>{content}</Link>;
+  }
+  return <button type="button" onClick={onClick} className={className}>{content}</button>;
 }
 
 // ── Expense claims strip ──────────────────────────────────────────────────────
@@ -634,6 +688,16 @@ function ProposalModIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+function ContractModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="15" y2="17" />
     </svg>
   );
 }
