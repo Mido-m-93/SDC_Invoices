@@ -55,6 +55,7 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
+      linkNote: string | null;
     };
     proposalMatch: {
       found: boolean;
@@ -70,6 +71,7 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
+      linkNote: string | null;
     };
     budgetMatch: {
       found: boolean;
@@ -85,6 +87,7 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
+      linkNote: string | null;
     };
     proposalContractCross: {
       applicable: boolean;
@@ -92,6 +95,17 @@ interface ValidationResult {
       proposalAmount: number | null;
       contractAmount: number | null;
       currency: string;
+    };
+    threeWayCross: {
+      applicable: boolean;
+      allClose: boolean;
+      proposalAmount: number | null;
+      contractAmount: number | null;
+      budgetAmount: number | null;
+      currency: string;
+      proposalVsContract: { close: boolean; diffPct: number | null } | null;
+      proposalVsBudget: { close: boolean; diffPct: number | null } | null;
+      contractVsBudget: { close: boolean; diffPct: number | null } | null;
     };
   };
 }
@@ -720,6 +734,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within").replace("{pct}", String(c.amountClose.diffPct))
                             : t("validate_amount_differs").replace("{pct}", String(c.amountClose.diffPct))
                           : "",
+                        c.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -749,6 +764,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_proposal").replace("{pct}", String(p.amountClose.diffPct))
                             : t("validate_amount_differs_proposal").replace("{pct}", String(p.amountClose.diffPct))
                           : "",
+                        p.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -778,6 +794,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_budget").replace("{pct}", String(b.amountClose.diffPct))
                             : t("validate_amount_differs_budget").replace("{pct}", String(b.amountClose.diffPct))
                           : "",
+                        b.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -799,7 +816,6 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                           pass={false}
                           warn={false}
                           lines={[t("validate_stage5_skipped")]}
-                          isLast
                         />
                       );
                     }
@@ -821,6 +837,44 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                               : t("validate_amounts_differ").replace("{pct}", String(diffPct))
                             : t("validate_could_not_compare"),
                         ]}
+                      />
+                    );
+                  })()}
+
+                  {/* Stage 5: 3-way amount consistency (Proposal ↔ Contract ↔ Budget) */}
+                  {(() => {
+                    const tw = panelResult.stages.threeWayCross;
+                    const fmt = (v: number | null) => v != null ? `${tw.currency} ${v.toLocaleString()}` : "—";
+                    if (!tw.applicable) {
+                      return (
+                        <ValidationStage
+                          number={5}
+                          title="Proposal ↔ Contract ↔ Budget amount match"
+                          subtitle="Cross-check: do all matched amounts agree?"
+                          pass={false}
+                          warn={false}
+                          lines={["Skipped — need at least two of proposal/contract/budget matched to compare"]}
+                          isLast
+                        />
+                      );
+                    }
+                    const pairLine = (label: string, pair: { close: boolean; diffPct: number | null } | null) =>
+                      pair == null ? "" : `${label}: ${pair.diffPct === null ? "could not compare" : pair.close ? `within ${pair.diffPct}%` : `differs by ${pair.diffPct}%`}`;
+                    return (
+                      <ValidationStage
+                        number={5}
+                        title="Proposal ↔ Contract ↔ Budget amount match"
+                        subtitle="Cross-check: do all matched amounts agree?"
+                        pass={tw.allClose}
+                        warn={!tw.allClose}
+                        lines={[
+                          `Proposal: ${fmt(tw.proposalAmount)}`,
+                          `Contract: ${fmt(tw.contractAmount)}`,
+                          `Budget: ${fmt(tw.budgetAmount)}`,
+                          pairLine("Proposal ↔ Contract", tw.proposalVsContract),
+                          pairLine("Proposal ↔ Budget", tw.proposalVsBudget),
+                          pairLine("Contract ↔ Budget", tw.contractVsBudget),
+                        ].filter(Boolean)}
                         isLast
                       />
                     );
