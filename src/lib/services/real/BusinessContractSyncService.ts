@@ -42,11 +42,11 @@ function cleanFileName(rawName: string): string {
     .trim();
 }
 
-async function findPdf(siteId: string, token: string, item: GraphDriveItem): Promise<{ id: string; name: string } | null> {
-  if (!item.isFolder) return item.name.toLowerCase().endsWith(".pdf") ? { id: item.id, name: item.name } : null;
+async function findPdf(siteId: string, token: string, item: GraphDriveItem): Promise<{ id: string; name: string; webUrl: string } | null> {
+  if (!item.isFolder) return item.name.toLowerCase().endsWith(".pdf") ? { id: item.id, name: item.name, webUrl: item.webUrl ?? "" } : null;
   const children = await listItemsByFolderId(siteId, item.id, token);
   const pdf = children.find((c) => !c.isFolder && c.name.toLowerCase().endsWith(".pdf"));
-  return pdf ? { id: pdf.id, name: pdf.name } : null;
+  return pdf ? { id: pdf.id, name: pdf.name, webUrl: pdf.webUrl ?? "" } : null;
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -120,14 +120,31 @@ export async function syncBusinessContracts(
       }
 
       const contract = contracts.find((c) => c.id === best.contractId)!;
+      // Backfill the link to the actual matched PDF whenever it's missing or
+      // stale — this used to only happen implicitly as a side effect of the
+      // (rate-limited, extraction-heavy) date/amount backfill below, so a
+      // contract that already had its other fields filled in never got a
+      // folder link at all.
+      const folderUrlNeedsUpdate = !!pdf.webUrl && contract.contractFolderUrl !== pdf.webUrl;
+
       const alreadyHasData = !!(contract.startDate && contract.endDate && contract.expectedMonthlyAmount > 0);
       if (alreadyHasData) {
-        details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: "contract already populated" });
+        if (folderUrlNeedsUpdate) {
+          await saveContract({ ...contract, contractFolderUrl: pdf.webUrl });
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: true, reason: "backfilled folder link only" });
+        } else {
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: "contract already populated" });
+        }
         continue;
       }
 
       if (extractionsRun >= MAX_EXTRACTIONS_PER_RUN) {
-        details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: "extraction cap reached this run" });
+        if (folderUrlNeedsUpdate) {
+          await saveContract({ ...contract, contractFolderUrl: pdf.webUrl });
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: true, reason: "backfilled folder link only (extraction cap reached)" });
+        } else {
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: "extraction cap reached this run" });
+        }
         continue;
       }
 
@@ -137,7 +154,12 @@ export async function syncBusinessContracts(
         const bytes = await downloadFileById(siteId, pdf.id, token);
         fields = await withTimeout(extractContractFields(bytes), EXTRACTION_TIMEOUT_MS);
       } catch (err) {
-        details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: `extraction failed: ${String(err)}` });
+        if (folderUrlNeedsUpdate) {
+          await saveContract({ ...contract, contractFolderUrl: pdf.webUrl });
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: true, reason: `backfilled folder link only (extraction failed: ${String(err)})` });
+        } else {
+          details.push({ folder, file: item.name, matchedContractId: contract.id, updated: false, reason: `extraction failed: ${String(err)}` });
+        }
         continue;
       }
 
@@ -147,6 +169,7 @@ export async function syncBusinessContracts(
         endDate: contract.endDate || fields.contractEnd || contract.endDate,
         expectedMonthlyAmount: contract.expectedMonthlyAmount || fields.contractedAmount || contract.expectedMonthlyAmount,
         paymentTerms: contract.paymentTerms || fields.paymentTerms || contract.paymentTerms,
+        contractFolderUrl: pdf.webUrl || contract.contractFolderUrl,
       };
       await saveContract(updated);
       details.push({ folder, file: item.name, matchedContractId: contract.id, updated: true });
