@@ -50,6 +50,7 @@ export default function BudgetPage() {
   const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [sharepointFiles, setSharepointFiles] = useState<SharePointBudgetFile[] | null>(null);
+  const [search, setSearch] = useState("");
 
   // Read-only: scans SharePoint for budget-looking files and shows what's
   // there. No matching, no approval — just sync (rescan) and display, same
@@ -182,8 +183,14 @@ export default function BudgetPage() {
   const set = <K extends keyof BudgetForm>(k: K, v: BudgetForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const totalValue = budgets.filter(b => b.status === "confirmed").reduce((s, b) => s + b.budgetAmount, 0);
-  const pending = budgets.filter(b => b.status === "draft").length;
+  const filteredBudgets = (() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return budgets;
+    return budgets.filter((b) =>
+      [b.projectName, b.clientName || (b.clientId ? clientName(b.clientId) : ""), proposalName(b.proposalId)]
+        .some((field) => field?.toLowerCase().includes(query))
+    );
+  })();
 
   return (
     <AppShell>
@@ -200,22 +207,24 @@ export default function BudgetPage() {
         }
       />
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
-        <div className="bg-white rounded-xl border border-stone-200 px-4 py-3">
-          <div className="text-xs text-stone-400 font-medium mb-1">{t("budget_summary_total")}</div>
-          <div className="text-lg font-semibold text-stone-800">{budgets.length}</div>
+      {budgets.length > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <input
+            className={`${input} max-w-xs`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search project, client, proposal…"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-xs text-stone-400 hover:text-stone-600">
+              Clear
+            </button>
+          )}
+          <span className="text-xs text-stone-400">
+            {filteredBudgets.length} / {budgets.length} shown
+          </span>
         </div>
-        <div className="bg-white rounded-xl border border-stone-200 px-4 py-3">
-          <div className="text-xs text-stone-400 font-medium mb-1">{t("budget_summary_draft")}</div>
-          <div className="text-lg font-semibold text-stone-800">{pending}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-stone-200 px-4 py-3">
-          <div className="text-xs text-stone-400 font-medium mb-1">{t("budget_summary_confirmed_value")}</div>
-          <div className="text-lg font-semibold text-stone-800">¥{totalValue.toLocaleString("ja-JP")}</div>
-          <div className="text-xs text-stone-400 mt-0.5">{t("budget_summary_confirmed_count").replace("{count}", String(budgets.filter(b => b.status === "confirmed").length))}</div>
-        </div>
-      </div>
+      )}
 
       {sharepointFiles !== null && (
         <div className="mb-5 bg-white rounded-xl border border-stone-200 overflow-hidden">
@@ -263,6 +272,10 @@ export default function BudgetPage() {
           <p className="text-stone-400 text-sm">{t("budget_empty_title")}</p>
           <Button variant="primary" className="mt-4" onClick={openNew}>{t("budget_empty_action")}</Button>
         </div>
+      ) : filteredBudgets.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">No budgets match your search.</p>
+        </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
@@ -280,7 +293,7 @@ export default function BudgetPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {budgets.map((b) => (
+              {filteredBudgets.map((b) => (
                 <tr key={b.id} className="hover:bg-stone-50">
                   <td className="px-4 py-3 font-medium text-stone-900">{b.projectName}</td>
                   <td className="px-4 py-3 text-stone-600">
