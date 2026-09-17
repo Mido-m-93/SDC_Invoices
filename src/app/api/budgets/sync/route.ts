@@ -60,6 +60,12 @@ export async function POST() {
     if (!topCandidate || topCandidate.score < AUTO_LINK_THRESHOLD) {
       const alreadyStaged = await findStagedBudgetRecordByFileId(fileId);
       if (alreadyStaged) {
+        // Records staged before fileUrl existed on the schema were saved
+        // with it missing — backfill it now that the scan has it, so the
+        // review queue's "Open file" link isn't permanently blank.
+        if (!alreadyStaged.fileUrl && fileUrl) {
+          await saveStagedBudgetRecord({ ...alreadyStaged, fileUrl, updatedAt: new Date().toISOString() });
+        }
         failed.push(fileName);
         continue;
       }
