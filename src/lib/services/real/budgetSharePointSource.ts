@@ -90,6 +90,7 @@ async function fileToExtracted(
 export interface BudgetScanItem {
   fields: ExtractedBudgetFields;
   fileName: string;
+  fileUrl: string | null;
   folder: string;
   fileId: string;
 }
@@ -158,7 +159,7 @@ export async function fetchSharePointBudgets(): Promise<{
         scan.push({ folder: folderPath, file: file.name, extracted: false, skipped: "no extractable fields" });
         return;
       }
-      items.push({ fields, fileName: file.name, folder: folderPath, fileId: file.id });
+      items.push({ fields, fileName: file.name, fileUrl: file.webUrl ?? null, folder: folderPath, fileId: file.id });
       scan.push({ folder: folderPath, file: file.name, extracted: true });
     });
   }

@@ -276,6 +276,7 @@ export interface StagedBudgetRecord {
   id: string;
   fileId: string;
   fileName: string;
+  fileUrl: string | null;
   folder: string;
   rawClientName: string;
   projectName: string;

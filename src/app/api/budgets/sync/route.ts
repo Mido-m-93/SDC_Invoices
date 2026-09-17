@@ -40,7 +40,7 @@ export async function POST() {
   let staged = 0;
 
   for (const item of result.items) {
-    const { fields, fileName, folder, fileId } = item;
+    const { fields, fileName, fileUrl, folder, fileId } = item;
 
     // Already imported this exact SharePoint file in a prior sync — skip so
     // re-running sync doesn't create a duplicate budget every time.
@@ -68,6 +68,7 @@ export async function POST() {
         id: generateId("sbud"),
         fileId,
         fileName,
+        fileUrl,
         folder,
         rawClientName,
         projectName: fields.projectName ?? fileName,
