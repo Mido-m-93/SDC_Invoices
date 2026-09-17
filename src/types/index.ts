@@ -269,28 +269,6 @@ export interface Budget {
   deletedBy?: string | null;
 }
 
-// ── Budget Sync (SharePoint → matching → review queue) ───────────────────────
-export type StagedBudgetStatus = "needs_review" | "approved" | "rejected";
-
-export interface StagedBudgetRecord {
-  id: string;
-  fileId: string;
-  fileName: string;
-  fileUrl: string | null;
-  folder: string;
-  rawClientName: string;
-  projectName: string;
-  budgetDate: string | null;
-  budgetAmount: number | null;
-  currency: string;
-  matchCandidates: PipelineMatchCandidate[];
-  status: StagedBudgetStatus;
-  reviewerComment: string | null;
-  createdBudgetId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // ── Contract master ───────────────────────────────────────────────────────────
 export interface Contract {
   id: string;

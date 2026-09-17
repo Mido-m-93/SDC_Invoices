@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import VerificationBadge from "@/components/ui/VerificationBadge";
-import type { Budget, Client, Proposal, StagedBudgetRecord } from "@/types";
+import type { Budget, Client, Proposal } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -18,6 +18,13 @@ const STATUS_COLORS: Record<Budget["status"], string> = {
   confirmed: "bg-emerald-50 text-emerald-700",
   rejected: "bg-red-50 text-red-700",
 };
+
+interface SharePointBudgetFile {
+  fileName: string;
+  fileUrl: string | null;
+  folder: string;
+  size: number | null;
+}
 
 type BudgetForm = Omit<Budget, "id" | "createdAt">;
 
@@ -42,35 +49,22 @@ export default function BudgetPage() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; staged: number; savedNames: string[] } | null>(null);
-  const [staged, setStaged] = useState<StagedBudgetRecord[]>([]);
+  const [sharepointFiles, setSharepointFiles] = useState<SharePointBudgetFile[] | null>(null);
 
-  const loadStaged = useCallback(async () => {
-    try {
-      const res = await fetch("/api/budgets/staged");
-      const data = await res.json() as { records: StagedBudgetRecord[] };
-      setStaged(data.records ?? []);
-    } catch {
-      // Review queue is a secondary panel — a failed load here shouldn't block the page.
-    }
-  }, []);
-
-  useEffect(() => { loadStaged(); }, [loadStaged]);
-
+  // Read-only: scans SharePoint for budget-looking files and shows what's
+  // there. No matching, no approval — just sync (rescan) and display, same
+  // pattern as the Members contract folder browser.
   async function handleSyncFromSharePoint() {
     setSyncing(true);
-    setSyncResult(null);
     try {
       const res = await fetch("/api/budgets/sync", { method: "POST" });
-      const data = await res.json() as { saved: number; failed: number; staged: number; savedNames: string[]; error?: string };
+      const data = await res.json() as { files?: SharePointBudgetFile[]; error?: string };
       if (!res.ok) {
         notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/budget");
         return;
       }
-      setSyncResult(data);
-      notify("success", `Synced ${data.saved} budget(s) from SharePoint${data.staged > 0 ? `, ${data.staged} need client review` : ""}`, "/budget");
-      load();
-      loadStaged();
+      setSharepointFiles(data.files ?? []);
+      notify("success", `Found ${data.files?.length ?? 0} budget file(s) in SharePoint`, "/budget");
     } catch {
       notify("error", "SharePoint sync failed", "/budget");
     } finally {
@@ -223,50 +217,35 @@ export default function BudgetPage() {
         </div>
       </div>
 
-      {syncResult && (
-        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 flex justify-between">
-          <span>
-            Synced <strong>{syncResult.saved}</strong> budget(s) from SharePoint
-            {syncResult.staged > 0 && `, ${syncResult.staged} added to the review queue below (no confident client match)`}
-            {syncResult.savedNames.length > 0 && `: ${syncResult.savedNames.join(", ")}`}
-          </span>
-          <button onClick={() => setSyncResult(null)} className="text-emerald-400 hover:text-emerald-600">×</button>
-        </div>
-      )}
-
-      {staged.length > 0 && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-amber-200">
-            <h2 className="text-sm font-semibold text-amber-800">Needs client review ({staged.length})</h2>
-            <p className="text-xs text-amber-700 mt-0.5">
-              These SharePoint budgets couldn&apos;t be matched to an existing client with enough confidence. Pick the right client (or leave blank to create a new one) then approve, or discard.
-            </p>
+      {sharepointFiles !== null && (
+        <div className="mb-5 bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-stone-800">SharePoint budget files ({sharepointFiles.length})</h2>
+            <button onClick={() => setSharepointFiles(null)} className="text-stone-400 hover:text-stone-600 text-sm">×</button>
           </div>
-          <div className="divide-y divide-amber-200">
-            {staged.map((record) => (
-              <div key={record.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900 truncate">{record.projectName}</p>
-                  <p className="text-xs text-stone-500 truncate">
-                    {record.fileName} · raw client: &ldquo;{record.rawClientName || "—"}&rdquo;
-                    {record.budgetAmount ? ` · ${record.currency} ${record.budgetAmount.toLocaleString()}` : ""}
-                  </p>
-                </div>
-                {record.fileUrl ? (
-                  <a
-                    href={record.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-xs text-[#1a3d2b] font-medium hover:underline"
-                  >
-                    Open file →
-                  </a>
-                ) : (
-                  <span className="shrink-0 text-xs text-stone-400">No file link</span>
-                )}
-              </div>
-            ))}
-          </div>
+          {sharepointFiles.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-stone-400">No budget files found in SharePoint.</p>
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {sharepointFiles.map((f) => (
+                <li key={`${f.folder}/${f.fileName}`} className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    {f.fileUrl ? (
+                      <a href={f.fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate block">
+                        📄 {f.fileName}
+                      </a>
+                    ) : (
+                      <span className="text-stone-700 truncate block">📄 {f.fileName}</span>
+                    )}
+                    <span className="text-xs text-stone-400">{f.folder}</span>
+                  </div>
+                  {f.size != null && (
+                    <span className="text-xs text-stone-400 shrink-0">{Math.round(f.size / 1024)} KB</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

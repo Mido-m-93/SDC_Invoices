@@ -23,7 +23,6 @@ import type {
   PipelineSyncAuditEntry,
   StagedProposalRecord,
   Budget,
-  StagedBudgetRecord,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -51,7 +50,6 @@ interface MockStore {
   pipelineAuditLog: PipelineSyncAuditEntry[];
   stagedProposalRecords: StagedProposalRecord[];
   budgets: Budget[];
-  stagedBudgetRecords: StagedBudgetRecord[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -114,7 +112,6 @@ export function readStore(): MockStore {
     pipelineAuditLog: [],
     stagedProposalRecords: [],
     budgets: [],
-    stagedBudgetRecords: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -141,7 +138,6 @@ export function readStore(): MockStore {
       pipelineAuditLog:      store.pipelineAuditLog ?? [],
       stagedProposalRecords: store.stagedProposalRecords ?? [],
       budgets:               store.budgets ?? [],
-      stagedBudgetRecords:   store.stagedBudgetRecords ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -627,20 +623,3 @@ export function saveStagedProposalRecord(record: StagedProposalRecord): void {
   writeStore(store);
 }
 
-// ── Budget sync — staged records ──────────────────────────────────────────────
-
-export function loadStagedBudgetRecords(): StagedBudgetRecord[] {
-  return readStore().stagedBudgetRecords;
-}
-
-export function findStagedBudgetRecordByFileId(fileId: string): StagedBudgetRecord | null {
-  return readStore().stagedBudgetRecords.find((r) => r.fileId === fileId) ?? null;
-}
-
-export function saveStagedBudgetRecord(record: StagedBudgetRecord): void {
-  const store = readStore();
-  const idx = store.stagedBudgetRecords.findIndex((r) => r.id === record.id);
-  if (idx >= 0) store.stagedBudgetRecords[idx] = record;
-  else store.stagedBudgetRecords.push(record);
-  writeStore(store);
-}
