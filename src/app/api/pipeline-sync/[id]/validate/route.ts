@@ -6,33 +6,9 @@ import { requireAuth } from "@/lib/auth-guard";
 import { getContractService, getProposalService, getBudgetService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
-import { getGraphToken, resolveSiteId, searchDriveItems, DEFAULT_SITE_PATH } from "@/lib/services/real/graphClient";
 import type { Contract, Proposal, Budget } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-// Some contracts/proposals/budgets have no folderUrl saved on the record
-// itself (e.g. a contract auto-created when a proposal is accepted starts
-// with contractFolderUrl left blank for the user to fill in later). Rather
-// than show no link at all when we know the record exists, fall back to a
-// live SharePoint filename search by client name — same lookup used by the
-// Pipeline Sync page's search box — and link to whatever the top hit is.
-async function findSharePointFallbackUrl(clientName: string): Promise<{ url: string | null; note: string | null }> {
-  const hasAzureCreds = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
-  if (!hasAzureCreds || !clientName.trim()) return { url: null, note: null };
-  try {
-    const token = await getGraphToken();
-    const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
-    const results = await searchDriveItems(siteId, clientName, token);
-    const url = results.find((r) => r.webUrl)?.webUrl ?? null;
-    return url ? { url, note: null } : { url: null, note: `No SharePoint file found matching "${clientName}"` };
-  } catch (err) {
-    // Surfaced to the panel too (not just server logs) so a broken Graph
-    // lookup doesn't just look like "no link" with no explanation.
-    console.error("[pipeline-sync validate] SharePoint fallback search failed", err);
-    return { url: null, note: "SharePoint search failed — check server logs" };
-  }
-}
 
 // ── Fuzzy name matching ───────────────────────────────────────────────────────
 // Uses the same scorer as proposal sync and contract sync (pipelineMatching's
@@ -130,16 +106,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     (p): p is { close: boolean; diffPct: number | null } => p !== null
   );
 
-  // Only bother searching SharePoint if at least one matched record is
-  // missing its saved folderUrl.
-  const anyMissingFolderUrl =
-    contractsByName.some((m) => !m.contract.contractFolderUrl) ||
-    proposalsByName.some((m) => !m.proposal.folderUrl) ||
-    budgetsByName.some((m) => !m.budget.folderUrl);
-  const sharePointFallback = anyMissingFolderUrl
-    ? await findSharePointFallbackUrl(rawClientName)
-    : { url: null, note: null };
-
   return NextResponse.json({
     recordId: params.id,
     rawClientName,
@@ -160,10 +126,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: contractAmount,
         allMatches: contractsByName
-          .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl || sharePointFallback.url }))
+          .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestContract && !bestContract.contract.contractFolderUrl && !sharePointFallback.url
-          ? sharePointFallback.note ?? "No file link found for this record"
+        linkNote: bestContract && !bestContract.contract.contractFolderUrl
+          ? "No file link saved for this contract yet — run Sync from SharePoint on the Contracts page"
           : null,
       },
       proposalMatch: {
@@ -180,10 +146,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: proposalAmount,
         allMatches: proposalsByName
-          .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl || sharePointFallback.url }))
+          .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestProposal && !bestProposal.proposal.folderUrl && !sharePointFallback.url
-          ? sharePointFallback.note ?? "No file link found for this record"
+        linkNote: bestProposal && !bestProposal.proposal.folderUrl
+          ? "No file link saved for this proposal yet — run Sync from SharePoint on the Proposals page"
           : null,
       },
       budgetMatch: {
@@ -200,10 +166,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: budgetAmount,
         allMatches: budgetsByName
-          .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl || sharePointFallback.url }))
+          .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestBudget && !bestBudget.budget.folderUrl && !sharePointFallback.url
-          ? sharePointFallback.note ?? "No file link found for this record"
+        linkNote: bestBudget && !bestBudget.budget.folderUrl
+          ? "No file link saved for this budget yet — run Sync from SharePoint on the Budget page"
           : null,
       },
       proposalContractCross: {
