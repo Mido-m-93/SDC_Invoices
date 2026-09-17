@@ -44,6 +44,8 @@ export default function BudgetPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; staged: number; savedNames: string[] } | null>(null);
   const [staged, setStaged] = useState<StagedBudgetRecord[]>([]);
+  const [stagedPicks, setStagedPicks] = useState<Record<string, { clientId: string; clientName: string }>>({});
+  const [resolvingStaged, setResolvingStaged] = useState<string | null>(null);
 
   const loadStaged = useCallback(async () => {
     try {
@@ -75,6 +77,50 @@ export default function BudgetPage() {
       notify("error", "SharePoint sync failed", "/budget");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  function pickForStaged(id: string, clientId: string, clientName: string) {
+    setStagedPicks((p) => ({ ...p, [id]: { clientId, clientName } }));
+  }
+
+  async function handleApproveStaged(record: StagedBudgetRecord) {
+    const pick = stagedPicks[record.id];
+    setResolvingStaged(record.id);
+    try {
+      const res = await fetch(`/api/budgets/staged/${record.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: pick?.clientId || undefined }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        notify("error", `Failed to approve "${record.projectName}": ${data.error ?? "unknown error"}`, "/budget");
+        return;
+      }
+      notify("success", `Added budget "${record.projectName}"`, "/budget");
+      setStaged((s) => s.filter((r) => r.id !== record.id));
+      load();
+    } catch {
+      notify("error", `Failed to approve "${record.projectName}"`, "/budget");
+    } finally {
+      setResolvingStaged(null);
+    }
+  }
+
+  async function handleRejectStaged(record: StagedBudgetRecord) {
+    setResolvingStaged(record.id);
+    try {
+      const res = await fetch(`/api/budgets/staged/${record.id}/reject`, { method: "POST" });
+      if (!res.ok) {
+        notify("error", `Failed to discard "${record.projectName}"`, "/budget");
+        return;
+      }
+      setStaged((s) => s.filter((r) => r.id !== record.id));
+    } catch {
+      notify("error", `Failed to discard "${record.projectName}"`, "/budget");
+    } finally {
+      setResolvingStaged(null);
     }
   }
 
@@ -243,27 +289,56 @@ export default function BudgetPage() {
             </p>
           </div>
           <div className="divide-y divide-amber-200">
-            {staged.map((record) => (
-              <div key={record.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900 truncate">{record.projectName}</p>
-                  <p className="text-xs text-stone-500 truncate">
-                    {record.fileName} · raw client: &ldquo;{record.rawClientName || "—"}&rdquo;
-                    {record.budgetAmount ? ` · ${record.currency} ${record.budgetAmount.toLocaleString()}` : ""}
-                  </p>
-                </div>
-                {record.fileUrl && (
-                  <a
-                    href={record.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-xs text-[#1a3d2b] font-medium hover:underline"
+            {staged.map((record) => {
+              const pick = stagedPicks[record.id] ?? { clientId: "", clientName: record.rawClientName };
+              return (
+                <div key={record.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate">{record.projectName}</p>
+                    <p className="text-xs text-stone-500 truncate">
+                      {record.fileName} · raw client: &ldquo;{record.rawClientName || "—"}&rdquo;
+                      {record.budgetAmount ? ` · ${record.currency} ${record.budgetAmount.toLocaleString()}` : ""}
+                    </p>
+                  </div>
+                  {record.fileUrl && (
+                    <a
+                      href={record.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-[#1a3d2b] font-medium hover:underline"
+                    >
+                      View file →
+                    </a>
+                  )}
+                  <div className="w-64">
+                    <ClientPicker
+                      clients={clients}
+                      clientId={pick.clientId}
+                      clientName={pick.clientName}
+                      onChange={(clientId, clientName) => pickForStaged(record.id, clientId, clientName)}
+                      onClientCreated={(c) => setClients((cs) => [...cs, c])}
+                      className={input}
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={resolvingStaged === record.id}
+                    onClick={() => handleApproveStaged(record)}
                   >
-                    View file →
-                  </a>
-                )}
-              </div>
-            ))}
+                    Approve
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={resolvingStaged === record.id}
+                    onClick={() => handleRejectStaged(record)}
+                  >
+                    Discard
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
