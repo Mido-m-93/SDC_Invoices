@@ -325,6 +325,7 @@ const en = {
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",
+  dashboard_stat_submitted: "Submitted",
   dashboard_stat_violations: "Violations",
   dashboard_stat_active: "Active",
   dashboard_stat_prospects: "Prospects",
