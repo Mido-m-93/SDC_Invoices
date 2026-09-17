@@ -130,6 +130,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           score: Math.round(bestContract.score * 100),
         } : null,
         amountClose: contractAmount,
+        allMatches: contractsByName
+          .filter((m) => m.contract.contractFolderUrl)
+          .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl as string })),
       },
       proposalMatch: {
         found: !!bestProposal,
@@ -144,6 +147,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           score: Math.round(bestProposal.score * 100),
         } : null,
         amountClose: proposalAmount,
+        allMatches: proposalsByName
+          .filter((m) => m.proposal.folderUrl)
+          .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl as string })),
       },
       budgetMatch: {
         found: !!bestBudget,
@@ -158,6 +164,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           score: Math.round(bestBudget.score * 100),
         } : null,
         amountClose: budgetAmount,
+        allMatches: budgetsByName
+          .filter((m) => m.budget.folderUrl)
+          .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl as string })),
       },
       proposalContractCross: {
         applicable: !!(bestContract && bestProposal),

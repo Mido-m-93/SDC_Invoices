@@ -61,6 +61,7 @@ interface ValidationResult {
         score: number;
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
+      allMatches: { name: string; url: string }[];
     };
     proposalMatch: {
       found: boolean;
@@ -75,6 +76,7 @@ interface ValidationResult {
         score: number;
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
+      allMatches: { name: string; url: string }[];
     };
     budgetMatch: {
       found: boolean;
@@ -89,6 +91,7 @@ interface ValidationResult {
         score: number;
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
+      allMatches: { name: string; url: string }[];
     };
     proposalContractCross: {
       applicable: boolean;
@@ -752,8 +755,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    link={panelResult.stages.contractMatch.contract?.folderUrl ?? null}
-                    linkLabel={t("validate_view_contract")}
+                    links={panelResult.stages.contractMatch.allMatches.map((m) => ({
+                      url: m.url,
+                      label: `${t("validate_view_contract")} (${m.name})`,
+                    }))}
                   />
 
                   {/* Stage 3 */}
@@ -779,8 +784,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    link={panelResult.stages.proposalMatch.proposal?.folderUrl ?? null}
-                    linkLabel={t("validate_view_proposal")}
+                    links={panelResult.stages.proposalMatch.allMatches.map((m) => ({
+                      url: m.url,
+                      label: `${t("validate_view_proposal")} (${m.name})`,
+                    }))}
                   />
 
                   {/* Stage 4 */}
@@ -806,8 +813,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    link={panelResult.stages.budgetMatch.budget?.folderUrl ?? null}
-                    linkLabel={t("validate_view_budget")}
+                    links={panelResult.stages.budgetMatch.allMatches.map((m) => ({
+                      url: m.url,
+                      label: `${t("validate_view_budget")} (${m.name})`,
+                    }))}
                   />
 
                   {/* Stage 5: Proposal ↔ Contract cross-check */}
@@ -870,7 +879,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 // ── Validation stage card ─────────────────────────────────────────────────────
 
 function ValidationStage({
-  number, title, subtitle, pass, warn, lines, link, linkLabel, links, isLast,
+  number, title, subtitle, pass, warn, lines, links, isLast,
 }: {
   number: number;
   title: string;
@@ -878,8 +887,6 @@ function ValidationStage({
   pass: boolean;
   warn: boolean;
   lines: string[];
-  link?: string | null;
-  linkLabel?: string;
   links?: { url: string; label: string }[];
   isLast?: boolean;
 }) {
@@ -912,16 +919,6 @@ function ValidationStage({
         <div className={`mt-2 space-y-0.5 text-xs leading-relaxed ${colors.text}`}>
           {lines.map((l, i) => <p key={i}>{l}</p>)}
         </div>
-        {link && (
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a3d2b] underline underline-offset-2 hover:opacity-75"
-          >
-            {linkLabel ?? "View"} →
-          </a>
-        )}
         {links && links.length > 0 && (
           <div className="mt-2 flex flex-col items-start gap-1">
             {links.map((l, i) => (
