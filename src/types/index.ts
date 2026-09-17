@@ -99,6 +99,8 @@ export interface InvoiceValidationResult {
   contractId?: string;
   contractEndDate?: string | null;   // registered contract's end date, for expiry flagging on Stage 4
   contractVerification?: ConsistencyVerdict;   // AI check: this invoice vs. its matched contract
+  contractFileUrl?: string | null;   // link to the matched member's contract file, when resolved live via SharePoint (Stage 4)
+  driveFileUrl?: string | null;      // link to the matching file found in Google Drive (Stage 3)
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;
@@ -485,6 +487,7 @@ export interface ExpenseValidationResult {
   extractedPurpose: string | null;
   memberMatched: boolean;
   contractFileName: string | null;
+  contractFileUrl: string | null;
   receiptFetchError?: string;
 }
 

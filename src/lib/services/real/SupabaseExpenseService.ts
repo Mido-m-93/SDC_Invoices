@@ -366,6 +366,7 @@ export class SupabaseExpenseService implements IExpenseService {
       extractedPurpose,
       memberMatched:      false,
       contractFileName:   null,
+      contractFileUrl:    null,
       receiptFetchError:  receiptFetchError ?? undefined,
     };
   }

@@ -635,6 +635,8 @@ export default function ExpensesPage() {
                     ? `${t("expenses_stage1_contract")}: ${validationPanel.result.contractFileName}`
                     : "",
                 ].filter(Boolean)}
+                link={validationPanel.result.contractFileUrl}
+                linkLabel="View Contract"
               />
 
               {/* Stage 2: Receipt match
@@ -679,6 +681,8 @@ export default function ExpensesPage() {
                     ? `${t("expenses_error_label")}: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
                     : "",
                 ].filter(Boolean)}
+                link={validationPanel.claim.receiptUrl || null}
+                linkLabel="View Receipt"
                 isLast
               />
             </div>
@@ -724,9 +728,11 @@ function TrashIcon() {
 
 const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";
 
-function ValidationStageBlock({ number, title, subtitle, pass, warn, lines, isLast }: {
+function ValidationStageBlock({ number, title, subtitle, pass, warn, lines, link, linkLabel, isLast }: {
   number: number; title: string; subtitle: string;
-  pass: boolean; warn: boolean; lines: string[]; isLast?: boolean;
+  pass: boolean; warn: boolean; lines: string[];
+  link?: string | null; linkLabel?: string;
+  isLast?: boolean;
 }) {
   const { t } = useLanguage();
   const status = warn ? "warn" : pass ? "pass" : "fail";
@@ -754,6 +760,16 @@ function ValidationStageBlock({ number, title, subtitle, pass, warn, lines, isLa
         <div className={`mt-2 space-y-0.5 text-xs leading-relaxed ${colors.text}`}>
           {lines.map((l, i) => <p key={i}>{l}</p>)}
         </div>
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a3d2b] underline underline-offset-2 hover:opacity-75"
+          >
+            {linkLabel ?? "View"} →
+          </a>
+        )}
       </div>
     </div>
   );

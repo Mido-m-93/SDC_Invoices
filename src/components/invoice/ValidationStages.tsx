@@ -45,10 +45,12 @@ interface StageCardProps {
   status: StageStatus;
   statusLabel: string;
   detail: string;
+  link?: string | null;
+  linkLabel?: string;
   isLast?: boolean;
 }
 
-function StageCard({ number, title, subtitle, status, statusLabel, detail, isLast }: StageCardProps) {
+function StageCard({ number, title, subtitle, status, statusLabel, detail, link, linkLabel, isLast }: StageCardProps) {
   const s = STYLES[status];
   return (
     <div className="flex gap-3">
@@ -77,6 +79,16 @@ function StageCard({ number, title, subtitle, status, statusLabel, detail, isLas
               <p key={idx}>{line}</p>
             ))}
           </div>
+        )}
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a3d2b] underline underline-offset-2 hover:opacity-75"
+          >
+            {linkLabel ?? "View"} →
+          </a>
         )}
       </div>
     </div>
@@ -208,6 +220,8 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage1Status}
         statusLabel={statusLabel(stage1Status)}
         detail={stage1Detail}
+        link={submission?.invoiceAttachment || null}
+        linkLabel="View Invoice"
       />
       <StageCard
         number={2}
@@ -224,6 +238,8 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage3Status}
         statusLabel={statusLabel(stage3Status)}
         detail={stage3Detail}
+        link={v.driveFileUrl || null}
+        linkLabel="View in Drive"
       />
       <StageCard
         number={4}
@@ -232,6 +248,8 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage4Status}
         statusLabel={statusLabel(stage4Status)}
         detail={stage4Detail}
+        link={v.contractFileUrl || null}
+        linkLabel="View Contract"
         isLast
       />
     </div>

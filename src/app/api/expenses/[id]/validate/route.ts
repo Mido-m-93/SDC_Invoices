@@ -41,6 +41,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       checkMemberBySharePointContracts(claim.submittedBy).catch(() => ({
         matched: false,
         contractFileName: null,
+        contractFileUrl: null,
         contractInfo: null,
       })),
     ]);
@@ -49,6 +50,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       ...result,
       memberMatched:    spResult.matched,
       contractFileName: spResult.contractFileName ?? null,
+      contractFileUrl:  spResult.contractFileUrl ?? null,
     };
 
     // Persist extracted fields back to claim

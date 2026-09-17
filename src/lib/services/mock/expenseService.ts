@@ -89,6 +89,7 @@ export class MockExpenseService implements IExpenseService {
       extractedPurpose:     null,
       memberMatched:        false,
       contractFileName:     null,
+      contractFileUrl:      null,
     };
   }
 

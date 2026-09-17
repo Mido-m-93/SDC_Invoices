@@ -411,6 +411,9 @@ export async function POST(req: NextRequest) {
           riskLevel:              "OK",
           reviewerRecommendation: parts.join(" | "),
           contractEndDate:        info?.contractEnd ?? null,
+          // Only the live SharePoint fallback resolves an actual file URL —
+          // a local-store match has no persisted contract file link to give.
+          contractFileUrl:        matchSource === "sharepoint" ? spMatch?.contractFileUrl ?? null : null,
         };
 
         // AI checkpoint: Invoice ↔ Contract — does this invoice actually match the
@@ -462,6 +465,7 @@ export async function POST(req: NextRequest) {
             ...(validatedBy ? { validatedBy } : {}),
             statusCode: "REVIEW_REQUIRED" as const,
             issues:     [...r.issues, issueMsg],
+            driveFileUrl: driveFile.webViewLink || null,
           };
         }
 
@@ -477,6 +481,7 @@ export async function POST(req: NextRequest) {
           statusCode:        "ALREADY_PROCESSED" as const,
           duplicateDetected: true,
           issues:            [...r.issues, issueMsg],
+          driveFileUrl:      driveFile.webViewLink || null,
         };
       }
 

@@ -80,6 +80,8 @@ function tokenizeForMatch(s: string): string[] {
 export interface ContractCheckResult {
   matched: boolean;
   contractFileName: string | null;
+  /** Direct SharePoint link to the matched contract file, when one was resolved. */
+  contractFileUrl: string | null;
   /** Extracted fields from the contract PDF. Null if not matched or PDF read failed. */
   contractInfo: ExtractedContractFields | null;
   /** Set when contractInfo is null because the PDF download/AI extraction step failed. */
@@ -93,14 +95,15 @@ interface MemberItem {
   name: string;
   siteId: string;
   isFolder: boolean;
+  webUrl: string;
 }
 
 async function listAllMemberItems(token: string, siteId: string): Promise<MemberItem[]> {
   const folder = SP_CONTRACTS_FOLDER.split("/").map(encodeURIComponent).join("/");
   const data = await graphGet<{
-    value?: Array<{ id: string; name: string; file?: object; folder?: object }>;
+    value?: Array<{ id: string; name: string; file?: object; folder?: object; webUrl?: string }>;
   }>(
-    `/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder`,
+    `/sites/${siteId}/drive/root:/${folder}:/children?$top=200&$select=id,name,file,folder,webUrl`,
     token,
   );
   return (data.value ?? []).map((item) => ({
@@ -108,6 +111,7 @@ async function listAllMemberItems(token: string, siteId: string): Promise<Member
     name:     item.name,
     siteId,
     isFolder: !!item.folder,
+    webUrl:   item.webUrl ?? "",
   }));
 }
 
@@ -116,6 +120,7 @@ interface ContractCandidate {
   id: string;
   name: string;
   kind: ContractKind;
+  webUrl: string;
 }
 
 const IMAGE_MIME: Record<string, string> = {
@@ -149,28 +154,28 @@ async function findContractCandidatesInFolder(
   folderId: string,
 ): Promise<ContractCandidate[]> {
   const data = await graphGet<{
-    value?: Array<{ id: string; name: string; file?: object; folder?: object }>;
+    value?: Array<{ id: string; name: string; file?: object; folder?: object; webUrl?: string }>;
   }>(
-    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file,folder`,
+    `/sites/${siteId}/drive/items/${folderId}/children?$select=id,name,file,folder,webUrl`,
     token,
   );
   const children = data.value ?? [];
 
   const directFiles = children
     .filter((item) => item.file)
-    .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name) }));
+    .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name), webUrl: item.webUrl ?? "" }));
 
   const subfolders = children.filter((item) => item.folder);
   const nestedResults = await Promise.all(
     subfolders.map(async (sub) => {
       try {
-        const nested = await graphGet<{ value?: Array<{ id: string; name: string; file?: object }> }>(
-          `/sites/${siteId}/drive/items/${sub.id}/children?$select=id,name,file`,
+        const nested = await graphGet<{ value?: Array<{ id: string; name: string; file?: object; webUrl?: string }> }>(
+          `/sites/${siteId}/drive/items/${sub.id}/children?$select=id,name,file,webUrl`,
           token,
         );
         return (nested.value ?? [])
           .filter((item) => item.file)
-          .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name), parentName: sub.name }));
+          .map((item) => ({ id: item.id, name: item.name, kind: contractKindOf(item.name), webUrl: item.webUrl ?? "", parentName: sub.name }));
       } catch (err) {
         console.warn(`[SP check] Failed to list contract subfolder "${sub.name}":`, err);
         return [];
@@ -219,9 +224,9 @@ function extractDateFromFilename(filename: string): string | null {
 async function extractFromCandidates(
   siteId: string,
   candidates: ContractCandidate[],
-): Promise<{ fileName: string; contractInfo: ExtractedContractFields | null; extractionError: string | null }> {
-  let last: { fileName: string; contractInfo: ExtractedContractFields | null; extractionError: string | null } = {
-    fileName: "", contractInfo: null, extractionError: "no readable contract file found",
+): Promise<{ fileName: string; fileUrl: string; contractInfo: ExtractedContractFields | null; extractionError: string | null }> {
+  let last: { fileName: string; fileUrl: string; contractInfo: ExtractedContractFields | null; extractionError: string | null } = {
+    fileName: "", fileUrl: "", contractInfo: null, extractionError: "no readable contract file found",
   };
 
   for (const candidate of candidates) {
@@ -232,10 +237,10 @@ async function extractFromCandidates(
         : candidate.kind === "image"
         ? await extractContractFieldsFromImage(bytes, imageMimeOf(candidate.name), candidate.name)
         : await extractContractFieldsFromDocx(bytes);
-      last = { fileName: candidate.name, contractInfo, extractionError: null };
+      last = { fileName: candidate.name, fileUrl: candidate.webUrl, contractInfo, extractionError: null };
       if (hasAnyContractField(contractInfo)) return last;
     } catch (err) {
-      last = { fileName: candidate.name, contractInfo: null, extractionError: String(err) };
+      last = { fileName: candidate.name, fileUrl: candidate.webUrl, contractInfo: null, extractionError: String(err) };
       console.warn(`[SP check] Contract read failed for ${candidate.name}:`, err);
     }
   }
@@ -248,6 +253,7 @@ async function extractFromCandidates(
       console.log(`[SP check] Falling back to filename date for "${candidate.name}": ${filenameDate}`);
       return {
         fileName: candidate.name,
+        fileUrl: candidate.webUrl,
         contractInfo: { memberName: null, contractedAmount: null, contractStart: filenameDate, contractEnd: null, paymentTerms: null, scope: null },
         extractionError: null,
       };
@@ -329,7 +335,7 @@ export async function checkMemberBySharePointContracts(
 
   if (!matchedItem) {
     console.log(`[SP check] No match found for "${submitterName}"`);
-    return { matched: false, contractFileName: null, contractInfo: null, extractionError: null };
+    return { matched: false, contractFileName: null, contractFileUrl: null, contractInfo: null, extractionError: null };
   }
 
   // Resolve every readable candidate — either files inside a matched subfolder,
@@ -344,8 +350,8 @@ export async function checkMemberBySharePointContracts(
     const siblings = items.filter(
       (i) => !i.isFolder && i.id !== matchedItem!.id && normalizeForMatch(extractMemberName(i.name)) === matchedNorm
     );
-    const self = { id: matchedItem.id, name: matchedItem.name, kind: contractKindOf(matchedItem.name) };
-    const all = [self, ...siblings.map((s) => ({ id: s.id, name: s.name, kind: contractKindOf(s.name) }))]
+    const self = { id: matchedItem.id, name: matchedItem.name, kind: contractKindOf(matchedItem.name), webUrl: matchedItem.webUrl };
+    const all = [self, ...siblings.map((s) => ({ id: s.id, name: s.name, kind: contractKindOf(s.name), webUrl: s.webUrl }))]
       .filter((c): c is ContractCandidate => c.kind !== null);
     candidates = orderCandidates(all);
   }
@@ -354,13 +360,19 @@ export async function checkMemberBySharePointContracts(
     // Folder/file exists but nothing recognized (pdf/docx/image) inside,
     // even after one level of subfolder recursion.
     console.log(`[SP check] Matched "${submitterName}" but no readable contract file found`);
-    return { matched: true, contractFileName: matchedItem.name, contractInfo: null, extractionError: null };
+    return {
+      matched: true,
+      contractFileName: matchedItem.name,
+      contractFileUrl: matchedItem.isFolder ? null : matchedItem.webUrl || null,
+      contractInfo: null,
+      extractionError: null,
+    };
   }
 
-  const { fileName, contractInfo, extractionError } = await extractFromCandidates(matchedItem.siteId, candidates);
+  const { fileName, fileUrl, contractInfo, extractionError } = await extractFromCandidates(matchedItem.siteId, candidates);
   console.log(`[SP check] Contract read for "${submitterName}" (${fileName}):`, contractInfo ?? extractionError);
 
-  return { matched: true, contractFileName: fileName, contractInfo, extractionError };
+  return { matched: true, contractFileName: fileName, contractFileUrl: fileUrl || null, contractInfo, extractionError };
 }
 
 // List all PDF files in the member contracts SharePoint folder.
