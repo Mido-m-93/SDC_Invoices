@@ -27,8 +27,9 @@ import {
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { SHOW_DASHBOARD_NO_DATA_BANNER } from "@/lib/featureFlags";
-import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Contract } from "@/types";
 import type { TranslationKey } from "@/translations";
+import { computeContractStats } from "@/lib/contractStats";
 import clsx from "clsx";
 
 const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
@@ -66,7 +67,8 @@ export default function DashboardPage() {
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     clients:  { total: number; active: number; prospects: number } | null;
     proposals: { total: number; open: number; accepted: number } | null;
-  }>({ expenses: null, clients: null, proposals: null });
+    contracts: { total: number; active: number; expiringSoon: number } | null;
+  }>({ expenses: null, clients: null, proposals: null, contracts: null });
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -157,10 +159,11 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, clientRes, proposalRes] = await Promise.allSettled([
+      const [expRes, clientRes, proposalRes, contractRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
         fetch("/api/clients").then((r) => r.json() as Promise<{ clients: Client[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
+        fetch("/api/contracts").then((r) => r.json() as Promise<{ contracts: Contract[] }>),
       ]);
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
@@ -182,6 +185,9 @@ export default function DashboardPage() {
           const ps = proposalRes.value.proposals ?? [];
           return { total: ps.length, open: ps.filter((p) => p.status === "submitted").length, accepted: ps.filter((p) => p.status === "accepted").length };
         })() : null,
+        contracts: contractRes.status === "fulfilled"
+          ? computeContractStats(contractRes.value.contracts ?? [], new Date())
+          : null,
       });
     }
     load().catch(() => {});
@@ -324,6 +330,8 @@ export default function DashboardPage() {
     }
   };
 
+  const contractsExpiringSoon = moduleData.contracts?.expiringSoon ?? 0;
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl">
@@ -337,7 +345,15 @@ export default function DashboardPage() {
         {/* Invoices and Expenses each already get a full detail section below,
             so they're left out here to avoid showing the same numbers twice.
             Leads dropped per request — not tracked on this dashboard. */}
-        <div className="mb-8 grid grid-cols-2 gap-3 max-w-md">
+        <div className="mb-8 grid grid-cols-3 gap-3 max-w-2xl">
+          <ModuleCard
+            href="/contracts" label={t("nav_contracts")} icon={<ContractModIcon />}
+            primary={moduleData.contracts?.total ?? "—"}
+            subs={[
+              { label: t("dashboard_stat_active"),         value: moduleData.contracts?.active ?? 0,       color: "green" },
+              { label: t("dashboard_stat_expiring_soon"),  value: contractsExpiringSoon, color: contractsExpiringSoon > 0 ? "amber" : "neutral" },
+            ]}
+          />
           <ModuleCard
             href="/clients" label={t("nav_clients")} icon={<ClientModIcon />}
             primary={moduleData.clients?.total ?? "—"}
@@ -634,6 +650,16 @@ function ProposalModIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+function ContractModIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="15" y2="17" />
     </svg>
   );
 }
