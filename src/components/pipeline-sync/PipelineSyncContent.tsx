@@ -46,8 +46,7 @@ interface ValidationResult {
       contractCount: number;
       proposalCount: number;
       budgetCount: number;
-      matchUrl: string | null;
-      matchLabel: "contract" | "proposal" | "budget" | null;
+      matches: { label: "contract" | "proposal" | "budget"; name: string; url: string }[];
     };
     contractMatch: {
       found: boolean;
@@ -724,14 +723,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                           ].filter(Boolean)
                         : [t("validate_stage1_fail")]
                     }
-                    link={panelResult.stages.clientExists.matchUrl}
-                    linkLabel={
-                      panelResult.stages.clientExists.matchLabel === "contract"
-                        ? t("validate_view_contract")
-                        : panelResult.stages.clientExists.matchLabel === "budget"
-                        ? t("validate_view_budget")
-                        : t("validate_view_proposal")
-                    }
+                    links={panelResult.stages.clientExists.matches.map((m) => ({
+                      url: m.url,
+                      label: `${m.label === "contract" ? t("validate_view_contract") : m.label === "budget" ? t("validate_view_budget") : t("validate_view_proposal")} (${m.name})`,
+                    }))}
                   />
 
                   {/* Stage 2 */}
@@ -875,7 +870,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 // ── Validation stage card ─────────────────────────────────────────────────────
 
 function ValidationStage({
-  number, title, subtitle, pass, warn, lines, link, linkLabel, isLast,
+  number, title, subtitle, pass, warn, lines, link, linkLabel, links, isLast,
 }: {
   number: number;
   title: string;
@@ -885,6 +880,7 @@ function ValidationStage({
   lines: string[];
   link?: string | null;
   linkLabel?: string;
+  links?: { url: string; label: string }[];
   isLast?: boolean;
 }) {
   const { t } = useLanguage();
@@ -925,6 +921,21 @@ function ValidationStage({
           >
             {linkLabel ?? "View"} →
           </a>
+        )}
+        {links && links.length > 0 && (
+          <div className="mt-2 flex flex-col items-start gap-1">
+            {links.map((l, i) => (
+              <a
+                key={i}
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#1a3d2b] underline underline-offset-2 hover:opacity-75"
+              >
+                {l.label} →
+              </a>
+            ))}
+          </div>
         )}
       </div>
     </div>

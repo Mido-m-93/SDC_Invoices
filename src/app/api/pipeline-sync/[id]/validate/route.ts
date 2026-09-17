@@ -78,15 +78,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const clientExists = contractsByName.length > 0 || proposalsByName.length > 0 || budgetsByName.length > 0;
 
-  // Best single record to link the "Client exists" badge to — whichever of
-  // the three candidate lists has the highest-confidence name match.
-  const clientExistsCandidates = [
-    contractsByName[0] ? { score: contractsByName[0].score, url: contractsByName[0].contract.contractFolderUrl ?? null, label: "contract" as const } : null,
-    proposalsByName[0] ? { score: proposalsByName[0].score, url: proposalsByName[0].proposal.folderUrl ?? null, label: "proposal" as const } : null,
-    budgetsByName[0] ? { score: budgetsByName[0].score, url: budgetsByName[0].budget.folderUrl ?? null, label: "budget" as const } : null,
-  ].filter((c): c is { score: number; url: string | null; label: "contract" | "proposal" | "budget" } => c !== null && c.url !== null)
-    .sort((a, b) => b.score - a.score);
-  const clientExistsBestMatch = clientExistsCandidates[0] ?? null;
+  // Every matched record to link from the "Client exists" badge — one link
+  // per proposal/contract/budget that matched by name, not just the top one,
+  // so "Found in N proposal(s)" actually gives you N places to click.
+  const clientExistsMatches = [
+    ...contractsByName.map((m) => ({ label: "contract" as const, name: m.contract.projectName, url: m.contract.contractFolderUrl ?? null, score: m.score })),
+    ...proposalsByName.map((m) => ({ label: "proposal" as const, name: m.proposal.projectName, url: m.proposal.folderUrl ?? null, score: m.score })),
+    ...budgetsByName.map((m) => ({ label: "budget" as const, name: m.budget.projectName, url: m.budget.folderUrl ?? null, score: m.score })),
+  ].filter((m) => m.url !== null).sort((a, b) => b.score - a.score);
 
   // ── Stage 2: Contract match (name + amount) ────────────────────────────────
   const bestContract = contractsByName[0] ?? null;
@@ -116,8 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         contractCount: contractsByName.length,
         proposalCount: proposalsByName.length,
         budgetCount: budgetsByName.length,
-        matchUrl: clientExistsBestMatch?.url ?? null,
-        matchLabel: clientExistsBestMatch?.label ?? null,
+        matches: clientExistsMatches.map((m) => ({ label: m.label, name: m.name, url: m.url as string })),
       },
       contractMatch: {
         found: !!bestContract,
