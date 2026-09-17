@@ -46,6 +46,8 @@ interface ValidationResult {
       contractCount: number;
       proposalCount: number;
       budgetCount: number;
+      matchUrl: string | null;
+      matchLabel: "contract" | "proposal" | "budget" | null;
     };
     contractMatch: {
       found: boolean;
@@ -721,6 +723,14 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                               : "",
                           ].filter(Boolean)
                         : [t("validate_stage1_fail")]
+                    }
+                    link={panelResult.stages.clientExists.matchUrl}
+                    linkLabel={
+                      panelResult.stages.clientExists.matchLabel === "contract"
+                        ? t("validate_view_contract")
+                        : panelResult.stages.clientExists.matchLabel === "budget"
+                        ? t("validate_view_budget")
+                        : t("validate_view_proposal")
                     }
                   />
 

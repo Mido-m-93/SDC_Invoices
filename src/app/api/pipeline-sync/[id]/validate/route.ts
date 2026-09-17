@@ -78,6 +78,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const clientExists = contractsByName.length > 0 || proposalsByName.length > 0 || budgetsByName.length > 0;
 
+  // Best single record to link the "Client exists" badge to — whichever of
+  // the three candidate lists has the highest-confidence name match.
+  const clientExistsCandidates = [
+    contractsByName[0] ? { score: contractsByName[0].score, url: contractsByName[0].contract.contractFolderUrl ?? null, label: "contract" as const } : null,
+    proposalsByName[0] ? { score: proposalsByName[0].score, url: proposalsByName[0].proposal.folderUrl ?? null, label: "proposal" as const } : null,
+    budgetsByName[0] ? { score: budgetsByName[0].score, url: budgetsByName[0].budget.folderUrl ?? null, label: "budget" as const } : null,
+  ].filter((c): c is { score: number; url: string | null; label: "contract" | "proposal" | "budget" } => c !== null && c.url !== null)
+    .sort((a, b) => b.score - a.score);
+  const clientExistsBestMatch = clientExistsCandidates[0] ?? null;
+
   // ── Stage 2: Contract match (name + amount) ────────────────────────────────
   const bestContract = contractsByName[0] ?? null;
   const contractAmount = amountClose(estimatedAmount, bestContract?.contract.expectedMonthlyAmount ?? null);
@@ -106,6 +116,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         contractCount: contractsByName.length,
         proposalCount: proposalsByName.length,
         budgetCount: budgetsByName.length,
+        matchUrl: clientExistsBestMatch?.url ?? null,
+        matchLabel: clientExistsBestMatch?.label ?? null,
       },
       contractMatch: {
         found: !!bestContract,
