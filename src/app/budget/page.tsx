@@ -251,6 +251,13 @@ export default function BudgetPage() {
                   {f.size != null && (
                     <span className="text-xs text-stone-400 shrink-0">{Math.round(f.size / 1024)} KB</span>
                   )}
+                  <button
+                    onClick={() => setSharepointFiles((files) => (files ?? []).filter((x) => x !== f))}
+                    className="text-stone-400 hover:text-red-600 text-xs shrink-0"
+                    title="Remove from this list"
+                  >
+                    Delete
+                  </button>
                 </li>
               ))}
             </ul>
