@@ -27,7 +27,7 @@ import {
 import { monthOptions, formatTimestamp, formatCurrency } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { SHOW_DASHBOARD_NO_DATA_BANNER } from "@/lib/featureFlags";
-import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Client, Proposal, Contract } from "@/types";
+import type { DashboardStats, InvoiceListItem, ReminderSummary, ReminderType, ExpenseClaim, Proposal, Contract } from "@/types";
 import type { TranslationKey } from "@/translations";
 import { computeContractStats } from "@/lib/contractStats";
 import clsx from "clsx";
@@ -66,10 +66,9 @@ export default function DashboardPage() {
   const [reminderResult, setReminderResult] = useState<{ sent: number; failed: number; skipped: number } | null>(null);
   const [moduleData, setModuleData] = useState<{
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
-    clients:  { total: number; active: number; prospects: number } | null;
     proposals: { total: number; open: number; accepted: number } | null;
     contracts: { total: number; active: number; expiringSoon: number } | null;
-  }>({ expenses: null, clients: null, proposals: null, contracts: null });
+  }>({ expenses: null, proposals: null, contracts: null });
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -160,9 +159,8 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, clientRes, proposalRes, contractRes] = await Promise.allSettled([
+      const [expRes, proposalRes, contractRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
-        fetch("/api/clients").then((r) => r.json() as Promise<{ clients: Client[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
         fetch("/api/contracts").then((r) => r.json() as Promise<{ contracts: Contract[] }>),
       ]);
@@ -177,10 +175,6 @@ export default function DashboardPage() {
             pendingAmount: cs.filter((c) => ["submitted","under_review"].includes(c.status))
                              .reduce((s, c) => s + c.amount, 0),
           };
-        })() : null,
-        clients: clientRes.status === "fulfilled" ? (() => {
-          const cs = clientRes.value.clients ?? [];
-          return { total: cs.length, active: cs.filter((c) => c.status === "active").length, prospects: cs.filter((c) => c.status === "prospect").length };
         })() : null,
         proposals: proposalRes.status === "fulfilled" ? (() => {
           const ps = proposalRes.value.proposals ?? [];
@@ -344,7 +338,7 @@ export default function DashboardPage() {
 
         {/* ── Module overview grid ──────────────────────────────────── */}
         {/* Leads not tracked on this dashboard. */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <ModuleCard
             active={expandedModule === "invoices"}
             onClick={() => setExpandedModule((m) => (m === "invoices" ? null : "invoices"))}
@@ -371,14 +365,6 @@ export default function DashboardPage() {
             subs={[
               { label: t("dashboard_stat_active"),         value: moduleData.contracts?.active ?? 0,       color: "green" },
               { label: t("dashboard_stat_expiring_soon"),  value: contractsExpiringSoon, color: contractsExpiringSoon > 0 ? "amber" : "neutral" },
-            ]}
-          />
-          <ModuleCard
-            href="/clients" label={t("nav_clients")} icon={<ClientModIcon />}
-            primary={moduleData.clients?.total ?? "—"}
-            subs={[
-              { label: t("dashboard_stat_active"),    value: moduleData.clients?.active ?? 0,    color: "green" },
-              { label: t("dashboard_stat_prospects"), value: moduleData.clients?.prospects ?? 0, color: "neutral" },
             ]}
           />
           <ModuleCard
@@ -671,16 +657,6 @@ function ExpenseModIcon({ size = 16 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
       <rect x="2" y="5" width="20" height="14" rx="2" />
       <line x1="2" y1="10" x2="22" y2="10" />
-    </svg>
-  );
-}
-function ClientModIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }
