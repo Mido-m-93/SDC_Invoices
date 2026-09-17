@@ -6,9 +6,29 @@ import { requireAuth } from "@/lib/auth-guard";
 import { getContractService, getProposalService, getBudgetService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
+import { getGraphToken, resolveSiteId, searchDriveItems, DEFAULT_SITE_PATH } from "@/lib/services/real/graphClient";
 import type { Contract, Proposal, Budget } from "@/types";
 
 export const dynamic = "force-dynamic";
+
+// Some contracts/proposals/budgets have no folderUrl saved on the record
+// itself (e.g. a contract auto-created when a proposal is accepted starts
+// with contractFolderUrl left blank for the user to fill in later). Rather
+// than show no link at all when we know the record exists, fall back to a
+// live SharePoint filename search by client name — same lookup used by the
+// Pipeline Sync page's search box — and link to whatever the top hit is.
+async function findSharePointFallbackUrl(clientName: string): Promise<string | null> {
+  const hasAzureCreds = !!(process.env.AZURE_TENANT_ID && process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET);
+  if (!hasAzureCreds || !clientName.trim()) return null;
+  try {
+    const token = await getGraphToken();
+    const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
+    const results = await searchDriveItems(siteId, clientName, token);
+    return results.find((r) => r.webUrl)?.webUrl ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ── Fuzzy name matching ───────────────────────────────────────────────────────
 // Uses the same scorer as proposal sync and contract sync (pipelineMatching's
@@ -93,6 +113,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ? amountClose(bestProposal.proposal.estimatedAmount, bestContract.contract.expectedMonthlyAmount)
     : null;
 
+  // Only bother searching SharePoint if at least one matched record is
+  // missing its saved folderUrl.
+  const anyMissingFolderUrl =
+    contractsByName.some((m) => !m.contract.contractFolderUrl) ||
+    proposalsByName.some((m) => !m.proposal.folderUrl) ||
+    budgetsByName.some((m) => !m.budget.folderUrl);
+  const sharePointFallbackUrl = anyMissingFolderUrl ? await findSharePointFallbackUrl(rawClientName) : null;
+
   return NextResponse.json({
     recordId: params.id,
     rawClientName,
@@ -113,8 +141,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: contractAmount,
         allMatches: contractsByName
-          .filter((m) => m.contract.contractFolderUrl)
-          .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl as string })),
+          .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl || sharePointFallbackUrl }))
+          .filter((m): m is { name: string; url: string } => !!m.url),
       },
       proposalMatch: {
         found: !!bestProposal,
@@ -130,8 +158,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: proposalAmount,
         allMatches: proposalsByName
-          .filter((m) => m.proposal.folderUrl)
-          .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl as string })),
+          .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl || sharePointFallbackUrl }))
+          .filter((m): m is { name: string; url: string } => !!m.url),
       },
       budgetMatch: {
         found: !!bestBudget,
@@ -147,8 +175,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         } : null,
         amountClose: budgetAmount,
         allMatches: budgetsByName
-          .filter((m) => m.budget.folderUrl)
-          .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl as string })),
+          .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl || sharePointFallbackUrl }))
+          .filter((m): m is { name: string; url: string } => !!m.url),
       },
       proposalContractCross: {
         applicable: !!(bestContract && bestProposal),
