@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     getBudgetService().listBudgets().catch((): Budget[] => []),
   ]);
 
-  // ── Stage 1: Client already exists in system? ──────────────────────────────
+  // Fuzzy-match candidates by client name, above NAME_THRESHOLD
   const contractsByName = contracts.map((c) => ({
     contract: c,
     score: bestNameScore(rawClientName, [c.clientName ?? "", c.projectName]),
@@ -76,30 +76,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     score: bestNameScore(rawClientName, [b.clientName ?? "", b.projectName]),
   })).filter((m) => m.score >= NAME_THRESHOLD).sort((a, b) => b.score - a.score);
 
-  const clientExists = contractsByName.length > 0 || proposalsByName.length > 0 || budgetsByName.length > 0;
-
-  // Every matched record to link from the "Client exists" badge — one link
-  // per proposal/contract/budget that matched by name, not just the top one,
-  // so "Found in N proposal(s)" actually gives you N places to click.
-  const clientExistsMatches = [
-    ...contractsByName.map((m) => ({ label: "contract" as const, name: m.contract.projectName, url: m.contract.contractFolderUrl ?? null, score: m.score })),
-    ...proposalsByName.map((m) => ({ label: "proposal" as const, name: m.proposal.projectName, url: m.proposal.folderUrl ?? null, score: m.score })),
-    ...budgetsByName.map((m) => ({ label: "budget" as const, name: m.budget.projectName, url: m.budget.folderUrl ?? null, score: m.score })),
-  ].filter((m) => m.url !== null).sort((a, b) => b.score - a.score);
-
-  // ── Stage 2: Contract match (name + amount) ────────────────────────────────
+  // ── Stage 1: Contract match (name + amount) ────────────────────────────────
   const bestContract = contractsByName[0] ?? null;
   const contractAmount = amountClose(estimatedAmount, bestContract?.contract.expectedMonthlyAmount ?? null);
 
-  // ── Stage 3: Proposal match (name + amount) ───────────────────────────────
+  // ── Stage 2: Proposal match (name + amount) ───────────────────────────────
   const bestProposal = proposalsByName[0] ?? null;
   const proposalAmount = amountClose(estimatedAmount, bestProposal?.proposal.estimatedAmount ?? null);
 
-  // ── Stage 4: Budget match (name + amount) ──────────────────────────────────
+  // ── Stage 3: Budget match (name + amount) ──────────────────────────────────
   const bestBudget = budgetsByName[0] ?? null;
   const budgetAmount = amountClose(estimatedAmount, bestBudget?.budget.budgetAmount ?? null);
 
-  // ── Stage 5: Proposal ↔ Contract cross-check ──────────────────────────────
+  // ── Stage 4: Proposal ↔ Contract cross-check ──────────────────────────────
   const crossCheck = bestContract && bestProposal
     ? amountClose(bestProposal.proposal.estimatedAmount, bestContract.contract.expectedMonthlyAmount)
     : null;
@@ -110,13 +99,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     projectName,
     estimatedAmount,
     stages: {
-      clientExists: {
-        pass: clientExists,
-        contractCount: contractsByName.length,
-        proposalCount: proposalsByName.length,
-        budgetCount: budgetsByName.length,
-        matches: clientExistsMatches.map((m) => ({ label: m.label, name: m.name, url: m.url as string })),
-      },
       contractMatch: {
         found: !!bestContract,
         contract: bestContract ? {

@@ -41,13 +41,6 @@ interface ValidationResult {
   projectName: string;
   estimatedAmount: number | null;
   stages: {
-    clientExists: {
-      pass: boolean;
-      contractCount: number;
-      proposalCount: number;
-      budgetCount: number;
-      matches: { label: "contract" | "proposal" | "budget"; name: string; url: string }[];
-    };
     contractMatch: {
       found: boolean;
       contract: {
@@ -423,7 +416,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 
   // Determine overall panel result for the summary badge
   const panelResult = validationPanel?.result;
-  const allGreen = panelResult && panelResult.stages.clientExists.pass && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found && panelResult.stages.budgetMatch.found;
+  const allGreen = panelResult && panelResult.stages.contractMatch.found && panelResult.stages.proposalMatch.found && panelResult.stages.budgetMatch.found;
 
   const sharepointRecords = filtered.filter((r) => r.source === "sharepoint");
   const notionRecords = filtered.filter((r) => r.source === "notion");
@@ -707,34 +700,9 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                 </div>
               ) : panelResult ? (
                 <div>
-                  {/* Stage 1 */}
+                  {/* Stage 1: Contract match */}
                   <ValidationStage
                     number={1}
-                    title={t("validate_stage1_title")}
-                    subtitle={t("validate_stage1_subtitle")}
-                    pass={panelResult.stages.clientExists.pass}
-                    warn={false}
-                    lines={
-                      panelResult.stages.clientExists.pass
-                        ? [
-                            panelResult.stages.clientExists.contractCount > 0
-                              ? t("validate_found_contracts").replace("{count}", String(panelResult.stages.clientExists.contractCount))
-                              : "",
-                            panelResult.stages.clientExists.proposalCount > 0
-                              ? t("validate_found_proposals").replace("{count}", String(panelResult.stages.clientExists.proposalCount))
-                              : "",
-                          ].filter(Boolean)
-                        : [t("validate_stage1_fail")]
-                    }
-                    links={panelResult.stages.clientExists.matches.map((m) => ({
-                      url: m.url,
-                      label: `${m.label === "contract" ? t("validate_view_contract") : m.label === "budget" ? t("validate_view_budget") : t("validate_view_proposal")} (${m.name})`,
-                    }))}
-                  />
-
-                  {/* Stage 2 */}
-                  <ValidationStage
-                    number={2}
                     title={t("validate_stage2_title")}
                     subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.contractMatch.found && (panelResult.stages.contractMatch.amountClose.close || panelResult.stages.contractMatch.amountClose.diffPct === null)}
@@ -761,9 +729,9 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     }))}
                   />
 
-                  {/* Stage 3 */}
+                  {/* Stage 2: Proposal match */}
                   <ValidationStage
-                    number={3}
+                    number={2}
                     title={t("validate_stage3_title")}
                     subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.proposalMatch.found && (panelResult.stages.proposalMatch.amountClose.close || panelResult.stages.proposalMatch.amountClose.diffPct === null)}
@@ -790,9 +758,9 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     }))}
                   />
 
-                  {/* Stage 4 */}
+                  {/* Stage 3: Budget match */}
                   <ValidationStage
-                    number={4}
+                    number={3}
                     title={t("validate_stage4_title")}
                     subtitle={t("validate_stage_subtitle_match")}
                     pass={panelResult.stages.budgetMatch.found && (panelResult.stages.budgetMatch.amountClose.close || panelResult.stages.budgetMatch.amountClose.diffPct === null)}
@@ -819,13 +787,13 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     }))}
                   />
 
-                  {/* Stage 5: Proposal ↔ Contract cross-check */}
+                  {/* Stage 4: Proposal ↔ Contract cross-check */}
                   {(() => {
                     const cross = panelResult.stages.proposalContractCross;
                     if (!cross.applicable) {
                       return (
                         <ValidationStage
-                          number={5}
+                          number={4}
                           title={t("validate_stage5_title")}
                           subtitle={t("validate_stage5_subtitle")}
                           pass={false}
@@ -839,7 +807,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                     const diffPct = cross.amountClose?.diffPct ?? null;
                     return (
                       <ValidationStage
-                        number={5}
+                        number={4}
                         title={t("validate_stage5_title")}
                         subtitle={t("validate_stage5_subtitle")}
                         pass={close}
