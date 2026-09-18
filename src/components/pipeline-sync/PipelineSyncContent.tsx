@@ -56,6 +56,7 @@ interface ValidationResult {
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
       linkNote: string | null;
+      suggestedLink: { name: string; url: string; score: number } | null;
     };
     proposalMatch: {
       found: boolean;
@@ -72,6 +73,7 @@ interface ValidationResult {
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
       linkNote: string | null;
+      suggestedLink: { name: string; url: string; score: number } | null;
     };
     budgetMatch: {
       found: boolean;
@@ -88,6 +90,7 @@ interface ValidationResult {
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
       linkNote: string | null;
+      suggestedLink: { name: string; url: string; score: number } | null;
     };
     proposalContractCross: {
       applicable: boolean;
@@ -416,8 +419,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
   const query = search.trim().toLowerCase();
   const filtered = query
     ? byStatus.filter((r) =>
-        [r.rawClientName, r.projectName, r.contactName ?? "", r.contactEmail ?? "", r.notes ?? ""]
-          .some((field) => field.toLowerCase().includes(query))
+        [r.contactName ?? "", r.contactEmail ?? "", r.notes ?? ""].some((field) => field.toLowerCase().includes(query))
+        || Math.max(similarity(search.trim(), r.rawClientName), similarity(search.trim(), r.projectName)) >= EXISTENCE_THRESHOLD
       )
     : byStatus;
   const counts = {
@@ -734,14 +737,21 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within").replace("{pct}", String(c.amountClose.diffPct))
                             : t("validate_amount_differs").replace("{pct}", String(c.amountClose.diffPct))
                           : "",
-                        c.linkNote ?? "",
+                        c.linkNote && c.suggestedLink
+                          ? `Possible match found: "${c.suggestedLink.name}" (${Math.round(c.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
+                          : c.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    links={panelResult.stages.contractMatch.allMatches.map((m) => ({
-                      url: m.url,
-                      label: `${t("validate_view_contract")} (${m.name})`,
-                    }))}
+                    links={[
+                      ...panelResult.stages.contractMatch.allMatches.map((m) => ({
+                        url: m.url,
+                        label: `${t("validate_view_contract")} (${m.name})`,
+                      })),
+                      ...(panelResult.stages.contractMatch.linkNote && panelResult.stages.contractMatch.suggestedLink
+                        ? [{ url: panelResult.stages.contractMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.contractMatch.suggestedLink.name})` }]
+                        : []),
+                    ]}
                   />
 
                   {/* Stage 2: Proposal match */}
@@ -764,14 +774,21 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_proposal").replace("{pct}", String(p.amountClose.diffPct))
                             : t("validate_amount_differs_proposal").replace("{pct}", String(p.amountClose.diffPct))
                           : "",
-                        p.linkNote ?? "",
+                        p.linkNote && p.suggestedLink
+                          ? `Possible match found: "${p.suggestedLink.name}" (${Math.round(p.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
+                          : p.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    links={panelResult.stages.proposalMatch.allMatches.map((m) => ({
-                      url: m.url,
-                      label: `${t("validate_view_proposal")} (${m.name})`,
-                    }))}
+                    links={[
+                      ...panelResult.stages.proposalMatch.allMatches.map((m) => ({
+                        url: m.url,
+                        label: `${t("validate_view_proposal")} (${m.name})`,
+                      })),
+                      ...(panelResult.stages.proposalMatch.linkNote && panelResult.stages.proposalMatch.suggestedLink
+                        ? [{ url: panelResult.stages.proposalMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.proposalMatch.suggestedLink.name})` }]
+                        : []),
+                    ]}
                   />
 
                   {/* Stage 3: Budget match */}
@@ -794,14 +811,21 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_budget").replace("{pct}", String(b.amountClose.diffPct))
                             : t("validate_amount_differs_budget").replace("{pct}", String(b.amountClose.diffPct))
                           : "",
-                        b.linkNote ?? "",
+                        b.linkNote && b.suggestedLink
+                          ? `Possible match found: "${b.suggestedLink.name}" (${Math.round(b.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
+                          : b.linkNote ?? "",
                       ].filter(Boolean);
                       return lines;
                     })()}
-                    links={panelResult.stages.budgetMatch.allMatches.map((m) => ({
-                      url: m.url,
-                      label: `${t("validate_view_budget")} (${m.name})`,
-                    }))}
+                    links={[
+                      ...panelResult.stages.budgetMatch.allMatches.map((m) => ({
+                        url: m.url,
+                        label: `${t("validate_view_budget")} (${m.name})`,
+                      })),
+                      ...(panelResult.stages.budgetMatch.linkNote && panelResult.stages.budgetMatch.suggestedLink
+                        ? [{ url: panelResult.stages.budgetMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.budgetMatch.suggestedLink.name})` }]
+                        : []),
+                    ]}
                   />
 
                   {/* Stage 4: Proposal ↔ Contract cross-check */}

@@ -6,9 +6,74 @@ import { requireAuth } from "@/lib/auth-guard";
 import { getContractService, getProposalService, getBudgetService } from "@/lib/services";
 import { getSupabaseClient } from "@/lib/supabase";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
+import { listSharePointProposalFiles } from "@/lib/services/real/proposalSharePointSource";
+import { listSharePointBudgetFiles } from "@/lib/services/real/budgetSharePointSource";
+import { DEFAULT_SITE_PATH, getGraphToken, resolveSiteId, listFolderChildren } from "@/lib/services/real/graphClient";
 import type { Contract, Proposal, Budget } from "@/types";
 
 export const dynamic = "force-dynamic";
+
+const SUGGESTION_THRESHOLD = 0.2;
+
+const CONTRACTS_PARENT = process.env.MICROSOFT_SALES_CONTRACTS_FOLDER_PATH
+  ?? "40_ExpandTogether/02_Functions/07_Legal/02_Contracts";
+const BUSINESS_SUBFOLDERS = (process.env.MICROSOFT_BUSINESS_CONTRACTS_FOLDERS ?? "01_Client,02_Vendor,04_Partner")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+interface Suggestion { name: string; url: string; score: number }
+
+// Best-guess file for one specific matched contract, scoped to that single
+// client's name — never shared across multiple records (that's what caused
+// wrong links before). Read-only: never saved unless the user links it
+// themselves from the Contracts page.
+async function suggestContractFile(clientName: string): Promise<Suggestion | null> {
+  if (!clientName.trim()) return null;
+  try {
+    const token = await getGraphToken();
+    const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
+    const items = (await Promise.all(
+      BUSINESS_SUBFOLDERS.map((category) => listFolderChildren(siteId, `${CONTRACTS_PARENT}/${category}`, token).catch(() => []))
+    )).flat();
+    const best = items
+      .filter((item) => !item.isFolder && item.webUrl)
+      .map((item) => ({ name: item.name, url: item.webUrl as string, score: similarity(clientName, item.name) }))
+      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
+      .sort((a, b) => b.score - a.score)[0];
+    return best ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function suggestProposalFile(projectName: string, clientName: string | null): Promise<Suggestion | null> {
+  try {
+    const files = await listSharePointProposalFiles();
+    const best = files
+      .filter((f) => f.webUrl)
+      .map((f) => ({ name: f.name, url: f.webUrl, score: Math.max(similarity(projectName, f.name), clientName ? similarity(clientName, f.name) : 0) }))
+      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
+      .sort((a, b) => b.score - a.score)[0];
+    return best ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function suggestBudgetFile(projectName: string, clientName: string | null): Promise<Suggestion | null> {
+  try {
+    const files = await listSharePointBudgetFiles();
+    const best = files
+      .filter((f) => f.fileUrl)
+      .map((f) => ({ name: f.fileName, url: f.fileUrl as string, score: Math.max(similarity(projectName, f.fileName), clientName ? similarity(clientName, f.fileName) : 0) }))
+      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
+      .sort((a, b) => b.score - a.score)[0];
+    return best ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ── Fuzzy name matching ───────────────────────────────────────────────────────
 // Uses the same scorer as proposal sync and contract sync (pipelineMatching's
@@ -106,6 +171,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     (p): p is { close: boolean; diffPct: number | null } => p !== null
   );
 
+  // One suggestion lookup per matched-but-unlinked record — scoped to that
+  // specific client/project, not shared across records.
+  const [contractSuggestion, proposalSuggestion, budgetSuggestion] = await Promise.all([
+    bestContract && !bestContract.contract.contractFolderUrl && bestContract.contract.clientName
+      ? suggestContractFile(bestContract.contract.clientName)
+      : Promise.resolve(null),
+    bestProposal && !bestProposal.proposal.folderUrl
+      ? suggestProposalFile(bestProposal.proposal.projectName, bestProposal.proposal.clientName ?? null)
+      : Promise.resolve(null),
+    bestBudget && !bestBudget.budget.folderUrl
+      ? suggestBudgetFile(bestBudget.budget.projectName, bestBudget.budget.clientName ?? null)
+      : Promise.resolve(null),
+  ]);
+
   return NextResponse.json({
     recordId: params.id,
     rawClientName,
@@ -131,6 +210,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         linkNote: bestContract && !bestContract.contract.contractFolderUrl
           ? "No file link saved for this contract yet — run Sync from SharePoint on the Contracts page"
           : null,
+        suggestedLink: contractSuggestion,
       },
       proposalMatch: {
         found: !!bestProposal,
@@ -151,6 +231,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         linkNote: bestProposal && !bestProposal.proposal.folderUrl
           ? "No file link saved for this proposal yet — run Sync from SharePoint on the Proposals page"
           : null,
+        suggestedLink: proposalSuggestion,
       },
       budgetMatch: {
         found: !!bestBudget,
@@ -171,6 +252,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         linkNote: bestBudget && !bestBudget.budget.folderUrl
           ? "No file link saved for this budget yet — run Sync from SharePoint on the Budget page"
           : null,
+        suggestedLink: budgetSuggestion,
       },
       proposalContractCross: {
         applicable: !!(bestContract && bestProposal),
