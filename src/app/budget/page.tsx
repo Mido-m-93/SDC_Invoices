@@ -28,6 +28,20 @@ interface SharePointBudgetFile {
   size: number | null;
 }
 
+// Scan results aren't saved to the database, so without this they'd vanish
+// on every navigation away from the page — persist per-tab in sessionStorage.
+const SHAREPOINT_FILES_KEY = "budget_sharepoint_files";
+
+function loadStoredSharePointFiles(): SharePointBudgetFile[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SHAREPOINT_FILES_KEY);
+    return raw ? (JSON.parse(raw) as SharePointBudgetFile[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 type BudgetForm = Omit<Budget, "id" | "createdAt">;
 
 const EMPTY: BudgetForm = {
@@ -51,7 +65,7 @@ export default function BudgetPage() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [sharepointFiles, setSharepointFiles] = useState<SharePointBudgetFile[] | null>(null);
+  const [sharepointFiles, setSharepointFiles] = useState<SharePointBudgetFile[] | null>(loadStoredSharePointFiles);
   const [search, setSearch] = useState("");
   const [viewingFiles, setViewingFiles] = useState<Budget | null>(null);
   const [linkCandidates, setLinkCandidates] = useState<{ name: string; webUrl: string; score: number }[] | null>(null);
@@ -120,6 +134,15 @@ export default function BudgetPage() {
   }, [t]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    try {
+      if (sharepointFiles === null) sessionStorage.removeItem(SHAREPOINT_FILES_KEY);
+      else sessionStorage.setItem(SHAREPOINT_FILES_KEY, JSON.stringify(sharepointFiles));
+    } catch {
+      // sessionStorage unavailable (private mode, etc.) — non-fatal
+    }
+  }, [sharepointFiles]);
 
   function clientName(id: string): string {
     return clients.find(c => c.id === id)?.name ?? id;
