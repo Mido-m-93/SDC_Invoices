@@ -371,6 +371,7 @@ const ja = {
   invoices_loaded_msg: "✓「{file}」から{count}件を読み込みました",
   invoices_save_success: "✓ {name} を \"{filename}\" として保存しました",
   invoices_sync_failed_banner: "Microsoft Forms の同期に失敗しました",
+  invoices_sync_button: "フォームから同期",
   invoices_change_currency: "通貨を変更",
   invoices_validated_by: "{name} が検証済み",
   invoices_approve_tooltip: "人的確認後に承認してファイル保管を許可",

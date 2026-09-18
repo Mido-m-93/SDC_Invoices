@@ -371,7 +371,7 @@ export default function InvoicesPage() {
                 onClick={handleSync}
                 icon={<RefreshIcon />}
               >
-                {t("btn_sync")}
+                {t("invoices_sync_button")}
               </Button>
             </div>
           }

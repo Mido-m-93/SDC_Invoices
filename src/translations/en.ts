@@ -371,6 +371,7 @@ const en = {
   invoices_loaded_msg: "✓ Loaded {count} rows from \"{file}\"",
   invoices_save_success: "✓ {name} saved as \"{filename}\"",
   invoices_sync_failed_banner: "Microsoft Forms sync failed",
+  invoices_sync_button: "Sync from Forms",
   invoices_change_currency: "Change currency",
   invoices_validated_by: "Validated by {name}",
   invoices_approve_tooltip: "Approve for filing after human review",
