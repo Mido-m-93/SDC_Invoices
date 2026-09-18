@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import ClientPicker from "@/components/ui/ClientPicker";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
@@ -245,8 +246,8 @@ export default function BudgetPage() {
         subtitle={t("budget_subtitle")}
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleSyncFromSharePoint} disabled={syncing}>
-              {syncing ? "Syncing…" : "Sync from SharePoint"}
+            <Button variant="secondary" onClick={handleSyncFromSharePoint} loading={syncing} icon={<RefreshIcon />}>
+              {t("budget_sync_button")}
             </Button>
             <Button variant="primary" onClick={openNew}>{t("budget_add_button")}</Button>
           </div>

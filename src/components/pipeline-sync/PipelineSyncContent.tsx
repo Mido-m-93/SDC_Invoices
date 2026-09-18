@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
@@ -637,6 +638,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
           size="sm"
           loading={syncing === sourceTab}
           onClick={() => runSync(sourceTab)}
+          icon={<RefreshIcon />}
         >
           {sourceTab === "sharepoint" ? t("pipeline_sync_run_sharepoint") : t("pipeline_sync_run_notion")}
         </Button>

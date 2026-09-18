@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Member, MemberRole, MemberStatus } from "@/types";
 import { generateId } from "@/lib/utils";
@@ -157,9 +158,8 @@ export default function MembersPage() {
         subtitle={t("members_subtitle")}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={handleSync} disabled={syncing}
-              className="border border-stone-300 text-stone-700 hover:bg-stone-50 text-sm">
-              {syncing ? t("members_syncing") : t("members_sync_button")}
+            <Button variant="secondary" onClick={handleSync} loading={syncing} icon={<RefreshIcon />}>
+              {t("members_sync_button")}
             </Button>
             <Button variant="primary" onClick={openNew}
               className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white">

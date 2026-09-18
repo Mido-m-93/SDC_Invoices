@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import ClientPicker from "@/components/ui/ClientPicker";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
@@ -291,8 +292,8 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
 
   const proposalActions = (
     <div className="flex gap-2">
-      <Button variant="secondary" onClick={handleSyncFromSharePoint} disabled={syncing}>
-        {syncing ? "Syncing…" : "Sync from SharePoint"}
+      <Button variant="secondary" onClick={handleSyncFromSharePoint} loading={syncing} icon={<RefreshIcon />}>
+        {t("proposals_sync_button")}
       </Button>
       <Button variant="primary" onClick={openNew}>{t("proposals_add_button")}</Button>
     </div>

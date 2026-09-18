@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import LeadKanban from "@/components/pipeline/LeadKanban";
 import ClientPicker from "@/components/ui/ClientPicker";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { Lead, LeadStage, Client } from "@/types";
@@ -231,7 +232,7 @@ export default function LeadsPage() {
             <Link href="/pipeline-sync" className="text-xs text-stone-500 hover:text-stone-700 hover:underline">
               {t("leads_review_queue_link")}
             </Link>
-            <Button variant="secondary" loading={syncing} onClick={handleSyncPipeline}>{t("leads_sync_button")}</Button>
+            <Button variant="secondary" loading={syncing} onClick={handleSyncPipeline} icon={<RefreshIcon />}>{t("leads_sync_button")}</Button>
             <Button variant="primary" onClick={openNew}>{t("leads_add")}</Button>
           </div>
         }

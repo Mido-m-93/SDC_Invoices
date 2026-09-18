@@ -1011,6 +1011,7 @@ const en = {
   // ── Budget ─────────────────────────────────────────────────────────────────
   budget_title: "Budget",
   budget_subtitle: "The bridge between Proposal and Contract",
+  budget_sync_button: "Sync from SharePoint",
   budget_add_button: "+ Add Budget",
   budget_summary_total: "Total Budgets",
   budget_summary_draft: "Draft",
@@ -1056,6 +1057,7 @@ const en = {
   // ── Proposals ──────────────────────────────────────────────────────────────
   proposals_title: "Proposals",
   proposals_subtitle: "Track proposals sent to clients — the bridge between Lead and Contract",
+  proposals_sync_button: "Sync from SharePoint",
   proposals_add_button: "+ Add Proposal",
   proposals_summary_total: "Total Proposals",
   proposals_summary_pending: "Pending Review",

@@ -1011,6 +1011,7 @@ const ja = {
   // ── Budget ─────────────────────────────────────────────────────────────────
   budget_title: "予算",
   budget_subtitle: "提案と契約をつなぐステップ",
+  budget_sync_button: "SharePointから同期",
   budget_add_button: "＋ 予算を追加",
   budget_summary_total: "予算総数",
   budget_summary_draft: "下書き",
@@ -1056,6 +1057,7 @@ const ja = {
   // ── Proposals ──────────────────────────────────────────────────────────────
   proposals_title: "提案管理",
   proposals_subtitle: "クライアントに送付した提案を管理 — リードと契約をつなぐステップ",
+  proposals_sync_button: "SharePointから同期",
   proposals_add_button: "＋ 提案を追加",
   proposals_summary_total: "提案数",
   proposals_summary_pending: "審査待ち",

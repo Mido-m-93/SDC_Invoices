@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 
@@ -52,7 +53,7 @@ export default function MembersContractTab() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-stone-500">{t("members_contract_subtitle")}</p>
-        <Button variant="secondary" loading={syncing} onClick={handleSync}>{t("members_contract_sync_button")}</Button>
+        <Button variant="secondary" loading={syncing} onClick={handleSync} icon={<RefreshIcon />}>{t("members_contract_sync_button")}</Button>
       </div>
 
       {error && (

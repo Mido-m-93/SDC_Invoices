@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { sendExpenseToMoneyForward, createExpenseMfPayee } from "@/lib/api/client";
@@ -292,20 +293,9 @@ export default function ExpensesPage() {
         actions={
           <div className="flex items-center gap-3">
             <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
-            <button
-              disabled={syncing}
-              onClick={handleSyncForms}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all select-none ${
-                syncing
-                  ? "border-stone-200 text-stone-300 bg-stone-50 cursor-not-allowed"
-                  : "border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100"
-              }`}
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {syncing ? t("expenses_syncing") : t("expenses_sync_from_forms")}
-            </button>
+            <Button variant="secondary" loading={syncing} onClick={handleSyncForms} icon={<RefreshIcon />}>
+              {t("expenses_sync_from_forms")}
+            </Button>
             <button
               onClick={() => setConfirmCleanAll(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
