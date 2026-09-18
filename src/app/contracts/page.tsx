@@ -55,6 +55,8 @@ export default function ContractsPage() {
   const [folderFiles, setFolderFiles] = useState<{ name: string; isFolder: boolean; size: number | null; webUrl: string | null }[] | null>(null);
   const [folderFilesError, setFolderFilesError] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [linkingFile, setLinkingFile] = useState<string | null>(null);
+  const [folderFilesFuzzy, setFolderFilesFuzzy] = useState<{ folderName: string } | null>(null);
   const [search, setSearch] = useState("");
   const [deletingAll, setDeletingAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -334,19 +336,36 @@ export default function ContractsPage() {
     setViewingFiles(c);
     setFolderFiles(null);
     setFolderFilesError(null);
+    setFolderFilesFuzzy(null);
     setLoadingFiles(true);
     try {
       const res = await fetch(`/api/contracts/${c.id}/folder-files`);
-      const data = await res.json() as { files?: typeof folderFiles; error?: string };
+      const data = await res.json() as { files?: typeof folderFiles; folderName?: string; fuzzyMatch?: boolean; error?: string };
       if (!res.ok) {
         setFolderFilesError(data.error ?? t("contracts_files_failed"));
         return;
       }
       setFolderFiles(data.files ?? []);
+      if (data.fuzzyMatch && data.folderName) setFolderFilesFuzzy({ folderName: data.folderName });
     } catch {
       setFolderFilesError(t("contracts_files_failed"));
     } finally {
       setLoadingFiles(false);
+    }
+  }
+
+  async function handleUseAsFolderLink(webUrl: string) {
+    if (!viewingFiles) return;
+    setLinkingFile(webUrl);
+    try {
+      await updateContractFields(viewingFiles, { contractFolderUrl: webUrl });
+      notify("success", `Linked file to contract for ${viewingFiles.clientName || viewingFiles.projectName || viewingFiles.id}`, "/contracts");
+      setViewingFiles(null);
+      load();
+    } catch {
+      notify("error", "Failed to link file to contract", "/contracts");
+    } finally {
+      setLinkingFile(null);
     }
   }
 
@@ -736,19 +755,36 @@ export default function ContractsPage() {
               {folderFiles && folderFiles.length === 0 && (
                 <p className="text-sm text-stone-500">{t("contracts_files_empty")}</p>
               )}
+              {folderFilesFuzzy && (
+                <p className="mb-3 text-xs text-amber-600">
+                  ⚠ No exact folder match for &ldquo;{viewingFiles.clientName}&rdquo; — closest match shown: &ldquo;{folderFilesFuzzy.folderName}&rdquo;. Double-check before linking.
+                </p>
+              )}
               {folderFiles && folderFiles.length > 0 && (
                 <ul className="divide-y divide-stone-100">
                   {folderFiles.map((f) => (
-                    <li key={f.name} className="py-2 flex items-center justify-between text-sm">
-                      {f.webUrl ? (
-                        <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
-                          {f.isFolder ? "📁 " : "📄 "}{f.name}
-                        </a>
-                      ) : (
-                        <span className="text-stone-700 truncate">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
-                      )}
-                      {!f.isFolder && f.size != null && (
-                        <span className="text-xs text-stone-400 shrink-0 ml-3">{Math.round(f.size / 1024)} KB</span>
+                    <li key={f.name} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        {f.webUrl ? (
+                          <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
+                            {f.isFolder ? "📁 " : "📄 "}{f.name}
+                          </a>
+                        ) : (
+                          <span className="text-stone-700 truncate block">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
+                        )}
+                        {!f.isFolder && f.size != null && (
+                          <span className="text-xs text-stone-400">{Math.round(f.size / 1024)} KB</span>
+                        )}
+                      </div>
+                      {!f.isFolder && f.webUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={linkingFile === f.webUrl}
+                          onClick={() => handleUseAsFolderLink(f.webUrl!)}
+                        >
+                          Use as folder link
+                        </Button>
                       )}
                     </li>
                   ))}
