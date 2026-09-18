@@ -420,10 +420,12 @@ export default function ContractsPage() {
         ))}
       </div>
 
-      {tab === "members" ? (
+      {/* Both tabs stay mounted (hidden, not unmounted) so switching tabs
+          doesn't discard the Members Contract sync or lose in-progress state. */}
+      <div hidden={tab !== "members"}>
         <MembersContractTab />
-      ) : (
-        <>
+      </div>
+      <div hidden={tab === "members"}>
       {contracts.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
           <input
@@ -767,8 +769,7 @@ export default function ContractsPage() {
           </div>
         </div>
       )}
-        </>
-      )}
+      </div>
     </AppShell>
   );
 }
