@@ -13,6 +13,9 @@ export interface AppUser {
   archivedAt: string | null;
   archivedBy: string | null;
   isAdmin: boolean;
+  // `null` = unrestricted (sees every tab); an array names the only hrefs
+  // (from MANAGEABLE_TABS) this Member can see. Ignored for admins.
+  allowedTabs: string[] | null;
 }
 
 // A ban this long is effectively permanent until explicitly lifted — used as
@@ -30,7 +33,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
     if (error) throw new Error(error.message);
 
     for (const u of data.users) {
-      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string; role?: string };
+      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string; role?: string; allowedTabs?: string[] };
       users.push({
         id: u.id,
         email: u.email ?? "",
@@ -39,6 +42,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         archivedAt: u.banned_until ? metadata.archived_at ?? u.banned_until : null,
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
         isAdmin: metadata.role === "admin",
+        allowedTabs: metadata.allowedTabs ?? null,
       });
     }
 

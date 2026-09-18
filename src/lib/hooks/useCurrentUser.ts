@@ -21,6 +21,7 @@ export function useCurrentUser() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [allowedTabs, setAllowedTabs] = useState<string[] | null>(null);
   const [ready, setReady] = useState(false);
   const router = useRouter();
 
@@ -44,6 +45,7 @@ export function useCurrentUser() {
       setUser(resolveUser(authUser));
       setUserId(authUser?.id ?? null);
       setIsAdmin((authUser?.user_metadata?.role as string | undefined) === "admin");
+      setAllowedTabs((authUser?.user_metadata?.allowedTabs as string[] | undefined) ?? null);
     };
 
     supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {
@@ -72,7 +74,7 @@ export function useCurrentUser() {
     router.refresh();
   };
 
-  return { user, userId, isAdmin, ready, signOut };
+  return { user, userId, isAdmin, allowedTabs, ready, signOut };
 }
 
 export function userInitials(name: AppUser): string {

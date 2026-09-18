@@ -9,6 +9,7 @@ import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { formatTimestamp } from "@/lib/utils";
+import { MANAGEABLE_TABS } from "@/lib/navTabs";
 
 interface AppUser {
   id: string;
@@ -16,6 +17,7 @@ interface AppUser {
   createdAt: string;
   lastSignInAt: string | null;
   isAdmin: boolean;
+  allowedTabs: string[] | null;
 }
 
 export default function UsersPage() {
@@ -31,6 +33,9 @@ export default function UsersPage() {
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [roleChangingId, setRoleChangingId] = useState<string | null>(null);
+  const [managingTabsFor, setManagingTabsFor] = useState<AppUser | null>(null);
+  const [tabsDraft, setTabsDraft] = useState<Set<string>>(new Set());
+  const [savingTabs, setSavingTabs] = useState(false);
 
   useEffect(() => {
     if (ready && !isAdmin) router.replace("/dashboard");
@@ -115,6 +120,43 @@ export default function UsersPage() {
     }
   }
 
+  function openManageTabs(u: AppUser) {
+    setManagingTabsFor(u);
+    setTabsDraft(new Set(u.allowedTabs ?? MANAGEABLE_TABS.map((tab) => tab.href)));
+  }
+
+  function toggleTabDraft(href: string) {
+    setTabsDraft((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href); else next.add(href);
+      return next;
+    });
+  }
+
+  async function handleSaveTabs() {
+    if (!managingTabsFor) return;
+    setSavingTabs(true);
+    try {
+      const allSelected = tabsDraft.size === MANAGEABLE_TABS.length;
+      const tabs = allSelected ? null : Array.from(tabsDraft);
+      const res = await fetch(`/api/users/${managingTabsFor.id}/set-tabs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tabs }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Failed to update tabs");
+      setUsers((prev) => prev.map((x) => x.id === managingTabsFor.id ? { ...x, allowedTabs: tabs } : x));
+      notify("success", `Updated visible tabs for ${managingTabsFor.email}`, "/users");
+      setManagingTabsFor(null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      notify("error", `Failed to update tabs: ${message}`, "/users");
+    } finally {
+      setSavingTabs(false);
+    }
+  }
+
   if (!ready || !isAdmin) return null;
 
   return (
@@ -184,6 +226,11 @@ export default function UsersPage() {
                       {u.lastSignInAt ? formatTimestamp(u.lastSignInAt, language) : t("users_last_sign_in_never")}
                     </td>
                     <td className="px-4 py-3 flex gap-2">
+                      {!u.isAdmin && (
+                        <Button variant="ghost" size="sm" onClick={() => openManageTabs(u)}>
+                          {t("users_action_manage_tabs")}
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -232,6 +279,56 @@ export default function UsersPage() {
                 className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white"
               >
                 {t("users_invite_send")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {managingTabsFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">
+                {t("users_manage_tabs_title").replace("{email}", managingTabsFor.email)}
+              </h2>
+              <button onClick={() => setManagingTabsFor(null)} className="text-stone-400 hover:text-stone-700 text-xl leading-none">×</button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs text-stone-500">{t("users_manage_tabs_subtitle")}</p>
+                <button
+                  className="text-xs text-[#1a3d2b] font-medium hover:underline"
+                  onClick={() => setTabsDraft(
+                    tabsDraft.size === MANAGEABLE_TABS.length ? new Set() : new Set(MANAGEABLE_TABS.map((tab) => tab.href))
+                  )}
+                >
+                  {tabsDraft.size === MANAGEABLE_TABS.length ? t("users_manage_tabs_select_none") : t("users_manage_tabs_select_all")}
+                </button>
+              </div>
+              <div className="space-y-1 max-h-72 overflow-y-auto">
+                {MANAGEABLE_TABS.map((tab) => (
+                  <label key={tab.href} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-stone-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded border-stone-300 text-[#1a3d2b] focus:ring-[#1a3d2b]/30"
+                      checked={tabsDraft.has(tab.href)}
+                      onChange={() => toggleTabDraft(tab.href)}
+                    />
+                    <span className="text-sm text-stone-700">{t(tab.labelKey)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setManagingTabsFor(null)}>{t("cancel")}</Button>
+              <Button
+                variant="primary"
+                loading={savingTabs}
+                onClick={handleSaveTabs}
+                className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white"
+              >
+                {t("users_manage_tabs_save")}
               </Button>
             </div>
           </div>

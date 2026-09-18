@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/translations";
 import { useCurrentUser, userColor, userInitials } from "@/lib/hooks/useCurrentUser";
 import NotificationBell from "@/components/ui/NotificationBell";
+import { canSeeTab, MANAGEABLE_TABS } from "@/lib/navTabs";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
@@ -66,11 +67,22 @@ const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: Gr
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
-  const { user, isAdmin, signOut } = useCurrentUser();
+  const router = useRouter();
+  const { user, isAdmin, allowedTabs, ready, signOut } = useCurrentUser();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Auto-close the mobile sidebar whenever the route changes.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  // Block direct-URL access to a tab a Member has been restricted from —
+  // the sidebar already hides these, but hiding the link alone doesn't stop
+  // someone from typing/bookmarking the URL.
+  const restrictedTab = MANAGEABLE_TABS.find((tab) => pathname.startsWith(tab.href));
+  const isBlocked = ready && !!restrictedTab && !canSeeTab(restrictedTab.href, allowedTabs, isAdmin);
+
+  useEffect(() => {
+    if (isBlocked) router.replace("/dashboard");
+  }, [isBlocked, router]);
 
   return (
     <div className="min-h-dvh bg-white text-stone-900">
@@ -149,7 +161,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SALES_ITEMS.filter(({ key }) => !SALES_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
+              {SALES_ITEMS.filter(({ key, href }) => !SALES_HIDDEN_KEYS.includes(key) && canSeeTab(href, allowedTabs, isAdmin)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -176,7 +188,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {CONTRACT_ITEMS.map(({ key, href, icon: Icon }) => {
+              {CONTRACT_ITEMS.filter(({ href }) => canSeeTab(href, allowedTabs, isAdmin)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -203,7 +215,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {MEMBERS_ITEMS.filter(({ key }) => key !== "nav_members").map(({ key, href, icon: Icon }) => {
+              {MEMBERS_ITEMS.filter(({ key, href }) => key !== "nav_members" && canSeeTab(href, allowedTabs, isAdmin)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -230,7 +242,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {FINANCE_ITEMS.filter(({ key }) => !FINANCE_HIDDEN_KEYS.includes(key)).map(({ key, href, icon: Icon }) => {
+              {FINANCE_ITEMS.filter(({ key, href }) => !FINANCE_HIDDEN_KEYS.includes(key) && canSeeTab(href, allowedTabs, isAdmin)).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -257,7 +269,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SYSTEM_ITEMS.filter(({ href }) => href !== "/users" || isAdmin).map(({ key, href, icon: Icon }) => {
+              {SYSTEM_ITEMS.filter(({ href }) => (href !== "/users" || isAdmin) && (href === "/users" || canSeeTab(href, allowedTabs, isAdmin))).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -310,7 +322,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="min-h-dvh bg-white pt-14 lg:ml-[220px] lg:pt-0">
-        <div className="min-h-dvh px-6 py-8 lg:px-10">{children}</div>
+        <div className="px-6 py-8 lg:px-10">{isBlocked ? null : children}</div>
       </main>
     </div>
   );
