@@ -23,55 +23,68 @@ const BUSINESS_SUBFOLDERS = (process.env.MICROSOFT_BUSINESS_CONTRACTS_FOLDERS ??
   .filter(Boolean);
 
 interface Suggestion { name: string; url: string; score: number }
+interface SuggestionResult { suggestion: Suggestion | null; debug: string }
 
 // Best-guess file for one specific matched contract, scoped to that single
 // client's name — never shared across multiple records (that's what caused
 // wrong links before). Read-only: never saved unless the user links it
 // themselves from the Contracts page.
-async function suggestContractFile(clientName: string): Promise<Suggestion | null> {
-  if (!clientName.trim()) return null;
+async function suggestContractFile(clientName: string): Promise<SuggestionResult> {
+  if (!clientName.trim()) return { suggestion: null, debug: "no client name to search with" };
   try {
     const token = await getGraphToken();
     const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
     const items = (await Promise.all(
       BUSINESS_SUBFOLDERS.map((category) => listFolderChildren(siteId, `${CONTRACTS_PARENT}/${category}`, token).catch(() => []))
     )).flat();
-    const best = items
+    const ranked = items
       .filter((item) => !item.isFolder && item.webUrl)
       .map((item) => ({ name: item.name, url: item.webUrl as string, score: similarity(clientName, item.name) }))
-      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
-      .sort((a, b) => b.score - a.score)[0];
-    return best ?? null;
-  } catch {
-    return null;
+      .sort((a, b) => b.score - a.score);
+    const best = ranked.filter((m) => m.score >= SUGGESTION_THRESHOLD)[0] ?? null;
+    return {
+      suggestion: best,
+      debug: `scanned ${items.length} item(s) across ${BUSINESS_SUBFOLDERS.join(", ")}; top score ${ranked[0] ? Math.round(ranked[0].score * 100) + "% (" + ranked[0].name + ")" : "n/a"}`,
+    };
+  } catch (err) {
+    console.error("[pipeline-sync validate] suggestContractFile failed:", err);
+    return { suggestion: null, debug: `search failed: ${String(err)}` };
   }
 }
 
-async function suggestProposalFile(projectName: string, clientName: string | null): Promise<Suggestion | null> {
+async function suggestProposalFile(projectName: string, clientName: string | null): Promise<SuggestionResult> {
   try {
     const files = await listSharePointProposalFiles();
-    const best = files
+    const ranked = files
       .filter((f) => f.webUrl)
       .map((f) => ({ name: f.name, url: f.webUrl, score: Math.max(similarity(projectName, f.name), clientName ? similarity(clientName, f.name) : 0) }))
-      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
-      .sort((a, b) => b.score - a.score)[0];
-    return best ?? null;
-  } catch {
-    return null;
+      .sort((a, b) => b.score - a.score);
+    const best = ranked.filter((m) => m.score >= SUGGESTION_THRESHOLD)[0] ?? null;
+    return {
+      suggestion: best,
+      debug: `scanned ${files.length} proposal file(s); top score ${ranked[0] ? Math.round(ranked[0].score * 100) + "% (" + ranked[0].name + ")" : "n/a"}`,
+    };
+  } catch (err) {
+    console.error("[pipeline-sync validate] suggestProposalFile failed:", err);
+    return { suggestion: null, debug: `search failed: ${String(err)}` };
   }
 }
 
-async function suggestBudgetFile(projectName: string, clientName: string | null): Promise<Suggestion | null> {
+async function suggestBudgetFile(projectName: string, clientName: string | null): Promise<SuggestionResult> {
   try {
     const files = await listSharePointBudgetFiles();
-    const best = files
+    const ranked = files
       .filter((f) => f.fileUrl)
       .map((f) => ({ name: f.fileName, url: f.fileUrl as string, score: Math.max(similarity(projectName, f.fileName), clientName ? similarity(clientName, f.fileName) : 0) }))
-      .filter((m) => m.score >= SUGGESTION_THRESHOLD)
-      .sort((a, b) => b.score - a.score)[0];
-    return best ?? null;
-  } catch {
-    return null;
+      .sort((a, b) => b.score - a.score);
+    const best = ranked.filter((m) => m.score >= SUGGESTION_THRESHOLD)[0] ?? null;
+    return {
+      suggestion: best,
+      debug: `scanned ${files.length} budget file(s); top score ${ranked[0] ? Math.round(ranked[0].score * 100) + "% (" + ranked[0].name + ")" : "n/a"}`,
+    };
+  } catch (err) {
+    console.error("[pipeline-sync validate] suggestBudgetFile failed:", err);
+    return { suggestion: null, debug: `search failed: ${String(err)}` };
   }
 }
 
@@ -173,17 +186,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // One suggestion lookup per matched-but-unlinked record — scoped to that
   // specific client/project, not shared across records.
-  const [contractSuggestion, proposalSuggestion, budgetSuggestion] = await Promise.all([
+  const noSuggestion: SuggestionResult = { suggestion: null, debug: "skipped — record already has a link or wasn't matched" };
+  const [contractResult, proposalResult, budgetResult] = await Promise.all([
     bestContract && !bestContract.contract.contractFolderUrl && bestContract.contract.clientName
       ? suggestContractFile(bestContract.contract.clientName)
-      : Promise.resolve(null),
+      : Promise.resolve(noSuggestion),
     bestProposal && !bestProposal.proposal.folderUrl
       ? suggestProposalFile(bestProposal.proposal.projectName, bestProposal.proposal.clientName ?? null)
-      : Promise.resolve(null),
+      : Promise.resolve(noSuggestion),
     bestBudget && !bestBudget.budget.folderUrl
       ? suggestBudgetFile(bestBudget.budget.projectName, bestBudget.budget.clientName ?? null)
-      : Promise.resolve(null),
+      : Promise.resolve(noSuggestion),
   ]);
+  console.log("[pipeline-sync validate] suggestion debug —",
+    "contract:", contractResult.debug, "| proposal:", proposalResult.debug, "| budget:", budgetResult.debug);
 
   return NextResponse.json({
     recordId: params.id,
@@ -208,9 +224,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
         linkNote: bestContract && !bestContract.contract.contractFolderUrl
-          ? "No file link saved for this contract yet — run Sync from SharePoint on the Contracts page"
+          ? `No file link saved for this contract yet — run Sync from SharePoint on the Contracts page (${contractResult.debug})`
           : null,
-        suggestedLink: contractSuggestion,
+        suggestedLink: contractResult.suggestion,
       },
       proposalMatch: {
         found: !!bestProposal,
@@ -229,9 +245,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
         linkNote: bestProposal && !bestProposal.proposal.folderUrl
-          ? "No file link saved for this proposal yet — run Sync from SharePoint on the Proposals page"
+          ? `No file link saved for this proposal yet — run Sync from SharePoint on the Proposals page (${proposalResult.debug})`
           : null,
-        suggestedLink: proposalSuggestion,
+        suggestedLink: proposalResult.suggestion,
       },
       budgetMatch: {
         found: !!bestBudget,
@@ -250,9 +266,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
         linkNote: bestBudget && !bestBudget.budget.folderUrl
-          ? "No file link saved for this budget yet — run Sync from SharePoint on the Budget page"
+          ? `No file link saved for this budget yet — run Sync from SharePoint on the Budget page (${budgetResult.debug})`
           : null,
-        suggestedLink: budgetSuggestion,
+        suggestedLink: budgetResult.suggestion,
       },
       proposalContractCross: {
         applicable: !!(bestContract && bestProposal),
