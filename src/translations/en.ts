@@ -830,8 +830,6 @@ const en = {
   users_last_sign_in_never: "Never",
   users_add_button: "+ Add User",
   users_action_remove: "Remove",
-  users_action_make_admin: "Make Admin",
-  users_action_revoke_admin: "Revoke Admin",
   users_role_admin: "Admin",
   users_role_member: "Member",
   users_you: "you",

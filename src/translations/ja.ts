@@ -830,8 +830,6 @@ const ja = {
   users_last_sign_in_never: "なし",
   users_add_button: "+ ユーザーを追加",
   users_action_remove: "削除",
-  users_action_make_admin: "管理者にする",
-  users_action_revoke_admin: "管理者を解除",
   users_role_admin: "管理者",
   users_role_member: "メンバー",
   users_you: "あなた",

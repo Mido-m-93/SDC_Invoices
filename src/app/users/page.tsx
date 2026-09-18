@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -169,31 +168,22 @@ export default function UsersPage() {
                       {isSelf && <span className="ml-2 text-xs text-stone-400">({t("users_you")})</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {u.isAdmin ? (
-                        <Badge tone="danger">
-                          {t("users_role_admin")}
-                        </Badge>
-                      ) : (
-                        <Badge tone="neutral">
-                          {t("users_role_member")}
-                        </Badge>
-                      )}
+                      <select
+                        className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs font-medium text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        value={u.isAdmin ? "admin" : "member"}
+                        disabled={roleChangingId === u.id || (isSelf && u.isAdmin)}
+                        title={isSelf && u.isAdmin ? t("users_cant_demote_self") : undefined}
+                        onChange={(e) => handleSetRole(u, e.target.value === "admin")}
+                      >
+                        <option value="member">{t("users_role_member")}</option>
+                        <option value="admin">{t("users_role_admin")}</option>
+                      </select>
                     </td>
                     <td className="px-4 py-3 text-stone-500">{formatTimestamp(u.createdAt, language)}</td>
                     <td className="px-4 py-3 text-stone-500">
                       {u.lastSignInAt ? formatTimestamp(u.lastSignInAt, language) : t("users_last_sign_in_never")}
                     </td>
                     <td className="px-4 py-3 flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        loading={roleChangingId === u.id}
-                        disabled={isSelf && u.isAdmin}
-                        title={isSelf && u.isAdmin ? t("users_cant_demote_self") : undefined}
-                        onClick={() => handleSetRole(u, !u.isAdmin)}
-                      >
-                        {u.isAdmin ? t("users_action_revoke_admin") : t("users_action_make_admin")}
-                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
