@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { Client } from "@/types";
@@ -148,13 +149,13 @@ export default function ClientsPage() {
                   <td className="px-4 py-3 text-stone-600">{c.contactName || "—"}</td>
                   <td className="px-4 py-3 text-stone-500 text-xs">{c.contactEmail || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                      c.status === "active"   ? "bg-green-100 text-green-700" :
-                      c.status === "inactive" ? "bg-stone-100 text-stone-500" :
-                      "bg-blue-100 text-blue-700"
-                    }`}>
+                    <Badge tone={(
+                      c.status === "active"   ? "success" :
+                      c.status === "inactive" ? "neutral" :
+                      "info"
+                    ) as BadgeTone}>
                       {t(`clients_status_${c.status}` as TranslationKey)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("clients_action_edit")}</Button>

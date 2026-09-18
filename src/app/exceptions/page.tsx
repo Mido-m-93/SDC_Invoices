@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { translateIssue } from "@/lib/utils";
 import type { InvoiceListItem } from "@/types";
@@ -222,14 +223,14 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
 
 function RiskBadge({ level }: { level?: string }) {
   if (!level) return <span className="text-stone-400 text-xs">—</span>;
-  const styles: Record<string, string> = {
-    BLOCKED:      "bg-red-100 text-red-700",
-    NEEDS_REVIEW: "bg-amber-100 text-amber-700",
-    OK:           "bg-green-100 text-green-700",
+  const tones: Record<string, BadgeTone> = {
+    BLOCKED:      "danger",
+    NEEDS_REVIEW: "warning",
+    OK:           "success",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${styles[level] ?? "bg-stone-100 text-stone-600"}`}>
+    <Badge tone={tones[level] ?? "neutral"} className="font-semibold">
       {level}
-    </span>
+    </Badge>
   );
 }

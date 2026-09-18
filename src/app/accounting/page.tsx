@@ -13,6 +13,7 @@ import { generateId } from "@/lib/utils";
 import { useLanguage } from "@/translations";
 import type { TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,10 @@ const TYPE_COLORS: Record<AccountingEntryType, string> = {
   transfer: "bg-blue-100 text-blue-700",
 };
 
-const STATUS_COLORS: Record<AccountingEntryStatus, string> = {
-  draft: "bg-stone-100 text-stone-500",
-  posted: "bg-green-100 text-green-700",
-  voided: "bg-red-100 text-red-700",
+const STATUS_TONES: Record<AccountingEntryStatus, BadgeTone> = {
+  draft: "neutral",
+  posted: "success",
+  voided: "danger",
 };
 
 const CURRENCIES = ["JPY", "USD", "EUR", "GBP", "AUD", "SGD", "CNY"];
@@ -391,9 +392,9 @@ export default function AccountingPage() {
                         </td>
                         <td className="px-4 py-3 text-stone-500">{entry.currency}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[entry.status]}`}>
+                          <Badge tone={STATUS_TONES[entry.status]}>
                             {statusLabel(entry.status)}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 text-stone-500 text-xs">
                           {entry.sourceType ? `${entry.sourceType}${entry.sourceId ? ` #${entry.sourceId}` : ""}` : t("none")}

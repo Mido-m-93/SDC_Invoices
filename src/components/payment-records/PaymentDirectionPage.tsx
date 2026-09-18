@@ -2,16 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { PaymentRecord, PaymentRecordStatus } from "@/types";
 import { generateId } from "@/lib/utils";
 
-const STATUS_COLORS: Record<PaymentRecordStatus, string> = {
-  pending: "bg-amber-50 text-amber-700",
-  confirmed: "bg-blue-50 text-blue-700",
-  failed: "bg-red-50 text-red-700",
-  reconciled: "bg-green-50 text-green-700",
+const STATUS_TONES: Record<PaymentRecordStatus, BadgeTone> = {
+  pending: "warning",
+  confirmed: "info",
+  failed: "danger",
+  reconciled: "success",
 };
 
 const EMPTY: Omit<PaymentRecord, "id" | "createdAt"> = {
@@ -179,9 +180,7 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
                     <td className="px-4 py-3 text-stone-600">{r.paymentMethod}</td>
                     <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.referenceNumber || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>
-                        {statusLabel(r.status)}
-                      </span>
+                      <Badge tone={STATUS_TONES[r.status]}>{statusLabel(r.status)}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">

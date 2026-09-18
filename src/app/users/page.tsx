@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -169,13 +170,13 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       {u.isAdmin ? (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">
+                        <Badge tone="danger">
                           {t("users_role_admin")}
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-stone-100 text-stone-600">
+                        <Badge tone="neutral">
                           {t("users_role_member")}
-                        </span>
+                        </Badge>
                       )}
                     </td>
                     <td className="px-4 py-3 text-stone-500">{formatTimestamp(u.createdAt, language)}</td>

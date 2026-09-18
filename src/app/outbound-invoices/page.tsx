@@ -6,17 +6,18 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary, Contract } from "@/types";
 
-const STATUS_COLORS: Record<OutboundInvoiceStatus, string> = {
-  draft: "bg-stone-100 text-stone-500",
-  pending_approval: "bg-amber-100 text-amber-700",
-  sent: "bg-blue-100 text-blue-700",
-  overdue: "bg-red-100 text-red-700",
-  paid: "bg-green-100 text-green-700",
-  cancelled: "bg-stone-100 text-stone-400",
+const STATUS_TONES: Record<OutboundInvoiceStatus, BadgeTone> = {
+  draft: "neutral",
+  pending_approval: "warning",
+  sent: "info",
+  overdue: "danger",
+  paid: "success",
+  cancelled: "neutral",
 };
 
 const EMPTY_FORM: Omit<OutboundInvoice, "id" | "createdAt" | "updatedAt" | "sentAt" | "paidAt" | "paidAmount" | "approvedBy" | "approvedAt"> = {
@@ -308,9 +309,9 @@ function OutboundInvoicesPageInner() {
                   <td className={`px-4 py-3 ${inv.status === "overdue" ? "text-red-600 font-medium" : "text-stone-500"}`}>{inv.dueDate || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono font-medium text-stone-800">{fmt(inv.total, inv.currency)}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[inv.status]}`}>
+                    <Badge tone={STATUS_TONES[inv.status]}>
                       {statusLabel(inv.status)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1.5">

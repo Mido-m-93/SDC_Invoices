@@ -5,6 +5,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import VerificationBadge from "@/components/ui/VerificationBadge";
 import ClientPicker from "@/components/ui/ClientPicker";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
@@ -12,12 +13,12 @@ import { useNotifications } from "@/lib/notifications";
 
 const STATUSES: Proposal["status"][] = ["draft", "submitted", "accepted", "rejected", "expired"];
 
-const STATUS_COLORS: Record<Proposal["status"], string> = {
-  draft: "bg-stone-100 text-stone-600",
-  submitted: "bg-blue-50 text-blue-700",
-  accepted: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-700",
-  expired: "bg-amber-50 text-amber-700",
+const STATUS_TONES: Record<Proposal["status"], BadgeTone> = {
+  draft: "neutral",
+  submitted: "info",
+  accepted: "success",
+  rejected: "danger",
+  expired: "neutral",
 };
 
 type ProposalForm = Omit<Proposal, "id" | "createdAt">;
@@ -377,9 +378,9 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     {p.currency} {p.estimatedAmount.toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[p.status]}`}>
+                    <Badge tone={STATUS_TONES[p.status]}>
                       {statusLabel(p.status)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     {p.quoteSheetCreatedAt ? (

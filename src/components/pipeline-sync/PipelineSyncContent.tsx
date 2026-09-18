@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
@@ -28,11 +29,11 @@ function existenceCounts(rawClientName: string, contracts: Contract[], proposals
   return { contractCount, proposalCount, budgetCount };
 }
 
-const STATUS_COLORS: Record<PipelineRecordStatus, string> = {
-  auto_linked: "bg-emerald-50 text-emerald-700",
-  needs_review: "bg-amber-50 text-amber-700",
-  approved: "bg-blue-50 text-blue-700",
-  rejected: "bg-red-50 text-red-700",
+const STATUS_TONES: Record<PipelineRecordStatus, BadgeTone> = {
+  auto_linked: "success",
+  needs_review: "warning",
+  approved: "info",
+  rejected: "danger",
 };
 
 interface ValidationResult {
@@ -449,9 +450,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[r.status]}`}>
-                {STATUS_LABELS[r.status]}
-              </span>
+              <Badge tone={STATUS_TONES[r.status]}>{STATUS_LABELS[r.status]}</Badge>
               {pending && (
                 <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
               )}

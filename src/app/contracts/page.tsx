@@ -5,6 +5,7 @@ import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import MembersContractTab from "@/components/contracts/MembersContractTab";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -22,12 +23,12 @@ const EMPTY_CONTRACT: ContractForm = {
   proposalId: "", budgetId: "", contractFolderUrl: "",
 };
 
-const STATUS_COLORS: Record<Contract["status"], string> = {
-  draft: "bg-stone-100 text-stone-600",
-  signed: "bg-blue-50 text-blue-700",
-  active: "bg-emerald-100 text-emerald-700",
-  expired: "bg-stone-100 text-stone-500",
-  cancelled: "bg-red-100 text-red-600",
+const STATUS_TONES: Record<Contract["status"], BadgeTone> = {
+  draft: "neutral",
+  signed: "info",
+  active: "success",
+  expired: "neutral",
+  cancelled: "danger",
 };
 
 export default function ContractsPage() {
@@ -527,9 +528,9 @@ export default function ContractsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
+                      <Badge tone={STATUS_TONES[c.status]}>
                         {t(`contracts_status_${c.status}` as TranslationKey)}
-                      </span>
+                      </Badge>
                       {c.contractFolderUrl && (
                         <a href={c.contractFolderUrl} target="_blank" rel="noreferrer" className="ml-2 text-xs text-blue-500 hover:underline">
                           {t("contracts_folder_link")}

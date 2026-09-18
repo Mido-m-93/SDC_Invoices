@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Member, MemberRole, MemberStatus } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
@@ -32,10 +33,10 @@ const ROLE_COLORS: Record<MemberRole, string> = {
   other:      "bg-stone-100 text-stone-600",
 };
 
-const STATUS_COLORS: Record<MemberStatus, string> = {
-  active:   "bg-green-100 text-green-700",
-  inactive: "bg-stone-100 text-stone-500",
-  on_leave: "bg-amber-100 text-amber-700",
+const STATUS_TONES: Record<MemberStatus, BadgeTone> = {
+  active:   "success",
+  inactive: "neutral",
+  on_leave: "warning",
 };
 
 export default function MembersPage() {
@@ -227,9 +228,7 @@ export default function MembersPage() {
                   </td>
                   <td className="px-4 py-3 text-stone-500">{m.department || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[m.status]}`}>
-                      {t(`members_status_${m.status}` as TranslationKey)}
-                    </span>
+                    <Badge tone={STATUS_TONES[m.status]}>{t(`members_status_${m.status}` as TranslationKey)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{m.joinDate || "—"}</td>
                   <td className="px-4 py-3 flex gap-2">

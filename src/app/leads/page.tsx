@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import LeadKanban from "@/components/pipeline/LeadKanban";
 import ClientPicker from "@/components/ui/ClientPicker";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { Lead, LeadStage, Client } from "@/types";
@@ -14,15 +15,15 @@ import { generateId } from "@/lib/utils";
 
 const STAGES: LeadStage[] = ["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "on_hold"];
 
-const STAGE_COLORS: Record<LeadStage, string> = {
-  new: "bg-stone-100 text-stone-600",
-  contacted: "bg-blue-100 text-blue-700",
-  qualified: "bg-indigo-100 text-indigo-700",
-  proposal_sent: "bg-violet-100 text-violet-700",
-  negotiation: "bg-amber-100 text-amber-700",
-  won: "bg-emerald-100 text-emerald-700",
-  lost: "bg-red-100 text-red-600",
-  on_hold: "bg-orange-100 text-orange-700",
+const STAGE_TONES: Record<LeadStage, BadgeTone> = {
+  new: "neutral",
+  contacted: "info",
+  qualified: "info",
+  proposal_sent: "info",
+  negotiation: "warning",
+  won: "success",
+  lost: "danger",
+  on_hold: "warning",
 };
 
 const EMPTY_FORM: Omit<Lead, "id" | "createdAt" | "updatedAt" | "proposalId"> = {
@@ -327,9 +328,9 @@ export default function LeadsPage() {
                   <td className="px-4 py-3 font-medium text-stone-800">{l.title}</td>
                   <td className="px-4 py-3 text-stone-600">{l.clientName || l.clientId || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[l.stage]}`}>
+                    <Badge tone={STAGE_TONES[l.stage]}>
                       {stageLabel(l.stage)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-stone-700">
                     {l.estimatedValue > 0 ? `¥${l.estimatedValue.toLocaleString()}` : "—"}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Vendor } from "@/types";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -183,9 +184,9 @@ export default function VendorsPage() {
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{v.taxRegistrationNumber || "—"}</td>
                   <td className="px-4 py-3 text-stone-600">{v.defaultReviewer || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${v.status === "active" ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-500"}`}>
+                    <Badge tone={(v.status === "active" ? "success" : "neutral") as BadgeTone}>
                       {t(`vendors_status_${v.status}` as TranslationKey)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(v)}>{t("vendors_action_edit")}</Button>

@@ -5,6 +5,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { sendExpenseToMoneyForward, createExpenseMfPayee } from "@/lib/api/client";
@@ -29,14 +30,14 @@ function fmtTime(iso: string | null | undefined): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-const STATUS_COLORS: Record<ExpenseStatus, string> = {
-  draft: "bg-stone-100 text-stone-500",
-  submitted: "bg-blue-100 text-blue-700",
-  under_review: "bg-amber-100 text-amber-700",
-  approved: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
-  paid: "bg-emerald-100 text-emerald-700",
-  archived: "bg-stone-100 text-stone-400",
+const STATUS_TONES: Record<ExpenseStatus, BadgeTone> = {
+  draft: "neutral",
+  submitted: "info",
+  under_review: "warning",
+  approved: "success",
+  rejected: "danger",
+  paid: "success",
+  archived: "neutral",
 };
 
 const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status" | "reviewerComment" | "reviewedBy" | "reviewedAt" | "approvedBy" | "approvedAt" | "paidAt" | "extractedAmount" | "extractedDate" | "extractedVendor" | "policyViolations" | "submittedAt"> = {
@@ -409,9 +410,7 @@ export default function ExpensesPage() {
                   </td>
                   <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-start rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
-                      {statusLabel(c.status)}
-                    </span>
+                    <Badge tone={STATUS_TONES[c.status]}>{statusLabel(c.status)}</Badge>
                     <div className="flex gap-1 mt-1">
                       {c.receiptUrl && (
                         <a href={c.receiptUrl} target="_blank" rel="noopener noreferrer"

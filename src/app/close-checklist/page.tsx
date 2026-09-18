@@ -4,17 +4,18 @@ import { useState, useEffect, useCallback } from "react";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { MonthlyCloseChecklist, CloseChecklistItem, CloseChecklistItemStatus } from "@/types";
 
-const STATUS_CONFIG: Record<CloseChecklistItemStatus, { color: string; bg: string }> = {
-  pending:     { color: "text-stone-500",  bg: "bg-stone-100" },
-  in_progress: { color: "text-blue-700",   bg: "bg-blue-100" },
-  done:        { color: "text-green-700",  bg: "bg-green-100" },
-  blocked:     { color: "text-red-700",    bg: "bg-red-100" },
-  na:          { color: "text-stone-400",  bg: "bg-stone-50" },
-  skipped:     { color: "text-stone-400",  bg: "bg-stone-50" },
+const STATUS_TONES: Record<CloseChecklistItemStatus, BadgeTone> = {
+  pending:     "warning",
+  in_progress: "info",
+  done:        "success",
+  blocked:     "danger",
+  na:          "neutral",
+  skipped:     "neutral",
 };
 
 const CATEGORIES = ["bank", "invoices", "expenses", "vendors", "mf", "tax", "report"];
@@ -177,7 +178,6 @@ export default function CloseChecklistPage() {
                 </div>
                 <div className="divide-y divide-stone-50">
                   {items.map((item) => {
-                    const sc = STATUS_CONFIG[item.status];
                     const statusLabel = t(`close_checklist_status_${item.status}` as TranslationKey);
                     const displayTitle = language === "ja" ? (item.titleJa || item.title) : item.title;
                     return (
@@ -212,9 +212,9 @@ export default function CloseChecklistPage() {
                               <span className={`text-sm font-medium ${item.status === "done" || item.status === "na" ? "line-through text-stone-400" : "text-stone-800"}`}>
                                 {displayTitle}
                               </span>
-                              <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sc.bg} ${sc.color}`}>
+                              <Badge tone={STATUS_TONES[item.status]} className="text-[10px]">
                                 {statusLabel}
-                              </span>
+                              </Badge>
                             </div>
                             <p className="text-xs text-stone-400 mt-0.5">{item.description}</p>
                             {item.completedBy && (

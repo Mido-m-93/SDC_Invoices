@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ClientPicker from "@/components/ui/ClientPicker";
 import VerificationBadge from "@/components/ui/VerificationBadge";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Budget, Client, Proposal } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
@@ -13,10 +14,10 @@ import { useNotifications } from "@/lib/notifications";
 
 const STATUSES: Budget["status"][] = ["draft", "confirmed", "rejected"];
 
-const STATUS_COLORS: Record<Budget["status"], string> = {
-  draft: "bg-stone-100 text-stone-600",
-  confirmed: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-700",
+const STATUS_TONES: Record<Budget["status"], BadgeTone> = {
+  draft: "neutral",
+  confirmed: "success",
+  rejected: "danger",
 };
 
 interface SharePointBudgetFile {
@@ -357,9 +358,9 @@ export default function BudgetPage() {
                     {b.currency} {b.budgetAmount.toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[b.status]}`}>
+                    <Badge tone={STATUS_TONES[b.status]}>
                       {statusLabel(b.status)}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <VerificationBadge

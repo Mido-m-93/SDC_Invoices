@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { fetchRuns, fetchLogs, clearAllRuns } from "@/lib/api/client";
 import { formatTimestamp, logResultColor } from "@/lib/utils";
@@ -255,15 +256,15 @@ function RunMeta({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 function RunStatusPill({ status }: { status: ProcessingRun["status"] }) {
-  const colors: Record<ProcessingRun["status"], string> = {
-    RUNNING:  "bg-blue-50 text-blue-600",
-    COMPLETE: "bg-emerald-50 text-emerald-600",
-    FAILED:   "bg-red-50 text-red-600",
+  const tones: Record<ProcessingRun["status"], BadgeTone> = {
+    RUNNING:  "info",
+    COMPLETE: "success",
+    FAILED:   "danger",
   };
   return (
-    <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded font-mono", colors[status])}>
+    <Badge tone={tones[status]} className="font-mono">
       {status}
-    </span>
+    </Badge>
   );
 }
 
