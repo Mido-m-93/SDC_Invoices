@@ -208,20 +208,29 @@ export default function ContractsPage() {
     }
     setSaving(true);
     try {
-      const payload: ContractForm & { id?: string; createdAt?: string } = {
+      // Start from the full existing record (not just the form fields) so an
+      // edit-save doesn't drop fields the form doesn't manage, e.g. AI
+      // verification verdicts. Editing invalidates any prior sign-off, so
+      // reviewedAt/billingRulesChecked are explicitly cleared here rather
+      // than left to whatever the form happens to carry.
+      const payload: Contract = {
+        ...(editing ?? ({} as Contract)),
         ...form,
         clientId: form.clientId || undefined,
         clientName: form.clientName || undefined,
         proposalId: form.proposalId || undefined,
         budgetId: form.budgetId || undefined,
         contractFolderUrl: form.contractFolderUrl || undefined,
+        id: editing ? editing.id : generateId("con"),
+        createdAt: editing ? editing.createdAt : new Date().toISOString(),
+        reviewedAt: editing ? null : undefined,
+        reviewedBy: editing ? null : undefined,
+        billingRulesChecked: editing ? false : undefined,
+        billingRulesCheckedAt: editing ? null : undefined,
+        billingRulesCheckedBy: editing ? null : undefined,
       };
       const url = editing ? `/api/contracts/${editing.id}` : "/api/contracts";
       const method = editing ? "PUT" : "POST";
-      if (!editing) {
-        payload.id = generateId("con");
-        payload.createdAt = new Date().toISOString();
-      }
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) {
         const data = await res.json() as { error?: string };
