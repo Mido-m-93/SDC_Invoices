@@ -3,7 +3,7 @@
 
 import clsx from "clsx";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-light";
 type Size = "sm" | "md" | "lg";
 
 interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -22,6 +22,8 @@ const variantClasses: Record<Variant, string> = {
     "bg-transparent text-stone-600 hover:bg-stone-100 border border-transparent",
   danger:
     "bg-red-600 text-white hover:bg-red-700 border border-red-600 shadow-sm",
+  "danger-light":
+    "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 shadow-sm",
 };
 
 const sizeClasses: Record<Size, string> = {

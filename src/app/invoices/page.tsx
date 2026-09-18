@@ -6,6 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import RefreshIcon from "@/components/ui/RefreshIcon";
+import TrashIcon from "@/components/ui/TrashIcon";
 import MonthSelector from "@/components/ui/MonthSelector";
 import StatusBadge from "@/components/ui/StatusBadge";
 import InvoiceDetailPanel from "@/components/invoice/InvoiceDetailPanel";
@@ -341,13 +342,9 @@ export default function InvoicesPage() {
           actions={
             <div className="flex items-center gap-3">
               <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
-              <button
-                onClick={() => setConfirmClear(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-              >
-                <TrashIcon />
+              <Button variant="danger-light" onClick={() => setConfirmClear(true)} icon={<TrashIcon />}>
                 {t("invoices_clear_all")}
-              </button>
+              </Button>
               {/* Excel file upload (workaround while waiting for Graph API approval) */}
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none
                 ${uploading
@@ -750,8 +747,4 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function UploadIcon() {
   return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
-}
-
-function TrashIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 }

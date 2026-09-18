@@ -7,6 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import RefreshIcon from "@/components/ui/RefreshIcon";
+import TrashIcon from "@/components/ui/TrashIcon";
 import MembersContractTab from "@/components/contracts/MembersContractTab";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -395,7 +396,7 @@ export default function ContractsPage() {
             <div className="flex gap-2">
               <Button variant="secondary" loading={syncing} onClick={handleSync} icon={<RefreshIcon />}>{t("contracts_sync_button")}</Button>
               {contracts.length > 0 && (
-                <Button variant="secondary" loading={deletingAll} onClick={handleDeleteAll}>{t("contracts_delete_all_button")}</Button>
+                <Button variant="danger-light" loading={deletingAll} onClick={handleDeleteAll} icon={<TrashIcon />}>{t("contracts_delete_all_button")}</Button>
               )}
               <Button variant="primary" onClick={openNew}>{t("contracts_add_button")}</Button>
             </div>

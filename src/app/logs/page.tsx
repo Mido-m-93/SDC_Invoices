@@ -7,6 +7,7 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import TrashIcon from "@/components/ui/TrashIcon";
 import { useLanguage } from "@/translations";
 import { fetchRuns, fetchLogs, clearAllRuns } from "@/lib/api/client";
 import { formatTimestamp, logResultColor } from "@/lib/utils";
@@ -86,13 +87,9 @@ export default function LogsPage() {
               <Button variant="secondary" size="md" onClick={loadRuns} loading={loading} icon={<RefreshIcon />}>
                 {t("logs_refresh")}
               </Button>
-              <button
-                onClick={() => setConfirmClear(true)}
-                disabled={runs.length === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <Button variant="danger-light" onClick={() => setConfirmClear(true)} disabled={runs.length === 0} icon={<TrashIcon />}>
                 {t("logs_clear_all")}
-              </button>
+              </Button>
             </div>
           }
         />

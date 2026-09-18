@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import MonthSelector from "@/components/ui/MonthSelector";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import RefreshIcon from "@/components/ui/RefreshIcon";
+import TrashIcon from "@/components/ui/TrashIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { sendExpenseToMoneyForward, createExpenseMfPayee } from "@/lib/api/client";
@@ -296,13 +297,9 @@ export default function ExpensesPage() {
             <Button variant="secondary" loading={syncing} onClick={handleSyncForms} icon={<RefreshIcon />}>
               {t("expenses_sync_from_forms")}
             </Button>
-            <button
-              onClick={() => setConfirmCleanAll(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-            >
-              <TrashIcon />
+            <Button variant="danger-light" onClick={() => setConfirmCleanAll(true)} icon={<TrashIcon />}>
               {t("expenses_clean_all")}
-            </button>
+            </Button>
             {SHOW_EXPENSES_UPLOAD_EXCEL && (
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
                 uploading
@@ -717,10 +714,6 @@ export default function ExpensesPage() {
       )}
     </AppShell>
   );
-}
-
-function TrashIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 }
 
 const inp = "w-full rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30";
