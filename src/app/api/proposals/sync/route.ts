@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { getProposalService, getClientService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
-import { rankClientCandidates, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
+import { rankClientCandidates, similarity, AUTO_LINK_THRESHOLD } from "@/lib/services/ai/pipelineMatching";
 import type { Proposal, Client } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,15 @@ export async function POST() {
     existingProposals.filter((p) => p.sourceFileId).map((p) => [p.sourceFileId as string, p])
   );
 
+  // Proposals with no folderUrl that also weren't created BY this exact sync
+  // (no sourceFileId to key an exact match on) — e.g. a proposal fuzzy-matched
+  // to a client through pipeline sync, or entered some other way. The exact
+  // bySourceFileId lookup above can never backfill these, so give them one
+  // more chance: a confident (>=0.85) name match against a scanned file,
+  // same conservative bar and scorer as the contract sync backfill.
+  const unlinkedProposals = existingProposals.filter((p) => !p.folderUrl);
+  const backfilledProposalIds = new Set<string>();
+
   const saved: string[] = [];
   const failed: string[] = [];
   let skipped = 0;
@@ -66,6 +75,36 @@ export async function POST() {
         }
       }
       continue;
+    }
+
+    // Fuzzy fallback: does this file's extracted name confidently match an
+    // existing, still-unlinked proposal? If so, attach this file to it
+    // instead of creating a duplicate proposal for the same project.
+    if (fileUrl) {
+      const candidateName = fields.projectName || fileName;
+      const fuzzyMatch = unlinkedProposals
+        .filter((p) => !backfilledProposalIds.has(p.id))
+        .map((p) => ({
+          proposal: p,
+          score: Math.max(
+            similarity(candidateName, p.projectName),
+            fields.clientName ? similarity(fields.clientName, p.clientName ?? "") : 0
+          ),
+        }))
+        .filter((m) => m.score >= AUTO_LINK_THRESHOLD)
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (fuzzyMatch) {
+        try {
+          await service.saveProposal({ ...fuzzyMatch.proposal, folderUrl: fileUrl, sourceFileId: fileId });
+          backfilledProposalIds.add(fuzzyMatch.proposal.id);
+          folderUrlsBackfilled++;
+          skipped++;
+        } catch (err) {
+          console.error(`[proposals/sync] Failed to fuzzy-backfill folderUrl for "${fileName}":`, err);
+        }
+        continue;
+      }
     }
 
     const rawClientName = fields.clientName ?? "";
