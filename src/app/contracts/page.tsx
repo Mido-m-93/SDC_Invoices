@@ -5,7 +5,6 @@ import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
-import VerificationBadge from "@/components/ui/VerificationBadge";
 import MembersContractTab from "@/components/contracts/MembersContractTab";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -47,8 +46,6 @@ export default function ContractsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ContractForm>({ ...EMPTY_CONTRACT });
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState<string | null>(null);
-  const [verifyingBudget, setVerifyingBudget] = useState<string | null>(null);
   const [markingReviewed, setMarkingReviewed] = useState<string | null>(null);
   const [checkingBilling, setCheckingBilling] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<Contract | null>(null);
@@ -105,46 +102,6 @@ export default function ContractsPage() {
       notify("error", "Contract sync failed", "/contracts");
     } finally {
       setSyncing(false);
-    }
-  }
-
-  async function handleVerify(c: Contract) {
-    setVerifying(c.id);
-    try {
-      const res = await fetch(`/api/contracts/${c.id}/verify`, { method: "POST" });
-      if (res.ok) {
-        notify("success", `Verified contract for ${c.projectName || c.id}`, "/contracts");
-        load();
-      } else {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        setError(data.error ?? t("contracts_sync_failed"));
-        notify("error", data.error ?? `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
-      }
-    } catch {
-      setError(t("contracts_sync_failed"));
-      notify("error", `Failed to verify contract for ${c.projectName || c.id}`, "/contracts");
-    } finally {
-      setVerifying(null);
-    }
-  }
-
-  async function handleVerifyBudget(c: Contract) {
-    setVerifyingBudget(c.id);
-    try {
-      const res = await fetch(`/api/contracts/${c.id}/verify-budget`, { method: "POST" });
-      if (res.ok) {
-        notify("success", `Verified contract vs budget for ${c.projectName || c.id}`, "/contracts");
-        load();
-      } else {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        setError(data.error ?? t("contracts_sync_failed"));
-        notify("error", data.error ?? `Failed to verify contract vs budget for ${c.projectName || c.id}`, "/contracts");
-      }
-    } catch {
-      setError(t("contracts_sync_failed"));
-      notify("error", `Failed to verify contract vs budget for ${c.projectName || c.id}`, "/contracts");
-    } finally {
-      setVerifyingBudget(null);
     }
   }
 
@@ -512,7 +469,6 @@ export default function ContractsPage() {
                 <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_verification_combined")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_review_billing")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_actions")}</th>
               </tr>
@@ -538,35 +494,6 @@ export default function ContractsPage() {
                           {t("contracts_folder_link")}
                         </a>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1.5">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("contracts_col_verification_proposal")}</p>
-                          <VerificationBadge
-                            verification={c.verificationProposal}
-                            onVerify={() => handleVerify(c)}
-                            verifying={verifying === c.id}
-                            verifyLabel={t("contracts_action_verify")}
-                            reverifyLabel={t("contracts_action_reverify")}
-                          />
-                          {c.clientName && (
-                            <button onClick={() => handleViewFiles(c)} className="block text-xs text-blue-600 hover:underline mt-0.5">
-                              {t("contracts_action_view_files")}
-                            </button>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase text-stone-400 mb-0.5">{t("contracts_col_verification_budget")}</p>
-                          <VerificationBadge
-                            verification={c.verificationBudget}
-                            onVerify={() => handleVerifyBudget(c)}
-                            verifying={verifyingBudget === c.id}
-                            verifyLabel={t("contracts_action_verify")}
-                            reverifyLabel={t("contracts_action_reverify")}
-                          />
-                        </div>
-                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1.5">
