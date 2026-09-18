@@ -636,7 +636,7 @@ export default function ExpensesPage() {
                     : "",
                 ].filter(Boolean)}
                 link={validationPanel.result.contractFileUrl}
-                linkLabel="View Contract"
+                linkLabel={t("validate_view_contract")}
               />
 
               {/* Stage 2: Receipt match
@@ -682,7 +682,7 @@ export default function ExpensesPage() {
                     : "",
                 ].filter(Boolean)}
                 link={validationPanel.claim.receiptUrl || null}
-                linkLabel="View Receipt"
+                linkLabel={t("validate_view_receipt")}
                 isLast
               />
               {validationPanel.claim.receiptUrl && (
@@ -690,7 +690,7 @@ export default function ExpensesPage() {
                   href={`/api/files/sharepoint-download?url=${encodeURIComponent(validationPanel.claim.receiptUrl)}&filename=${encodeURIComponent(validationPanel.claim.receiptFilename || `receipt_${validationPanel.claim.submittedBy}`)}`}
                   className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800"
                 >
-                  ⬇ Download Receipt PDF
+                  {t("validate_download_receipt_pdf")}
                 </a>
               )}
             </div>

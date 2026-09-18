@@ -55,7 +55,8 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
-      linkNote: string | null;
+      linkMissing: boolean;
+      linkDebug: string | null;
       suggestedLink: { name: string; url: string; score: number } | null;
     };
     proposalMatch: {
@@ -72,7 +73,8 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
-      linkNote: string | null;
+      linkMissing: boolean;
+      linkDebug: string | null;
       suggestedLink: { name: string; url: string; score: number } | null;
     };
     budgetMatch: {
@@ -89,7 +91,8 @@ interface ValidationResult {
       } | null;
       amountClose: { close: boolean; diffPct: number | null };
       allMatches: { name: string; url: string }[];
-      linkNote: string | null;
+      linkMissing: boolean;
+      linkDebug: string | null;
       suggestedLink: { name: string; url: string; score: number } | null;
     };
     proposalContractCross: {
@@ -737,9 +740,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within").replace("{pct}", String(c.amountClose.diffPct))
                             : t("validate_amount_differs").replace("{pct}", String(c.amountClose.diffPct))
                           : "",
-                        c.linkNote && c.suggestedLink
-                          ? `Possible match found: "${c.suggestedLink.name}" (${Math.round(c.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
-                          : c.linkNote ?? "",
+                        c.linkMissing && c.suggestedLink
+                          ? t("validate_possible_match_found").replace("{name}", c.suggestedLink.name).replace("{pct}", String(Math.round(c.suggestedLink.score * 100)))
+                          : c.linkMissing ? t("validate_no_link_contract") : "",
+                        c.linkMissing && c.linkDebug ? c.linkDebug : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -748,8 +752,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                         url: m.url,
                         label: `${t("validate_view_contract")} (${m.name})`,
                       })),
-                      ...(panelResult.stages.contractMatch.linkNote && panelResult.stages.contractMatch.suggestedLink
-                        ? [{ url: panelResult.stages.contractMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.contractMatch.suggestedLink.name})` }]
+                      ...(panelResult.stages.contractMatch.linkMissing && panelResult.stages.contractMatch.suggestedLink
+                        ? [{ url: panelResult.stages.contractMatch.suggestedLink.url, label: t("validate_view_possible_match").replace("{name}", panelResult.stages.contractMatch.suggestedLink.name) }]
                         : []),
                     ]}
                   />
@@ -774,9 +778,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_proposal").replace("{pct}", String(p.amountClose.diffPct))
                             : t("validate_amount_differs_proposal").replace("{pct}", String(p.amountClose.diffPct))
                           : "",
-                        p.linkNote && p.suggestedLink
-                          ? `Possible match found: "${p.suggestedLink.name}" (${Math.round(p.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
-                          : p.linkNote ?? "",
+                        p.linkMissing && p.suggestedLink
+                          ? t("validate_possible_match_found").replace("{name}", p.suggestedLink.name).replace("{pct}", String(Math.round(p.suggestedLink.score * 100)))
+                          : p.linkMissing ? t("validate_no_link_proposal") : "",
+                        p.linkMissing && p.linkDebug ? p.linkDebug : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -785,8 +790,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                         url: m.url,
                         label: `${t("validate_view_proposal")} (${m.name})`,
                       })),
-                      ...(panelResult.stages.proposalMatch.linkNote && panelResult.stages.proposalMatch.suggestedLink
-                        ? [{ url: panelResult.stages.proposalMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.proposalMatch.suggestedLink.name})` }]
+                      ...(panelResult.stages.proposalMatch.linkMissing && panelResult.stages.proposalMatch.suggestedLink
+                        ? [{ url: panelResult.stages.proposalMatch.suggestedLink.url, label: t("validate_view_possible_match").replace("{name}", panelResult.stages.proposalMatch.suggestedLink.name) }]
                         : []),
                     ]}
                   />
@@ -811,9 +816,10 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                             ? t("validate_amount_within_budget").replace("{pct}", String(b.amountClose.diffPct))
                             : t("validate_amount_differs_budget").replace("{pct}", String(b.amountClose.diffPct))
                           : "",
-                        b.linkNote && b.suggestedLink
-                          ? `Possible match found: "${b.suggestedLink.name}" (${Math.round(b.suggestedLink.score * 100)}% name match) — unconfirmed, not saved`
-                          : b.linkNote ?? "",
+                        b.linkMissing && b.suggestedLink
+                          ? t("validate_possible_match_found").replace("{name}", b.suggestedLink.name).replace("{pct}", String(Math.round(b.suggestedLink.score * 100)))
+                          : b.linkMissing ? t("validate_no_link_budget") : "",
+                        b.linkMissing && b.linkDebug ? b.linkDebug : "",
                       ].filter(Boolean);
                       return lines;
                     })()}
@@ -822,8 +828,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                         url: m.url,
                         label: `${t("validate_view_budget")} (${m.name})`,
                       })),
-                      ...(panelResult.stages.budgetMatch.linkNote && panelResult.stages.budgetMatch.suggestedLink
-                        ? [{ url: panelResult.stages.budgetMatch.suggestedLink.url, label: `View possible match (${panelResult.stages.budgetMatch.suggestedLink.name})` }]
+                      ...(panelResult.stages.budgetMatch.linkMissing && panelResult.stages.budgetMatch.suggestedLink
+                        ? [{ url: panelResult.stages.budgetMatch.suggestedLink.url, label: t("validate_view_possible_match").replace("{name}", panelResult.stages.budgetMatch.suggestedLink.name) }]
                         : []),
                     ]}
                   />
@@ -868,36 +874,40 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
                   {/* Stage 5: 3-way amount consistency (Proposal ↔ Contract ↔ Budget) */}
                   {(() => {
                     const tw = panelResult.stages.threeWayCross;
-                    const fmt = (v: number | null) => v != null ? `${tw.currency} ${v.toLocaleString()}` : "—";
+                    const fmtAmount = (v: number | null) => v != null ? v.toLocaleString() : "—";
                     if (!tw.applicable) {
                       return (
                         <ValidationStage
                           number={5}
-                          title="Proposal ↔ Contract ↔ Budget amount match"
-                          subtitle="Cross-check: do all matched amounts agree?"
+                          title={t("validate_stage6_title")}
+                          subtitle={t("validate_stage6_subtitle")}
                           pass={false}
                           warn={false}
-                          lines={["Skipped — need at least two of proposal/contract/budget matched to compare"]}
+                          lines={[t("validate_stage6_skipped")]}
                           isLast
                         />
                       );
                     }
                     const pairLine = (label: string, pair: { close: boolean; diffPct: number | null } | null) =>
-                      pair == null ? "" : `${label}: ${pair.diffPct === null ? "could not compare" : pair.close ? `within ${pair.diffPct}%` : `differs by ${pair.diffPct}%`}`;
+                      pair == null ? "" : pair.diffPct === null
+                        ? t("validate_pair_could_not_compare").replace("{label}", label)
+                        : pair.close
+                          ? t("validate_pair_within").replace("{label}", label).replace("{pct}", String(pair.diffPct))
+                          : t("validate_pair_differs").replace("{label}", label).replace("{pct}", String(pair.diffPct));
                     return (
                       <ValidationStage
                         number={5}
-                        title="Proposal ↔ Contract ↔ Budget amount match"
-                        subtitle="Cross-check: do all matched amounts agree?"
+                        title={t("validate_stage6_title")}
+                        subtitle={t("validate_stage6_subtitle")}
                         pass={tw.allClose}
                         warn={!tw.allClose}
                         lines={[
-                          `Proposal: ${fmt(tw.proposalAmount)}`,
-                          `Contract: ${fmt(tw.contractAmount)}`,
-                          `Budget: ${fmt(tw.budgetAmount)}`,
-                          pairLine("Proposal ↔ Contract", tw.proposalVsContract),
-                          pairLine("Proposal ↔ Budget", tw.proposalVsBudget),
-                          pairLine("Contract ↔ Budget", tw.contractVsBudget),
+                          t("validate_proposal_amount_line").replace("{currency}", tw.currency).replace("{amount}", fmtAmount(tw.proposalAmount)),
+                          t("validate_contract_amount_line").replace("{currency}", tw.currency).replace("{amount}", fmtAmount(tw.contractAmount)),
+                          t("validate_budget_amount_line").replace("{currency}", tw.currency).replace("{amount}", fmtAmount(tw.budgetAmount)),
+                          pairLine(t("validate_pair_label_proposal_contract"), tw.proposalVsContract),
+                          pairLine(t("validate_pair_label_proposal_budget"), tw.proposalVsBudget),
+                          pairLine(t("validate_pair_label_contract_budget"), tw.contractVsBudget),
                         ].filter(Boolean)}
                         isLast
                       />

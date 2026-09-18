@@ -223,9 +223,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         allMatches: contractsByName
           .map((m) => ({ name: m.contract.projectName, url: m.contract.contractFolderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestContract && !bestContract.contract.contractFolderUrl
-          ? `No file link saved for this contract yet — run Sync from SharePoint on the Contracts page (${contractResult.debug})`
-          : null,
+        linkMissing: !!(bestContract && !bestContract.contract.contractFolderUrl),
+        linkDebug: bestContract && !bestContract.contract.contractFolderUrl ? contractResult.debug : null,
         suggestedLink: contractResult.suggestion,
       },
       proposalMatch: {
@@ -244,9 +243,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         allMatches: proposalsByName
           .map((m) => ({ name: m.proposal.projectName, url: m.proposal.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestProposal && !bestProposal.proposal.folderUrl
-          ? `No file link saved for this proposal yet — run Sync from SharePoint on the Proposals page (${proposalResult.debug})`
-          : null,
+        linkMissing: !!(bestProposal && !bestProposal.proposal.folderUrl),
+        linkDebug: bestProposal && !bestProposal.proposal.folderUrl ? proposalResult.debug : null,
         suggestedLink: proposalResult.suggestion,
       },
       budgetMatch: {
@@ -265,9 +263,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         allMatches: budgetsByName
           .map((m) => ({ name: m.budget.projectName, url: m.budget.folderUrl }))
           .filter((m): m is { name: string; url: string } => !!m.url),
-        linkNote: bestBudget && !bestBudget.budget.folderUrl
-          ? `No file link saved for this budget yet — run Sync from SharePoint on the Budget page (${budgetResult.debug})`
-          : null,
+        linkMissing: !!(bestBudget && !bestBudget.budget.folderUrl),
+        linkDebug: bestBudget && !bestBudget.budget.folderUrl ? budgetResult.debug : null,
         suggestedLink: budgetResult.suggestion,
       },
       proposalContractCross: {

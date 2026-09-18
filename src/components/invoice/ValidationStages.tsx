@@ -221,7 +221,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         statusLabel={statusLabel(stage1Status)}
         detail={stage1Detail}
         link={submission?.invoiceAttachment || null}
-        linkLabel="View Invoice"
+        linkLabel={t("validate_view_invoice")}
       />
       <StageCard
         number={2}
@@ -239,7 +239,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         statusLabel={statusLabel(stage3Status)}
         detail={stage3Detail}
         link={v.driveFileUrl || null}
-        linkLabel="View in Drive"
+        linkLabel={t("validate_view_in_drive")}
       />
       <StageCard
         number={4}
@@ -249,7 +249,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         statusLabel={statusLabel(stage4Status)}
         detail={stage4Detail}
         link={v.contractFileUrl || null}
-        linkLabel="View Contract"
+        linkLabel={t("validate_view_contract")}
         isLast
       />
       {submission?.invoiceAttachment && (
@@ -257,7 +257,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
           href={`/api/files/sharepoint-download?url=${encodeURIComponent(submission.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${submission.payerName || submission.id}.pdf`)}`}
           className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:border-stone-400 hover:text-stone-800"
         >
-          ⬇ Download Invoice PDF
+          {t("validate_download_invoice_pdf")}
         </a>
       )}
     </div>
