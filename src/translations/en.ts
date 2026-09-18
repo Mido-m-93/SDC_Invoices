@@ -357,6 +357,7 @@ const en = {
   dashboard_stat_new: "New",
   dashboard_stat_pipeline: "Pipeline",
   dashboard_stat_pipeline_pending: "Pipeline Pending",
+  dashboard_stat_sharepoint_files: "SharePoint Files",
   dashboard_sales_label: "Sales",
   dashboard_invoice_processing: "Invoice Processing",
   dashboard_forms_sync_warning: "Forms sync warning: {warning}",

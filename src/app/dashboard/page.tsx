@@ -45,7 +45,7 @@ export default function DashboardPage() {
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     proposals: { total: number; open: number; accepted: number; pipelineTotal: number; pipelinePending: number } | null;
     contracts: { total: number; active: number; expiringSoon: number } | null;
-    budget: { total: number; draft: number; confirmed: number } | null;
+    budget: { total: number; draft: number; confirmed: number; sharepointFiles: number } | null;
   }>({ expenses: null, proposals: null, contracts: null, budget: null });
 
   const loadStats = useCallback(async () => {
@@ -82,16 +82,18 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, proposalRes, contractRes, budgetRes, pipelineRes] = await Promise.allSettled([
+      const [expRes, proposalRes, contractRes, budgetRes, pipelineRes, budgetSharePointRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
         fetch("/api/contracts").then((r) => r.json() as Promise<{ contracts: Contract[] }>),
         fetch("/api/budgets").then((r) => r.json() as Promise<{ budgets: Budget[] }>),
         fetch("/api/pipeline-sync").then((r) => r.json() as Promise<{ records: StagedPipelineRecord[] }>),
+        fetch("/api/budgets/sync", { method: "POST" }).then((r) => r.json() as Promise<{ files?: unknown[] }>),
       ]);
       const pipelineRecords = pipelineRes.status === "fulfilled" ? (pipelineRes.value.records ?? []) : [];
       const pipelineTotal = pipelineRecords.length;
       const pipelinePending = pipelineRecords.filter((r) => r.status === "needs_review" || r.status === "auto_linked").length;
+      const budgetSharePointFiles = budgetSharePointRes.status === "fulfilled" ? (budgetSharePointRes.value.files?.length ?? 0) : 0;
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
           const cs = expRes.value.claims ?? [];
@@ -120,9 +122,10 @@ export default function DashboardPage() {
         budget: budgetRes.status === "fulfilled" ? (() => {
           const bs = budgetRes.value.budgets ?? [];
           return {
-            total:     bs.length,
-            draft:     bs.filter((b) => b.status === "draft").length,
-            confirmed: bs.filter((b) => b.status === "confirmed").length,
+            total:           bs.length,
+            draft:           bs.filter((b) => b.status === "draft").length,
+            confirmed:       bs.filter((b) => b.status === "confirmed").length,
+            sharepointFiles: budgetSharePointFiles,
           };
         })() : null,
       });
@@ -213,10 +216,10 @@ export default function DashboardPage() {
           />
           <ModuleCard
             href="/budget" label={t("nav_budget")} icon={<BudgetModIcon />}
-            primary={moduleData.budget?.total ?? "—"}
+            primary={moduleData.budget ? moduleData.budget.total + moduleData.budget.sharepointFiles : "—"}
             subs={[
-              { label: t("budget_status_draft"),     value: moduleData.budget?.draft ?? 0,     color: (moduleData.budget?.draft ?? 0) > 0 ? "amber" : "neutral" },
-              { label: t("budget_status_confirmed"), value: moduleData.budget?.confirmed ?? 0, color: "green" },
+              { label: t("dashboard_stat_sharepoint_files"), value: moduleData.budget?.sharepointFiles ?? 0, color: (moduleData.budget?.sharepointFiles ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("budget_status_confirmed"),         value: moduleData.budget?.confirmed ?? 0,       color: "green" },
             ]}
           />
         </div>

@@ -76,19 +76,19 @@ export default function BudgetPage() {
   // Read-only: scans SharePoint for budget-looking files and shows what's
   // there. No matching, no approval — just sync (rescan) and display, same
   // pattern as the Members contract folder browser.
-  async function handleSyncFromSharePoint() {
+  async function handleSyncFromSharePoint(notifyResult = true) {
     setSyncing(true);
     try {
       const res = await fetch("/api/budgets/sync", { method: "POST" });
       const data = await res.json() as { files?: SharePointBudgetFile[]; error?: string };
       if (!res.ok) {
-        notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/budget");
+        if (notifyResult) notify("error", `SharePoint sync failed: ${data.error ?? "unknown error"}`, "/budget");
         return;
       }
       setSharepointFiles(data.files ?? []);
-      notify("success", `Found ${data.files?.length ?? 0} budget file(s) in SharePoint`, "/budget");
+      if (notifyResult) notify("success", `Found ${data.files?.length ?? 0} budget file(s) in SharePoint`, "/budget");
     } catch {
-      notify("error", "SharePoint sync failed", "/budget");
+      if (notifyResult) notify("error", "SharePoint sync failed", "/budget");
     } finally {
       setSyncing(false);
     }
@@ -134,6 +134,14 @@ export default function BudgetPage() {
   }, [t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-load SharePoint files on first visit this session so they're there
+  // without a manual sync — same pattern as the Members Contract tab. Skipped
+  // when sessionStorage already has a cached scan (handles tab/page navigation).
+  useEffect(() => {
+    if (sharepointFiles === null) handleSyncFromSharePoint(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     try {
@@ -269,7 +277,7 @@ export default function BudgetPage() {
         subtitle={t("budget_subtitle")}
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleSyncFromSharePoint} loading={syncing} icon={<RefreshIcon />}>
+            <Button variant="secondary" onClick={() => handleSyncFromSharePoint(true)} loading={syncing} icon={<RefreshIcon />}>
               {t("budget_sync_button")}
             </Button>
             <Button variant="primary" onClick={openNew}>{t("budget_add_button")}</Button>
