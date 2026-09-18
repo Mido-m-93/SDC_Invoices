@@ -110,15 +110,18 @@ export interface ProposalScanDetail {
   skipped?: string;
 }
 
-export async function fetchSharePointProposals(): Promise<{
-  items: ProposalScanItem[];
-  scan: ProposalScanDetail[];
-}> {
-  const token = await getGraphToken();
-  const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
+// Walk the pipeline folder tree (immediate files + up to 2 levels into
+// subfolders, same depth as the contract sync) and return every candidate
+// proposal-looking file, with no AI extraction — used both by the full sync
+// below and by the lightweight "browse files to manually link" lookup.
+interface CandidateProposalFile { file: GraphDriveItem; folderPath: string }
 
-  const items: ProposalScanItem[] = [];
-  const scan: ProposalScanDetail[] = [];
+async function listCandidateProposalFiles(
+  siteId: string,
+  token: string,
+  scan: ProposalScanDetail[],
+): Promise<CandidateProposalFile[]> {
+  const candidates: CandidateProposalFile[] = [];
 
   for (const folderPath of PROPOSAL_FOLDER_PATHS) {
     let topLevel: GraphDriveItem[];
@@ -129,7 +132,6 @@ export async function fetchSharePointProposals(): Promise<{
       continue;
     }
 
-    // Gather files: immediate + one level into subfolders (same depth as contract sync)
     const files: GraphDriveItem[] = [];
     const directFiles = topLevel.filter((e) => !e.isFolder);
     files.push(...directFiles);
@@ -155,22 +157,47 @@ export async function fetchSharePointProposals(): Promise<{
       }
     });
 
-    const candidateFiles = files.filter((file) => {
+    candidates.push(...files.filter((file) => {
       if (looksLikeProposal(file.name)) return true;
       scan.push({ folder: folderPath, file: file.name, extracted: false, skipped: "not a proposal file" });
       return false;
-    });
-
-    await mapWithConcurrency(candidateFiles, 4, async (file) => {
-      const fields = await fileToExtracted(siteId, token, file);
-      if (!fields || !hasAnyProposalField(fields)) {
-        scan.push({ folder: folderPath, file: file.name, extracted: false, skipped: "no extractable fields" });
-        return;
-      }
-      items.push({ fields, fileName: file.name, folder: folderPath, fileId: file.id, fileUrl: file.webUrl ?? "" });
-      scan.push({ folder: folderPath, file: file.name, extracted: true });
-    });
+    }).map((file) => ({ file, folderPath })));
   }
 
+  return candidates;
+}
+
+export async function fetchSharePointProposals(): Promise<{
+  items: ProposalScanItem[];
+  scan: ProposalScanDetail[];
+}> {
+  const token = await getGraphToken();
+  const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
+
+  const items: ProposalScanItem[] = [];
+  const scan: ProposalScanDetail[] = [];
+  const candidateFiles = await listCandidateProposalFiles(siteId, token, scan);
+
+  await mapWithConcurrency(candidateFiles, 4, async ({ file, folderPath }) => {
+    const fields = await fileToExtracted(siteId, token, file);
+    if (!fields || !hasAnyProposalField(fields)) {
+      scan.push({ folder: folderPath, file: file.name, extracted: false, skipped: "no extractable fields" });
+      return;
+    }
+    items.push({ fields, fileName: file.name, folder: folderPath, fileId: file.id, fileUrl: file.webUrl ?? "" });
+    scan.push({ folder: folderPath, file: file.name, extracted: true });
+  });
+
   return { items, scan };
+}
+
+// Lightweight, no-AI-extraction listing of every candidate proposal file in
+// the pipeline folder — used to let a reviewer manually pick the right file
+// for a proposal that a fuzzy sync match couldn't confidently link.
+export async function listSharePointProposalFiles(): Promise<{ name: string; webUrl: string }[]> {
+  const token = await getGraphToken();
+  const siteId = await resolveSiteId(DEFAULT_SITE_PATH, token);
+  const scan: ProposalScanDetail[] = [];
+  const candidates = await listCandidateProposalFiles(siteId, token, scan);
+  return candidates.map((c) => ({ name: c.file.name, webUrl: c.file.webUrl ?? "" })).filter((f) => f.webUrl);
 }

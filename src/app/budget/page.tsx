@@ -51,6 +51,11 @@ export default function BudgetPage() {
   const [syncing, setSyncing] = useState(false);
   const [sharepointFiles, setSharepointFiles] = useState<SharePointBudgetFile[] | null>(null);
   const [search, setSearch] = useState("");
+  const [viewingFiles, setViewingFiles] = useState<Budget | null>(null);
+  const [linkCandidates, setLinkCandidates] = useState<{ name: string; webUrl: string; score: number }[] | null>(null);
+  const [linkCandidatesError, setLinkCandidatesError] = useState<string | null>(null);
+  const [loadingLinkCandidates, setLoadingLinkCandidates] = useState(false);
+  const [linkingFile, setLinkingFile] = useState<string | null>(null);
 
   // Read-only: scans SharePoint for budget-looking files and shows what's
   // there. No matching, no approval — just sync (rescan) and display, same
@@ -177,6 +182,46 @@ export default function BudgetPage() {
     } catch {
       setError(t("budget_error_save_failed"));
       notify("error", `Failed to delete budget ${target?.projectName ?? id}`, "/budget");
+    }
+  }
+
+  async function handleViewLinkCandidates(b: Budget) {
+    setViewingFiles(b);
+    setLinkCandidates(null);
+    setLinkCandidatesError(null);
+    setLoadingLinkCandidates(true);
+    try {
+      const res = await fetch(`/api/budgets/${b.id}/folder-files`);
+      const data = await res.json() as { files?: typeof linkCandidates; error?: string };
+      if (!res.ok) {
+        setLinkCandidatesError(data.error ?? "Failed to load SharePoint files");
+        return;
+      }
+      setLinkCandidates(data.files ?? []);
+    } catch {
+      setLinkCandidatesError("Failed to load SharePoint files");
+    } finally {
+      setLoadingLinkCandidates(false);
+    }
+  }
+
+  async function handleUseAsFolderLink(webUrl: string) {
+    if (!viewingFiles) return;
+    setLinkingFile(webUrl);
+    try {
+      const res = await fetch(`/api/budgets/${viewingFiles.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...viewingFiles, folderUrl: webUrl }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Linked file to budget ${viewingFiles.projectName}`, "/budget");
+      setViewingFiles(null);
+      load();
+    } catch {
+      notify("error", "Failed to link file to budget", "/budget");
+    } finally {
+      setLinkingFile(null);
     }
   }
 
@@ -326,9 +371,13 @@ export default function BudgetPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    {b.folderUrl
-                      ? <a href={b.folderUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">{t("budget_folder_open")}</a>
-                      : "—"}
+                    {b.folderUrl ? (
+                      <a href={b.folderUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">{t("budget_folder_open")}</a>
+                    ) : (
+                      <button onClick={() => handleViewLinkCandidates(b)} className="text-xs text-blue-600 hover:underline">
+                        Find file
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
@@ -410,6 +459,49 @@ export default function BudgetPage() {
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
               <Button variant="primary" loading={saving} onClick={handleSave}>{t("budget_action_save")}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingFiles && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]" onClick={() => setViewingFiles(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{viewingFiles.projectName}</h2>
+              <button onClick={() => setViewingFiles(null)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="mb-3 text-xs text-stone-400">
+                SharePoint files ranked by how closely their name matches this budget — pick the right one, nothing is linked automatically.
+              </p>
+              {loadingLinkCandidates && <p className="text-sm text-stone-500">Loading…</p>}
+              {linkCandidatesError && <p className="text-sm text-red-600">{linkCandidatesError}</p>}
+              {linkCandidates && linkCandidates.length === 0 && (
+                <p className="text-sm text-stone-500">No similarly-named files found in SharePoint.</p>
+              )}
+              {linkCandidates && linkCandidates.length > 0 && (
+                <ul className="divide-y divide-stone-100">
+                  {linkCandidates.map((f) => (
+                    <li key={f.webUrl} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
+                          📄 {f.name}
+                        </a>
+                        <span className="text-xs text-stone-400">{Math.round(f.score * 100)}% name match</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={linkingFile === f.webUrl}
+                        onClick={() => handleUseAsFolderLink(f.webUrl)}
+                      >
+                        Use as folder link
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

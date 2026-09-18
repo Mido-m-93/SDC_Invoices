@@ -50,6 +50,11 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ saved: number; failed: number; clientsCreated: number; folderUrlsBackfilled: number; savedNames: string[] } | null>(null);
+  const [viewingFiles, setViewingFiles] = useState<Proposal | null>(null);
+  const [folderFiles, setFolderFiles] = useState<{ name: string; webUrl: string; score: number }[] | null>(null);
+  const [folderFilesError, setFolderFilesError] = useState<string | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [linkingFile, setLinkingFile] = useState<string | null>(null);
 
   async function handleSyncFromSharePoint() {
     setSyncing(true);
@@ -237,6 +242,46 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
     }
   }
 
+  async function handleViewFiles(p: Proposal) {
+    setViewingFiles(p);
+    setFolderFiles(null);
+    setFolderFilesError(null);
+    setLoadingFiles(true);
+    try {
+      const res = await fetch(`/api/proposals/${p.id}/folder-files`);
+      const data = await res.json() as { files?: typeof folderFiles; error?: string };
+      if (!res.ok) {
+        setFolderFilesError(data.error ?? "Failed to load SharePoint files");
+        return;
+      }
+      setFolderFiles(data.files ?? []);
+    } catch {
+      setFolderFilesError("Failed to load SharePoint files");
+    } finally {
+      setLoadingFiles(false);
+    }
+  }
+
+  async function handleUseAsFolderLink(webUrl: string) {
+    if (!viewingFiles) return;
+    setLinkingFile(webUrl);
+    try {
+      const res = await fetch(`/api/proposals/${viewingFiles.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...viewingFiles, folderUrl: webUrl }),
+      });
+      if (!res.ok) throw new Error();
+      notify("success", `Linked file to proposal ${viewingFiles.projectName}`, "/proposals");
+      setViewingFiles(null);
+      load();
+    } catch {
+      notify("error", "Failed to link file to proposal", "/proposals");
+    } finally {
+      setLinkingFile(null);
+    }
+  }
+
   const set = <K extends keyof ProposalForm>(k: K, v: ProposalForm[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -380,9 +425,13 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                   </td>
                   <td className="px-4 py-3 text-stone-400 font-mono text-xs">{p.contractId || "—"}</td>
                   <td className="px-4 py-3">
-                    {p.folderUrl
-                      ? <a href={p.folderUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">{t("proposals_folder_open")}</a>
-                      : "—"}
+                    {p.folderUrl ? (
+                      <a href={p.folderUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-xs">{t("proposals_folder_open")}</a>
+                    ) : (
+                      <button onClick={() => handleViewFiles(p)} className="text-xs text-blue-600 hover:underline">
+                        Find file
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
@@ -507,6 +556,49 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowForm(false)}>{t("cancel")}</Button>
               <Button variant="primary" loading={saving} onClick={handleSave}>{t("proposals_action_save")}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingFiles && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]" onClick={() => setViewingFiles(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{viewingFiles.projectName}</h2>
+              <button onClick={() => setViewingFiles(null)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="mb-3 text-xs text-stone-400">
+                SharePoint files ranked by how closely their name matches this proposal — pick the right one, nothing is linked automatically.
+              </p>
+              {loadingFiles && <p className="text-sm text-stone-500">Loading…</p>}
+              {folderFilesError && <p className="text-sm text-red-600">{folderFilesError}</p>}
+              {folderFiles && folderFiles.length === 0 && (
+                <p className="text-sm text-stone-500">No similarly-named files found in SharePoint.</p>
+              )}
+              {folderFiles && folderFiles.length > 0 && (
+                <ul className="divide-y divide-stone-100">
+                  {folderFiles.map((f) => (
+                    <li key={f.webUrl} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
+                          📄 {f.name}
+                        </a>
+                        <span className="text-xs text-stone-400">{Math.round(f.score * 100)}% name match</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={linkingFile === f.webUrl}
+                        onClick={() => handleUseAsFolderLink(f.webUrl)}
+                      >
+                        Use as folder link
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
