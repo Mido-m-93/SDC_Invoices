@@ -356,6 +356,8 @@ const ja = {
   dashboard_stat_expiring_soon: "期限間近",
   dashboard_stat_new: "新規",
   dashboard_stat_pipeline: "パイプライン",
+  dashboard_stat_pipeline_pending: "パイプライン保留",
+  dashboard_sales_label: "営業",
   dashboard_invoice_processing: "請求書処理",
   dashboard_forms_sync_warning: "フォーム同期の警告: {warning}",
   dashboard_save_success: "✓ {count}件のファイルを保存しました",

@@ -356,6 +356,8 @@ const en = {
   dashboard_stat_expiring_soon: "Expiring Soon",
   dashboard_stat_new: "New",
   dashboard_stat_pipeline: "Pipeline",
+  dashboard_stat_pipeline_pending: "Pipeline Pending",
+  dashboard_sales_label: "Sales",
   dashboard_invoice_processing: "Invoice Processing",
   dashboard_forms_sync_warning: "Forms sync warning: {warning}",
   dashboard_save_success: "✓ {count} file(s) saved successfully",

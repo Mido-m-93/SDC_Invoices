@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage } from "@/translations";
@@ -28,7 +28,7 @@ export default function MembersContractTab() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSync() {
+  async function loadMembers(notifyResult: boolean) {
     setSyncing(true);
     setError(null);
     try {
@@ -36,24 +36,31 @@ export default function MembersContractTab() {
       const data = await res.json() as { members?: MemberFolder[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? t("members_contract_sync_failed"));
-        notify("error", data.error ?? t("members_contract_sync_failed"), "/contracts");
+        if (notifyResult) notify("error", data.error ?? t("members_contract_sync_failed"), "/contracts");
         return;
       }
       setMembers(data.members ?? []);
-      notify("success", t("members_contract_sync_result").replace("{count}", String(data.members?.length ?? 0)), "/contracts");
+      if (notifyResult) notify("success", t("members_contract_sync_result").replace("{count}", String(data.members?.length ?? 0)), "/contracts");
     } catch {
       setError(t("members_contract_sync_failed"));
-      notify("error", t("members_contract_sync_failed"), "/contracts");
+      if (notifyResult) notify("error", t("members_contract_sync_failed"), "/contracts");
     } finally {
       setSyncing(false);
     }
   }
 
+  // Auto-load on mount so the folder listing is there without a manual sync;
+  // the button below still lets the user rescan for changes.
+  useEffect(() => {
+    loadMembers(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-stone-500">{t("members_contract_subtitle")}</p>
-        <Button variant="secondary" loading={syncing} onClick={handleSync} icon={<RefreshIcon />}>{t("members_contract_sync_button")}</Button>
+        <Button variant="secondary" loading={syncing} onClick={() => loadMembers(true)} icon={<RefreshIcon />}>{t("members_contract_sync_button")}</Button>
       </div>
 
       {error && (
@@ -64,7 +71,7 @@ export default function MembersContractTab() {
 
       {members === null ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">{t("members_contract_empty_title")}</p>
+          <p className="text-stone-400 text-sm">{syncing ? t("loading") : t("members_contract_empty_title")}</p>
         </div>
       ) : members.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">

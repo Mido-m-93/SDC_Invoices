@@ -15,7 +15,7 @@ import {
   sendReminders,
 } from "@/lib/api/client";
 import { monthOptions } from "@/lib/utils";
-import type { DashboardStats, ReminderSummary, ReminderType, ExpenseClaim, Proposal, Contract, Budget } from "@/types";
+import type { DashboardStats, ReminderSummary, ReminderType, ExpenseClaim, Proposal, Contract, Budget, StagedPipelineRecord } from "@/types";
 import type { TranslationKey } from "@/translations";
 import { computeContractStats } from "@/lib/contractStats";
 import clsx from "clsx";
@@ -43,7 +43,7 @@ export default function DashboardPage() {
   const [reminderResult, setReminderResult] = useState<{ sent: number; failed: number; skipped: number } | null>(null);
   const [moduleData, setModuleData] = useState<{
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
-    proposals: { total: number; open: number; accepted: number } | null;
+    proposals: { total: number; open: number; accepted: number; pipelineTotal: number; pipelinePending: number } | null;
     contracts: { total: number; active: number; expiringSoon: number } | null;
     budget: { total: number; draft: number; confirmed: number } | null;
   }>({ expenses: null, proposals: null, contracts: null, budget: null });
@@ -82,12 +82,16 @@ export default function DashboardPage() {
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
     async function load() {
-      const [expRes, proposalRes, contractRes, budgetRes] = await Promise.allSettled([
+      const [expRes, proposalRes, contractRes, budgetRes, pipelineRes] = await Promise.allSettled([
         fetch("/api/expenses").then((r) => r.json() as Promise<{ claims: ExpenseClaim[] }>),
         fetch("/api/proposals").then((r) => r.json() as Promise<{ proposals: Proposal[] }>),
         fetch("/api/contracts").then((r) => r.json() as Promise<{ contracts: Contract[] }>),
         fetch("/api/budgets").then((r) => r.json() as Promise<{ budgets: Budget[] }>),
+        fetch("/api/pipeline-sync").then((r) => r.json() as Promise<{ records: StagedPipelineRecord[] }>),
       ]);
+      const pipelineRecords = pipelineRes.status === "fulfilled" ? (pipelineRes.value.records ?? []) : [];
+      const pipelineTotal = pipelineRecords.length;
+      const pipelinePending = pipelineRecords.filter((r) => r.status === "needs_review" || r.status === "auto_linked").length;
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
           const cs = expRes.value.claims ?? [];
@@ -102,7 +106,13 @@ export default function DashboardPage() {
         })() : null,
         proposals: proposalRes.status === "fulfilled" ? (() => {
           const ps = proposalRes.value.proposals ?? [];
-          return { total: ps.length, open: ps.filter((p) => p.status === "submitted").length, accepted: ps.filter((p) => p.status === "accepted").length };
+          return {
+            total:    ps.length,
+            open:     ps.filter((p) => p.status === "submitted").length,
+            accepted: ps.filter((p) => p.status === "accepted").length,
+            pipelineTotal,
+            pipelinePending,
+          };
         })() : null,
         contracts: contractRes.status === "fulfilled"
           ? computeContractStats(contractRes.value.contracts ?? [], new Date())
@@ -194,11 +204,11 @@ export default function DashboardPage() {
             ]}
           />
           <ModuleCard
-            href="/proposals" label={t("nav_proposals")} icon={<ProposalModIcon />}
-            primary={moduleData.proposals?.total ?? "—"}
+            href="/proposals" label={t("dashboard_sales_label")} icon={<ProposalModIcon />}
+            primary={moduleData.proposals ? moduleData.proposals.total + moduleData.proposals.pipelineTotal : "—"}
             subs={[
-              { label: t("dashboard_stat_open"),     value: moduleData.proposals?.open ?? 0,     color: (moduleData.proposals?.open ?? 0) > 0 ? "amber" : "neutral" },
-              { label: t("dashboard_stat_accepted"), value: moduleData.proposals?.accepted ?? 0, color: "green" },
+              { label: t("dashboard_stat_pipeline_pending"), value: moduleData.proposals?.pipelinePending ?? 0, color: (moduleData.proposals?.pipelinePending ?? 0) > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_accepted"),         value: moduleData.proposals?.accepted ?? 0,        color: "green" },
             ]}
           />
           <ModuleCard
