@@ -935,6 +935,7 @@ const ja = {
   contracts_action_mark_reviewed: "レビュー済みにする",
   contracts_billing_checked_label: "請求ルール確認済み",
   contracts_action_check_billing: "請求ルールを確認",
+  contracts_action_undo: "取り消す",
   contracts_col_actions: "操作",
   contracts_folder_link: "フォルダ",
   contracts_action_edit: "編集",

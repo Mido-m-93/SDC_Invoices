@@ -146,6 +146,38 @@ export default function ContractsPage() {
     }
   }
 
+  async function handleUnmarkReviewed(c: Contract) {
+    setMarkingReviewed(c.id);
+    try {
+      await updateContractFields(c, { reviewedAt: null, reviewedBy: null });
+      notify("info", `Unmarked contract for ${c.projectName || c.id} as reviewed`, "/contracts");
+      load();
+    } catch {
+      setError(t("contracts_save_failed"));
+      notify("error", `Failed to unmark contract for ${c.projectName || c.id} as reviewed`, "/contracts");
+    } finally {
+      setMarkingReviewed(null);
+    }
+  }
+
+  async function handleUncheckBillingRules(c: Contract) {
+    setCheckingBilling(c.id);
+    try {
+      await updateContractFields(c, {
+        billingRulesChecked: false,
+        billingRulesCheckedAt: null,
+        billingRulesCheckedBy: null,
+      });
+      notify("info", `Unconfirmed billing rules for ${c.projectName || c.id}`, "/contracts");
+      load();
+    } catch {
+      setError(t("contracts_save_failed"));
+      notify("error", `Failed to unconfirm billing rules for ${c.projectName || c.id}`, "/contracts");
+    } finally {
+      setCheckingBilling(null);
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -506,22 +538,40 @@ export default function ContractsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1.5">
-                        <div>
+                        <div className="flex items-center gap-2">
                           {c.reviewedAt ? (
-                            <span className="text-xs text-emerald-700" title={c.reviewedBy ?? ""}>
-                              ✓ {t("contracts_reviewed_label")}
-                            </span>
+                            <>
+                              <span className="text-xs text-emerald-700" title={c.reviewedBy ?? ""}>
+                                ✓ {t("contracts_reviewed_label")}
+                              </span>
+                              <button
+                                onClick={() => handleUnmarkReviewed(c)}
+                                disabled={markingReviewed === c.id}
+                                className="text-xs text-stone-400 hover:text-stone-600 underline disabled:opacity-50"
+                              >
+                                {t("contracts_action_undo")}
+                              </button>
+                            </>
                           ) : (
                             <Button variant="ghost" size="sm" loading={markingReviewed === c.id} onClick={() => handleMarkReviewed(c)}>
                               {t("contracts_action_mark_reviewed")}
                             </Button>
                           )}
                         </div>
-                        <div>
+                        <div className="flex items-center gap-2">
                           {c.billingRulesChecked ? (
-                            <span className="text-xs text-emerald-700" title={c.billingRulesCheckedBy ?? ""}>
-                              ✓ {t("contracts_billing_checked_label")}
-                            </span>
+                            <>
+                              <span className="text-xs text-emerald-700" title={c.billingRulesCheckedBy ?? ""}>
+                                ✓ {t("contracts_billing_checked_label")}
+                              </span>
+                              <button
+                                onClick={() => handleUncheckBillingRules(c)}
+                                disabled={checkingBilling === c.id}
+                                className="text-xs text-stone-400 hover:text-stone-600 underline disabled:opacity-50"
+                              >
+                                {t("contracts_action_undo")}
+                              </button>
+                            </>
                           ) : (
                             <Button variant="ghost" size="sm" loading={checkingBilling === c.id} onClick={() => handleCheckBillingRules(c)}>
                               {t("contracts_action_check_billing")}

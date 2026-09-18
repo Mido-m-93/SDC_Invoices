@@ -935,6 +935,7 @@ const en = {
   contracts_action_mark_reviewed: "Mark Reviewed",
   contracts_billing_checked_label: "Billing Checked",
   contracts_action_check_billing: "Check Billing Rules",
+  contracts_action_undo: "Undo",
   contracts_col_actions: "Actions",
   contracts_folder_link: "Folder",
   contracts_action_edit: "Edit",
