@@ -14,11 +14,19 @@ import {
   fetchReminderSummary,
   sendReminders,
 } from "@/lib/api/client";
-import { monthOptions } from "@/lib/utils";
-import type { DashboardStats, ReminderSummary, ReminderType, ExpenseClaim, Proposal, Contract, Budget, StagedPipelineRecord } from "@/types";
+import { monthOptions, formatTimestamp } from "@/lib/utils";
+import type { DashboardStats, ReminderSummary, ReminderType, ExpenseClaim, Proposal, Contract, Budget, StagedPipelineRecord, Language } from "@/types";
 import type { TranslationKey } from "@/translations";
 import { computeContractStats } from "@/lib/contractStats";
 import clsx from "clsx";
+
+interface ActivityItem {
+  id: string;
+  type: "proposal" | "budget" | "contract" | "expense";
+  title: string;
+  timestamp: string;
+  href: string;
+}
 
 const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
   missing_invoice: "reminder_missing_invoice",
@@ -47,6 +55,7 @@ export default function DashboardPage() {
     contracts: { total: number; active: number; expiringSoon: number } | null;
     budget: { total: number; draft: number; confirmed: number; sharepointFiles: number } | null;
   }>({ expenses: null, proposals: null, contracts: null, budget: null });
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
 
   const loadStats = useCallback(async () => {
     setError(null);
@@ -94,6 +103,39 @@ export default function DashboardPage() {
       const pipelineTotal = pipelineRecords.length;
       const pipelinePending = pipelineRecords.filter((r) => r.status === "needs_review" || r.status === "auto_linked").length;
       const budgetSharePointFiles = budgetSharePointRes.status === "fulfilled" ? (budgetSharePointRes.value.files?.length ?? 0) : 0;
+
+      const proposalsArr = proposalRes.status === "fulfilled" ? (proposalRes.value.proposals ?? []) : [];
+      const budgetsArr   = budgetRes.status   === "fulfilled" ? (budgetRes.value.budgets ?? [])     : [];
+      const contractsArr = contractRes.status === "fulfilled" ? (contractRes.value.contracts ?? []) : [];
+      const expensesArr  = expRes.status      === "fulfilled" ? (expRes.value.claims ?? [])         : [];
+
+      const activity: ActivityItem[] = [
+        ...proposalsArr.map((p) => ({
+          id: `proposal-${p.id}`, type: "proposal" as const,
+          title: p.projectName || p.clientName || "Proposal",
+          timestamp: p.createdAt, href: "/proposals",
+        })),
+        ...budgetsArr.map((b) => ({
+          id: `budget-${b.id}`, type: "budget" as const,
+          title: b.projectName || "Budget",
+          timestamp: b.createdAt, href: "/budget",
+        })),
+        ...contractsArr.map((c) => ({
+          id: `contract-${c.id}`, type: "contract" as const,
+          title: c.clientName || c.vendorId || "Contract",
+          timestamp: c.createdAt, href: "/contracts",
+        })),
+        ...expensesArr.map((e) => ({
+          id: `expense-${e.id}`, type: "expense" as const,
+          title: e.description || e.extractedVendor || "Expense",
+          timestamp: e.submittedAt, href: "/expenses",
+        })),
+      ]
+        .filter((a) => !!a.timestamp)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        .slice(0, 8);
+      setRecentActivity(activity);
+
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
           const cs = expRes.value.claims ?? [];
@@ -233,6 +275,9 @@ export default function DashboardPage() {
           language={language}
           t={t}
         />
+
+        {/* ── Recent activity ──────────────────────────────────────────── */}
+        <RecentActivitySection items={recentActivity} language={language} t={t} />
       </div>
     </AppShell>
   );
@@ -504,6 +549,62 @@ function ReminderStatusSection({
         )}
       </div>
     </div>
+  );
+}
+
+// ── Recent activity ────────────────────────────────────────────────────────────
+
+const ACTIVITY_ICON: Record<ActivityItem["type"], React.ReactNode> = {
+  proposal: <ProposalModIcon size={14} />,
+  budget:   <BudgetModIcon size={14} />,
+  contract: <ContractModIcon size={14} />,
+  expense:  <ExpenseModIcon size={14} />,
+};
+
+function RecentActivitySection({ items, language, t }: {
+  items: ActivityItem[];
+  language: Language;
+  t: (k: Parameters<ReturnType<typeof useLanguage>["t"]>[0]) => string;
+}) {
+  const ACTIVITY_LABEL: Record<ActivityItem["type"], string> = {
+    proposal: t("dashboard_sales_label"),
+    budget:   t("nav_budget"),
+    contract: t("nav_contracts"),
+    expense:  t("nav_expenses"),
+  };
+
+  return (
+    <div className="mb-6 bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-stone-100 bg-stone-50 rounded-t-xl">
+        <ClockIcon />
+        <p className="text-sm font-semibold text-stone-700">{t("dashboard_recent_activity_title")}</p>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-5 py-8 text-center text-sm text-stone-400">{t("dashboard_recent_activity_empty")}</p>
+      ) : (
+        <ul className="divide-y divide-stone-100">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link href={item.href} className="flex items-center gap-3 px-5 py-3 hover:bg-stone-50 transition">
+                <span className="text-stone-400 shrink-0">{ACTIVITY_ICON[item.type]}</span>
+                <span className="flex-1 min-w-0 truncate text-sm text-stone-800">{item.title}</span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wide text-stone-400">{ACTIVITY_LABEL[item.type]}</span>
+                <span className="shrink-0 text-xs text-stone-400 font-mono">{formatTimestamp(item.timestamp, language)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
   );
 }
 

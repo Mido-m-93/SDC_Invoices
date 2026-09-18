@@ -358,6 +358,8 @@ const ja = {
   dashboard_stat_pipeline: "パイプライン",
   dashboard_stat_pipeline_pending: "パイプライン保留",
   dashboard_stat_sharepoint_files: "SharePointファイル",
+  dashboard_recent_activity_title: "最近のアクティビティ",
+  dashboard_recent_activity_empty: "表示できる最近の項目はまだありません。",
   dashboard_sales_label: "営業",
   dashboard_invoice_processing: "請求書処理",
   dashboard_forms_sync_warning: "フォーム同期の警告: {warning}",
