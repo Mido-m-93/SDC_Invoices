@@ -510,11 +510,7 @@ export default function ContractsPage() {
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-3 text-left">#</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_vendor")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_client")}</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_project")}</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_period")}</th>
-                <th className="px-4 py-3 text-left">{t("contracts_col_monthly_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_verification_combined")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_review_billing")}</th>
@@ -527,23 +523,11 @@ export default function ContractsPage() {
                 return (
                   <tr key={c.id} className="hover:bg-stone-50">
                     <td className="px-4 py-3 text-stone-400">{idx + 1}</td>
-                    <td className="px-4 py-3 font-medium text-stone-800">
-                      {c.vendorId ? vendorName(c.vendorId) : <span className="text-stone-400">—</span>}
-                    </td>
                     <td className="px-4 py-3 text-stone-600">
                       {clientDisplay ?? <span className="text-stone-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-stone-600">
-                      <div>{c.projectName || "—"}</div>
                       {c.proposalId && (
                         <div className="text-xs text-stone-400 font-mono mt-0.5">↗ {c.proposalId}</div>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-stone-500 font-mono">{c.startDate} → {c.endDate}</td>
-                    <td className="px-4 py-3 text-stone-700">
-                      {c.expectedMonthlyAmount > 0
-                        ? `${c.currency === "JPY" ? "¥" : c.currency + " "}${c.expectedMonthlyAmount.toLocaleString("ja-JP")}`
-                        : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[c.status]}`}>
