@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const { t, language } = useLanguage();
   const { notify } = useNotifications();
   const [month, setMonth] = useState(monthOptions(1)[0]);
+  const [monthResolved, setMonthResolved] = useState(false);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +68,16 @@ export default function DashboardPage() {
         setMonth(months.includes(current) ? current : months[0]);
       }
       // If no months have data yet, leave the selector on the current month (default)
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setMonthResolved(true));
   }, []);
 
+  // Wait until the actual data month is resolved before fetching stats, so
+  // the Invoices card doesn't flash the current (likely empty) month's
+  // count before settling on the real one.
   useEffect(() => {
+    if (!monthResolved) return;
     loadStats();
-  }, [loadStats]);
+  }, [loadStats, monthResolved]);
 
   // Load cross-module summary counts (non-blocking, best-effort)
   useEffect(() => {
