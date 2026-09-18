@@ -28,7 +28,7 @@ const ja = {
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "ダッシュボード",
-  dashboard_subtitle: "月次請求書処理の概要",
+  dashboard_subtitle: "業務全体の概要",
   select_month: "対象月を選択",
   total_rows: "総件数",
   ready: "処理可能",
@@ -897,7 +897,7 @@ const ja = {
   members_contract_empty_title: "「SharePointから同期」をクリックしてメンバー契約フォルダを読み込んでください。",
   members_contract_no_results: "メンバーフォルダが見つかりません。",
   members_contract_no_files: "このフォルダにファイルはありません。",
-  contracts_subtitle: "取引先・クライアントとの契約 — 請求書検証とパイプライン管理に使用されます",
+  contracts_subtitle: "取引先・クライアントとの契約。請求書検証とパイプライン管理に使用されます",
   contracts_add_button: "＋ 契約を追加",
   contracts_sync_button: "SharePointから同期",
   contracts_sync_result: "同期完了: {updated}件更新 / {matched}件一致 / {total}件スキャン",

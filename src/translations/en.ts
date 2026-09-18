@@ -28,7 +28,7 @@ const en = {
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
   dashboard_title: "Dashboard",
-  dashboard_subtitle: "Monthly invoice processing overview",
+  dashboard_subtitle: "Company operations overview",
   select_month: "Select month",
   total_rows: "Total",
   ready: "Ready",
@@ -897,7 +897,7 @@ const en = {
   members_contract_empty_title: "Click \"Sync from SharePoint\" to load member contract folders.",
   members_contract_no_results: "No member folders found.",
   members_contract_no_files: "No files in this folder.",
-  contracts_subtitle: "Vendor and client contracts — used for invoice validation and pipeline tracking",
+  contracts_subtitle: "Vendor and client contracts used for invoice validation and pipeline tracking",
   contracts_add_button: "+ Add Contract",
   contracts_sync_button: "Sync from SharePoint",
   contracts_sync_result: "Synced: {updated} updated / {matched} matched / {total} files scanned",
