@@ -912,7 +912,7 @@ const en = {
   contracts_load_failed: "Failed to load contracts",
   contracts_save_failed: "Failed to save contract",
   contracts_delete_confirm: "Delete this contract?",
-  contracts_delete_all_button: "Delete All",
+  contracts_delete_all_button: "Clear All",
   contracts_delete_all_confirm: "Delete all {count} contracts shown? They can be restored from Archives.",
   contracts_search_placeholder: "Search by client, vendor, or project…",
   contracts_search_clear: "Clear",
