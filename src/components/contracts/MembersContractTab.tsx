@@ -27,6 +27,7 @@ export default function MembersContractTab() {
   const [members, setMembers] = useState<MemberFolder[] | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   async function loadMembers(notifyResult: boolean) {
     setSyncing(true);
@@ -56,6 +57,11 @@ export default function MembersContractTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const query = search.trim().toLowerCase();
+  const filteredMembers = query
+    ? (members ?? []).filter((m) => m.name.toLowerCase().includes(query))
+    : members;
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -69,6 +75,25 @@ export default function MembersContractTab() {
         </div>
       )}
 
+      {members !== null && members.length > 0 && (
+        <div className="mb-4 flex items-center gap-3">
+          <input
+            className="w-full max-w-xs rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3d2b]/20"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("members_contract_search_placeholder")}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-xs text-stone-400 hover:text-stone-600">
+              {t("clear")}
+            </button>
+          )}
+          <span className="text-xs text-stone-400">
+            {filteredMembers?.length ?? 0} / {members.length}
+          </span>
+        </div>
+      )}
+
       {members === null ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-400 text-sm">{syncing ? t("loading") : t("members_contract_empty_title")}</p>
@@ -77,9 +102,13 @@ export default function MembersContractTab() {
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-400 text-sm">{t("members_contract_no_results")}</p>
         </div>
+      ) : filteredMembers?.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">{t("members_contract_no_search_matches")}</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {members.map((m) => (
+          {filteredMembers?.map((m) => (
             <div key={m.name} className="bg-white rounded-xl border border-stone-200 p-4">
               <div className="font-medium text-stone-800 mb-2">
                 {m.webUrl ? (
