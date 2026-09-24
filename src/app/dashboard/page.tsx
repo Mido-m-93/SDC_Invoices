@@ -136,6 +136,20 @@ export default function DashboardPage() {
         .slice(0, 8);
       setRecentActivity(activity);
 
+      // The month picker's "●" marker started out invoice-only; fold in every
+      // other module's months too so it reflects where any data actually is.
+      const moduleMonths = Array.from(new Set(
+        [
+          ...expensesArr.map((e) => e.expenseDate?.slice(0, 7)),
+          ...proposalsArr.map((p) => p.createdAt?.slice(0, 7)),
+          ...budgetsArr.map((b) => b.createdAt?.slice(0, 7)),
+          ...contractsArr.map((c) => c.createdAt?.slice(0, 7)),
+        ].filter((m): m is string => !!m)
+      ));
+      if (moduleMonths.length > 0) {
+        setAvailableMonths((prev) => Array.from(new Set([...prev, ...moduleMonths])));
+      }
+
       setModuleData({
         expenses: expRes.status === "fulfilled" ? (() => {
           const cs = expRes.value.claims ?? [];
