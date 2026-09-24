@@ -229,7 +229,9 @@ export async function POST(req: NextRequest) {
             const found = (res.data.files ?? []).find(f => normName(f.name!).includes(payerNorm));
             if (!found) {
               console.log(`[Drive check] No match for "${searchName}" in ${monthFolderId ? "month folder" : "root"} (results=${res.data.files?.map(f => f.name).join(", ")})`);
-              return null;
+              // No match, but still hand back where we looked so a reviewer can
+              // browse the folder manually instead of just trusting "safe to file".
+              return { notFound: true as const, folderId: monthFolderId ?? rootFolderId };
             }
             console.log(`[Drive check] Found: "${found.name}" for "${searchName}" (month=${parsedMonth}) — extracting amount for comparison`);
 
@@ -442,8 +444,16 @@ export async function POST(req: NextRequest) {
         };
       }
 
+      // No match in Drive — attach a link to the folder that was searched, so
+      // a reviewer can double-check "safe to file" manually. Set directly on
+      // `r` (rather than returning early) so every later branch's `...r`
+      // spread still carries it through to the final result.
+      if (driveAny?.notFound && driveAny.folderId) {
+        r.driveFolderUrl = `https://drive.google.com/drive/folders/${driveAny.folderId as string}`;
+      }
+
       // Drive check: file found — compare amounts against the submitted invoice
-      if (driveFile) {
+      if (driveFile && !driveAny?.notFound) {
         const df         = driveFile as typeof driveFile & { searchName?: string; driveTotal?: number | null };
         const usedName   = df.searchName ?? targets[i].payerName;
         const driveTotal = df.driveTotal ?? null;

@@ -190,6 +190,11 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
     return translateIssue(driveIssue, language);
   })();
 
+  // A matched file links straight to it; otherwise fall back to the folder
+  // that was searched, so a reviewer can double-check "safe to file" manually.
+  const stage3Link      = v.driveFileUrl || v.driveFolderUrl || null;
+  const stage3LinkLabel = v.driveFileUrl ? t("validate_view_in_drive") : t("validate_view_drive_folder");
+
   // ── Stage 4: SharePoint contractor check ──────────────────────────────────
   const contractExpired = !!v.contractEndDate && new Date(v.contractEndDate) < new Date();
 
@@ -238,8 +243,8 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage3Status}
         statusLabel={statusLabel(stage3Status)}
         detail={stage3Detail}
-        link={v.driveFileUrl || null}
-        linkLabel={t("validate_view_in_drive")}
+        link={stage3Link}
+        linkLabel={stage3LinkLabel}
       />
       <StageCard
         number={4}
