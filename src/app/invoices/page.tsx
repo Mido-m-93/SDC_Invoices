@@ -171,9 +171,10 @@ export default function InvoicesPage() {
     }
   };
 
-  // Reverts a validated-but-not-yet-filed invoice back to its pre-validation
-  // state — client-side only, same pattern as handleApprove, since re-running
-  // Validate simply overwrites the stored result anyway.
+  // Reverts a validated invoice back to its pre-validation state — client-side
+  // only, same pattern as handleApprove, since re-running Validate simply
+  // overwrites the stored result anyway. Doesn't touch an already-filed
+  // document; it only clears the validation badge/issues shown here.
   const handleUndoValidate = (item: InvoiceListItem) => {
     setItems((prev) =>
       prev.map((i) => (i.submission.id === item.submission.id ? { ...i, validation: null } : i))
@@ -629,7 +630,7 @@ export default function InvoicesPage() {
                                 {t("action_validate")}
                               </Button>
                             )}
-                            {v && !item.filedDocument && (
+                            {v && (
                               <Button
                                 variant="ghost"
                                 size="sm"
