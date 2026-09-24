@@ -70,6 +70,7 @@ const en = {
   col_actions: "Actions",
   action_view: "View",
   action_validate: "Validate",
+  action_undo_validate: "Undo Validate",
   action_approve: "Approve",
   action_save: "Save",
   action_open_link: "Open Attachment",

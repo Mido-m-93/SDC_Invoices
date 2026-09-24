@@ -171,6 +171,19 @@ export default function InvoicesPage() {
     }
   };
 
+  // Reverts a validated-but-not-yet-filed invoice back to its pre-validation
+  // state — client-side only, same pattern as handleApprove, since re-running
+  // Validate simply overwrites the stored result anyway.
+  const handleUndoValidate = (item: InvoiceListItem) => {
+    setItems((prev) =>
+      prev.map((i) => (i.submission.id === item.submission.id ? { ...i, validation: null } : i))
+    );
+    setSelectedItem((prev) =>
+      prev?.submission.id === item.submission.id ? { ...prev, validation: null } : prev
+    );
+    notify("info", `Undid validation for ${item.submission.payerName}`, "/invoices");
+  };
+
   const handleSave = async (item: InvoiceListItem) => {
     if (!item.validation) return;
     setSaving(item.submission.id);
@@ -614,6 +627,15 @@ export default function InvoicesPage() {
                                 onClick={() => handleValidate(s)}
                               >
                                 {t("action_validate")}
+                              </Button>
+                            )}
+                            {v && !item.filedDocument && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUndoValidate(item)}
+                              >
+                                {t("action_undo_validate")}
                               </Button>
                             )}
                             {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && (

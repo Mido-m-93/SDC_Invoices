@@ -70,6 +70,7 @@ const ja = {
   col_actions: "操作",
   action_view: "詳細",
   action_validate: "確認",
+  action_undo_validate: "確認を取り消す",
   action_approve: "承認",
   action_save: "保存",
   action_open_link: "添付を開く",
