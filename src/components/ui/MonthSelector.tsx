@@ -32,7 +32,7 @@ export default function MonthSelector({ value, onChange, availableMonths }: Prop
         {all.map((m) => (
           <option key={m} value={m}>
             {formatMonthForDisplay(m, language)}
-            {availableMonths?.includes(m) ? " ●" : ""}
+            {availableMonths?.includes(m) ? " 🟢" : ""}
           </option>
         ))}
       </select>
