@@ -116,6 +116,10 @@ export async function POST(req: NextRequest) {
     //
     const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "";
     console.log(`[Drive check] GOOGLE_DRIVE_ROOT_FOLDER_ID="${rootFolderId}"`);
+    // Surfaced on every result so the UI can tell "checked, found nothing" apart
+    // from "this environment has no Drive integration set up at all" — the
+    // latter used to silently render as a false "safe to file" pass.
+    const driveConfigured = !!rootFolderId && !!process.env.GOOGLE_CLIENT_EMAIL && !!process.env.GOOGLE_PRIVATE_KEY;
 
     // Check 0: within-store duplicate — same payer already has a row for the same month
     const allStoredForMonth = await (async () => {
@@ -381,6 +385,7 @@ export async function POST(req: NextRequest) {
       const driveFile   = driveChecks[i];
       const localMember = localMatches[i];
       const spMatch     = spFallbacks[i];
+      r.driveCheckConfigured = driveConfigured;
 
       // ── Contractor result (computed first — shared by ALL return paths) ───────
       const matchedMemberName = localMember?.displayName ?? (spMatch?.matched ? targets[i].payerName : null);

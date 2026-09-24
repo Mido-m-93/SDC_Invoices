@@ -102,6 +102,7 @@ export interface InvoiceValidationResult {
   contractFileUrl?: string | null;   // link to the matched member's contract file, when resolved live via SharePoint (Stage 4)
   driveFileUrl?: string | null;      // link to the matching file found in Google Drive (Stage 3)
   driveFolderUrl?: string | null;    // link to the Drive folder that was searched, even when no match was found (Stage 3)
+  driveCheckConfigured?: boolean;    // false when this environment has no Drive integration set up at all (Stage 3)
   // Audit trail
   validatedBy?: string;
   approvedBy?: string;

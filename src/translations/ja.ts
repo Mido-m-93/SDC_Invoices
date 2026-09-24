@@ -1009,6 +1009,7 @@ const ja = {
   stage3_subtitle: "メンバー名と金額でドライブ内の保管済み請求書を照合",
   stage3_ok: "今月のドライブフォルダに\"{name}\"の請求書が見つかりません — 保管可能です。",
   stage3_manual: "担当者が手動で確認してください。",
+  stage3_not_configured: "⚠ この環境ではGoogle Drive連携が設定されていません — この請求書はDriveと照合されていません。担当者が手動で確認してください。",
   stage4_title: "SharePoint 契約者",
   stage4_subtitle: "提出者が登録済み契約者であること",
   stage4_found: "SharePoint契約フォルダーに請負業者が見つかりました。",

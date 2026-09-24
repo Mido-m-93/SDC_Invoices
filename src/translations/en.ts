@@ -1009,6 +1009,7 @@ const en = {
   stage3_subtitle: "Match member name and amount against filed invoices in Drive",
   stage3_ok: "No invoice for \"{name}\" found in this month's Drive folder — safe to file.",
   stage3_manual: "reviewer must verify manually.",
+  stage3_not_configured: "⚠ Google Drive check is not configured in this environment — this invoice was not actually checked against Drive; reviewer must verify manually.",
   stage4_title: "SharePoint Contractors",
   stage4_subtitle: "Submitter has a registered contract",
   stage4_found: "Contractor found in SharePoint contracts folder.",

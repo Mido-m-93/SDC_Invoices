@@ -167,10 +167,15 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
     (i) => i.toLowerCase().includes("already filed in drive") || i.toLowerCase().startsWith("drive file found:")
   );
   const driveSkipped = v.issues.find((i) => i.toLowerCase().startsWith("drive check skipped:"));
+  // Explicitly false (not just absent — older stored results predate this field)
+  // means this environment has no Drive integration set up at all, so nothing
+  // was actually checked — don't let that render as a false "safe to file" pass.
+  const driveNotConfigured = v.driveCheckConfigured === false && !driveIssue && !driveSkipped;
 
   const stage3Status: StageStatus =
-    driveSkipped ? "warn" :
-    !driveIssue  ? "pass" :
+    driveSkipped       ? "warn" :
+    driveNotConfigured ? "warn" :
+    !driveIssue        ? "pass" :
     "warn";
 
   // Always show the AI-extracted member name for Drive search label; fall back to form name
@@ -181,6 +186,7 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
 
   const stage3Detail = (() => {
     if (driveSkipped) return `⚠ ${driveSkipped.replace(/^drive check skipped:\s*/i, "").trim()} — ${t("stage3_manual")}`;
+    if (driveNotConfigured) return t("stage3_not_configured");
     if (!driveIssue) {
       const base = t("stage3_ok").replace("{name}", driveSearchLabel);
       return pdfAmountStr
