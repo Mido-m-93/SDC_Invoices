@@ -116,6 +116,8 @@ export async function POST(req: NextRequest) {
     //
     const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "";
     console.log(`[Drive check] GOOGLE_DRIVE_ROOT_FOLDER_ID="${rootFolderId}"`);
+    // Presence/length only — never log the actual secret values.
+    console.log(`[Drive check] GOOGLE_CLIENT_EMAIL present=${!!process.env.GOOGLE_CLIENT_EMAIL} len=${process.env.GOOGLE_CLIENT_EMAIL?.length ?? 0}; GOOGLE_PRIVATE_KEY present=${!!process.env.GOOGLE_PRIVATE_KEY} len=${process.env.GOOGLE_PRIVATE_KEY?.length ?? 0}`);
     // Surfaced on every result so the UI can tell "checked, found nothing" apart
     // from "this environment has no Drive integration set up at all" — the
     // latter used to silently render as a false "safe to file" pass.
