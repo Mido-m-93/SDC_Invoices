@@ -7,7 +7,7 @@
 //
 // Per-service flags (all default to mock):
 //   NEXT_PUBLIC_USE_MOCK_SHEETS         = "false" → use RealSheetsService
-//   NEXT_PUBLIC_USE_MOCK_DRIVE          = "false" → use RealDriveService      (not yet implemented)
+//   USE_MOCK_DRIVE                      = "false" → use RealDriveService
 //   NEXT_PUBLIC_USE_MOCK_VALIDATION     = "false" → use RealValidationService  (not yet implemented)
 //   USE_MOCK_STORAGE        = "false" → use SupabaseStorageService (+ Vendor/Contract/Reminder)
 //   NEXT_PUBLIC_USE_MOCK_DASHBOARD      = "false" → use RealDashboardService   (not yet implemented)
@@ -133,7 +133,7 @@ export function getSheetsService(): ISheetsService {
 // ── Drive ────────────────────────────────────────────────────────────────────
 export function getDriveService(): IDriveService {
   if (!_drive) {
-    _drive = isMock("NEXT_PUBLIC_USE_MOCK_DRIVE")
+    _drive = isMock("USE_MOCK_DRIVE")
       ? new MockDriveService()
       : new RealDriveService();
   }
@@ -323,7 +323,7 @@ function logServiceModes(): void {
 
   const services: [string, string][] = [
     ["Sheets",       "NEXT_PUBLIC_USE_MOCK_SHEETS"],
-    ["Drive",        "NEXT_PUBLIC_USE_MOCK_DRIVE"],
+    ["Drive",        "USE_MOCK_DRIVE"],
     ["Validation",   "NEXT_PUBLIC_USE_MOCK_VALIDATION"],
     ["Storage",      "USE_MOCK_STORAGE"],
     ["Dashboard",    "NEXT_PUBLIC_USE_MOCK_DASHBOARD"],
