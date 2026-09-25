@@ -567,6 +567,7 @@ const en = {
   expenses_action_validate: "Validate",
   expenses_action_approve: "Approve",
   expenses_action_undo: "Undo",
+  expenses_action_undo_validate: "Undo Validate",
   expenses_action_reject: "Reject",
   expenses_action_delete: "Delete",
   expenses_empty_title: "No expense claims found.",

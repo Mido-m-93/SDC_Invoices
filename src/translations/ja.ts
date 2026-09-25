@@ -567,6 +567,7 @@ const ja = {
   expenses_action_validate: "検証",
   expenses_action_approve: "承認",
   expenses_action_undo: "取り消す",
+  expenses_action_undo_validate: "検証を取り消す",
   expenses_action_reject: "却下",
   expenses_action_delete: "削除",
   expenses_empty_title: "経費申請が見つかりません。",
