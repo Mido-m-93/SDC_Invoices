@@ -786,6 +786,8 @@ const en = {
   members_delete_confirm: "Delete this member?",
   members_loading: "Loading…",
   members_empty_title: "No members registered yet.",
+  members_expired_filter: "{count} contract(s) expired",
+  members_expired_none: "No members match this filter.",
   members_empty_add: "Add your first member",
   members_col_name: "Name",
   members_col_email: "Email",

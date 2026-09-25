@@ -40,6 +40,15 @@ const STATUS_TONES: Record<MemberStatus, BadgeTone> = {
   on_leave: "warning",
 };
 
+// Mirrors isContractExpired in lib/contractStats.ts — same "active but the
+// end date has already passed" definition, applied to a member's own
+// registered contract (contractEnd) instead of the Contract record.
+function isMemberContractExpired(m: Member, now: Date): boolean {
+  if (m.status !== "active" || !m.contractEnd) return false;
+  const end = new Date(m.contractEnd).getTime();
+  return !Number.isNaN(end) && end < now.getTime();
+}
+
 export default function MembersPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
@@ -54,6 +63,7 @@ export default function MembersPage() {
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [expiredOnly, setExpiredOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,6 +161,10 @@ export default function MembersPage() {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const now = new Date();
+  const expiredCount = members.filter((m) => isMemberContractExpired(m, now)).length;
+  const filteredMembers = expiredOnly ? members.filter((m) => isMemberContractExpired(m, now)) : members;
+
   return (
     <AppShell>
       <PageHeader
@@ -158,6 +172,16 @@ export default function MembersPage() {
         subtitle={t("members_subtitle")}
         actions={
           <div className="flex items-center gap-2">
+            {expiredCount > 0 && (
+              <button
+                onClick={() => setExpiredOnly((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  expiredOnly ? "bg-red-100 text-red-700" : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                }`}
+              >
+                ⚠ {t("members_expired_filter").replace("{count}", String(expiredCount))}
+              </button>
+            )}
             <Button variant="secondary" onClick={handleSync} loading={syncing} icon={<RefreshIcon />}>
               {t("members_sync_button")}
             </Button>
@@ -197,6 +221,10 @@ export default function MembersPage() {
             {t("members_empty_add")}
           </Button>
         </div>
+      ) : filteredMembers.length === 0 ? (
+        <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
+          <p className="text-stone-400 text-sm">{t("members_expired_none")}</p>
+        </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm">
@@ -212,7 +240,7 @@ export default function MembersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {members.map((m) => (
+              {filteredMembers.map((m) => (
                 <tr key={m.id} className="hover:bg-stone-50">
                   <td className="px-4 py-3 font-medium text-stone-800">
                     {m.displayName}
@@ -229,6 +257,11 @@ export default function MembersPage() {
                   <td className="px-4 py-3 text-stone-500">{m.department || "—"}</td>
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONES[m.status]}>{t(`members_status_${m.status}` as TranslationKey)}</Badge>
+                    {isMemberContractExpired(m, now) && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700" title={m.contractEnd ?? ""}>
+                        ⚠ {t("contracts_expired_badge")}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{m.joinDate || "—"}</td>
                   <td className="px-4 py-3 flex gap-2">
