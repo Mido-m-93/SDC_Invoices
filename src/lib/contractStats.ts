@@ -13,20 +13,30 @@ export interface ContractStats {
   expired: number;
 }
 
+// A blank/malformed endDate parses to NaN, which fails both of these
+// comparisons — correctly excluded from both buckets rather than
+// miscounted as either "expiring soon" or "expired".
+function daysUntilEnd(c: Contract, now: Date): number {
+  return (new Date(c.endDate).getTime() - now.getTime()) / MS_PER_DAY;
+}
+
+// Shared with the Contracts page table, so the same "active but the end
+// date has already passed" definition drives both the dashboard count and
+// the per-row indicator — one place to change if the rule ever does.
+export function isContractExpired(c: Contract, now: Date): boolean {
+  return c.status === "active" && daysUntilEnd(c, now) < 0;
+}
+
+export function isContractExpiringSoon(c: Contract, now: Date): boolean {
+  if (c.status !== "active") return false;
+  const d = daysUntilEnd(c, now);
+  return d >= 0 && d <= EXPIRING_SOON_WINDOW_DAYS;
+}
+
 export function computeContractStats(contracts: Contract[], now: Date): ContractStats {
   const active = contracts.filter((c) => c.status === "active");
-
-  // A blank/malformed endDate parses to NaN, which fails both of these
-  // comparisons — correctly excluded from both buckets rather than
-  // miscounted as either "expiring soon" or "expired".
-  const daysUntilEnd = (c: Contract) => (new Date(c.endDate).getTime() - now.getTime()) / MS_PER_DAY;
-
-  const expiringSoon = active.filter((c) => {
-    const d = daysUntilEnd(c);
-    return d >= 0 && d <= EXPIRING_SOON_WINDOW_DAYS;
-  });
-
-  const expired = active.filter((c) => daysUntilEnd(c) < 0);
+  const expiringSoon = contracts.filter((c) => isContractExpiringSoon(c, now));
+  const expired = contracts.filter((c) => isContractExpired(c, now));
 
   return {
     total: contracts.length,

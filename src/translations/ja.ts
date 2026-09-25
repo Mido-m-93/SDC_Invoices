@@ -936,6 +936,8 @@ const ja = {
   contracts_search_placeholder: "クライアント、取引先、プロジェクトで検索…",
   contracts_search_clear: "クリア",
   contracts_search_shown: "件表示",
+  contracts_expired_badge: "期限切れ",
+  contracts_expired_filter: "期限切れのみ",
   contracts_search_no_results: "検索条件に一致する契約がありません。",
   contracts_empty_title: "登録済みの契約がありません。",
   contracts_empty_add_button: "最初の契約を追加",
