@@ -56,10 +56,13 @@ const STATUS_TONES: Record<MemberStatus, BadgeTone> = {
 // Mirrors isContractExpired in lib/contractStats.ts — same "active but the
 // end date has already passed" definition, applied to a member's own
 // registered contract (contractEnd) instead of the Contract record.
+// Compares by calendar day (UTC midnight), not the exact current instant, so
+// a contract ending "today" isn't flagged expired hours before the day ends.
 function isMemberContractExpired(m: Member, now: Date): boolean {
   if (m.status !== "active" || !m.contractEnd) return false;
   const end = new Date(m.contractEnd).getTime();
-  return !Number.isNaN(end) && end < now.getTime();
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return !Number.isNaN(end) && end < todayStart;
 }
 
 interface MembersContentProps {

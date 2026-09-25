@@ -13,11 +13,18 @@ export interface ContractStats {
   expired: number;
 }
 
+// Compare by calendar day (UTC midnight), not the exact current instant —
+// otherwise a contract ending "today" reads as already expired the moment
+// any time has passed since midnight, hours before the day is actually over.
+function startOfDayUTC(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 // A blank/malformed endDate parses to NaN, which fails both of these
 // comparisons — correctly excluded from both buckets rather than
 // miscounted as either "expiring soon" or "expired".
 function daysUntilEnd(c: Contract, now: Date): number {
-  return (new Date(c.endDate).getTime() - now.getTime()) / MS_PER_DAY;
+  return (new Date(c.endDate).getTime() - startOfDayUTC(now)) / MS_PER_DAY;
 }
 
 // Shared with the Contracts page table, so the same "active but the end
