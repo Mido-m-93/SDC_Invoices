@@ -1,6 +1,6 @@
 // lib/services/real/TeamsNotificationService.ts
 import type { INotificationService } from "../types";
-import type { ReminderType, ReminderGap, StaleReview, DueDateAlert } from "@/types";
+import type { ReminderType, ReminderGap, StaleReview, DueDateAlert, ExpiredContractAlert } from "@/types";
 
 export class TeamsNotificationService implements INotificationService {
   constructor(private webhookUrl: string) {}
@@ -106,6 +106,7 @@ function buildAdaptiveCard(type: ReminderType, payload: unknown) {
       stale: StaleReview[];
       approaching: DueDateAlert[];
       overdue: DueDateAlert[];
+      expiredContracts?: ExpiredContractAlert[];
     });
   }
   switch (type) {
@@ -117,6 +118,8 @@ function buildAdaptiveCard(type: ReminderType, payload: unknown) {
       return buildDueDateCard(payload as { due: DueDateAlert[] }, false);
     case "due_date_overdue":
       return buildDueDateCard(payload as { overdue: DueDateAlert[] }, true);
+    case "contract_expired":
+      return buildContractExpiredCard(payload as { items: ExpiredContractAlert[] });
   }
 }
 
@@ -126,8 +129,10 @@ function buildSummaryCard(payload: {
   stale: StaleReview[];
   approaching: DueDateAlert[];
   overdue: DueDateAlert[];
+  expiredContracts?: ExpiredContractAlert[];
 }) {
-  const allClear = !payload.gaps.length && !payload.stale.length && !payload.approaching.length && !payload.overdue.length;
+  const expiredContracts = payload.expiredContracts ?? [];
+  const allClear = !payload.gaps.length && !payload.stale.length && !payload.approaching.length && !payload.overdue.length && !expiredContracts.length;
 
   const facts = [
     {
@@ -145,6 +150,10 @@ function buildSummaryCard(payload: {
     {
       title: "🚨 期日超過 / Overdue",
       value: payload.overdue.length ? `${payload.overdue.length}件 / ${payload.overdue.length} invoice(s)` : "✅ なし / None",
+    },
+    {
+      title: "📄 契約期限切れ / Expired Contracts",
+      value: expiredContracts.length ? `${expiredContracts.length}件 / ${expiredContracts.length} contract(s)` : "✅ なし / None",
     },
   ];
 
@@ -206,6 +215,31 @@ function buildStaleReviewCard(payload: { stale: StaleReview[] }) {
         facts: payload.stale.map((s) => ({
           title: s.payerName,
           value: `${s.statusCode} — ${s.staleDays}日滞留 / ${s.staleDays}d stale`,
+        })),
+      },
+    ] : []),
+  ]);
+}
+
+function buildContractExpiredCard(payload: { items: ExpiredContractAlert[] }) {
+  const hasData = payload.items.length > 0;
+  return card([
+    header("📄 契約期限切れ / Expired Contracts", hasData ? "Attention" : "Good"),
+    subtitle(
+      hasData
+        ? `${payload.items.length}件の契約・メンバーの終了日が過ぎていますが、まだ有効として登録されています。`
+        : "✅ 期限切れの契約はありません。",
+      hasData
+        ? `${payload.items.length} contract(s)/member(s) are still marked active past their end date.`
+        : "✅ No contracts are past their end date."
+    ),
+    ...(hasData ? [
+      separator(),
+      {
+        type: "FactSet",
+        facts: payload.items.map((i) => ({
+          title: `${i.kind === "member" ? "👤" : "📄"} ${i.name}`,
+          value: `ended ${i.endDate}`,
         })),
       },
     ] : []),

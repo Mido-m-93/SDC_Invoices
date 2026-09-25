@@ -6,6 +6,7 @@ import type {
   ReminderGap,
   StaleReview,
   DueDateAlert,
+  ExpiredContractAlert,
   ReminderSummary,
 } from "@/types";
 import { generateId } from "@/lib/utils";
@@ -41,6 +42,15 @@ const MOCK_STALE: StaleReview[] = [
   },
 ];
 
+const MOCK_EXPIRED_CONTRACTS: ExpiredContractAlert[] = [
+  {
+    id: "contract-mock-expired-1",
+    kind: "contract",
+    name: "株式会社サンプルB",
+    endDate: new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10),
+  },
+];
+
 const MOCK_DUE: DueDateAlert[] = [
   {
     submissionId: "sub-mock-due-1",
@@ -73,13 +83,17 @@ export class MockReminderService implements IReminderService {
     return [...MOCK_DUE];
   }
 
+  async detectExpiredContracts(): Promise<ExpiredContractAlert[]> {
+    return [...MOCK_EXPIRED_CONTRACTS];
+  }
+
   async sendReminders(
     month: string,
     type: ReminderType | "all"
   ): Promise<{ sent: number; failed: number; skipped: number }> {
     const types: ReminderType[] =
       type === "all"
-        ? ["missing_invoice", "stale_review", "due_date_approaching", "due_date_overdue"]
+        ? ["missing_invoice", "stale_review", "due_date_approaching", "due_date_overdue", "contract_expired"]
         : [type];
 
     let sent = 0;
@@ -110,6 +124,11 @@ export class MockReminderService implements IReminderService {
         if (overdue.length === 0) { skipped++; continue; }
         payload = { overdue };
         hasData = true;
+      } else if (t === "contract_expired") {
+        const items = await this.detectExpiredContracts();
+        if (items.length === 0) { skipped++; continue; }
+        payload = { items };
+        hasData = true;
       }
 
       if (!hasData) { skipped++; continue; }
@@ -132,10 +151,11 @@ export class MockReminderService implements IReminderService {
   }
 
   async getSummary(month: string): Promise<ReminderSummary> {
-    const [gaps, stale, dueAll] = await Promise.all([
+    const [gaps, stale, dueAll, expiredContracts] = await Promise.all([
       this.detectGaps(month),
       this.detectStaleReviews(3),
       this.detectDueDateIssues(5),
+      this.detectExpiredContracts(),
     ]);
 
     const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
@@ -150,6 +170,7 @@ export class MockReminderService implements IReminderService {
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
       pendingExpenses: { count: 0 },
+      contractsExpired: { count: expiredContracts.length },
       lastSent,
       recentLogs: monthLogs.slice(0, 10),
     };

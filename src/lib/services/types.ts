@@ -23,6 +23,7 @@ import type {
   ReminderGap,
   StaleReview,
   DueDateAlert,
+  ExpiredContractAlert,
   ReminderSummary,
   ExpenseClaim,
   ExpenseValidationResult,
@@ -287,6 +288,9 @@ export interface IReminderService {
 
   /** Detect invoices whose derived due date is within thresholdDays or past. */
   detectDueDateIssues(thresholdDays: number): Promise<DueDateAlert[]>;
+
+  /** Detect active contracts/members whose end date has already passed. */
+  detectExpiredContracts(): Promise<ExpiredContractAlert[]>;
 
   /** Run detection for the given type, send notifications, and log results. */
   sendReminders(

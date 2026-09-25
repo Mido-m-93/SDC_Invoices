@@ -7,6 +7,7 @@ import type {
   ReminderGap,
   StaleReview,
   DueDateAlert,
+  ExpiredContractAlert,
   ReminderSummary,
   InvoiceStatusCode,
 } from "@/types";
@@ -203,6 +204,44 @@ export class SupabaseReminderService implements IReminderService {
     return alerts.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
   }
 
+  /** Active contracts and members whose end date has already passed. */
+  async detectExpiredContracts(): Promise<ExpiredContractAlert[]> {
+    const db = getSupabase();
+    const today = new Date().toISOString().slice(0, 10);
+
+    const [{ data: contracts }, { data: members }] = await Promise.all([
+      db
+        .from("contracts")
+        .select("id, client_name, project_name, end_date")
+        .eq("status", "active")
+        .not("end_date", "eq", "")
+        .lt("end_date", today),
+      db
+        .from("members")
+        .select("id, display_name, contract_end")
+        .eq("status", "active")
+        .not("contract_end", "is", null)
+        .lt("contract_end", today),
+    ]);
+
+    const alerts: ExpiredContractAlert[] = [
+      ...(contracts ?? []).map((c) => ({
+        id: c.id as string,
+        kind: "contract" as const,
+        name: (c.client_name as string | null) || (c.project_name as string) || c.id,
+        endDate: c.end_date as string,
+      })),
+      ...(members ?? []).map((m) => ({
+        id: m.id as string,
+        kind: "member" as const,
+        name: m.display_name as string,
+        endDate: m.contract_end as string,
+      })),
+    ];
+
+    return alerts.sort((a, b) => a.endDate.localeCompare(b.endDate));
+  }
+
   /** Resolve the live notification service: prefer Teams if webhook URL is in app_config */
   private async resolveNotificationSvc(): Promise<INotificationService> {
     try {
@@ -239,15 +278,16 @@ export class SupabaseReminderService implements IReminderService {
       const db2 = getSupabase();
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 5);
-      const [gaps, stale, dueAll, expenseStaleResult] = await Promise.all([
+      const [gaps, stale, dueAll, expenseStaleResult, expiredContracts] = await Promise.all([
         this.detectGaps(month),
         this.detectStaleReviews(3),
         this.detectDueDateIssues(5),
         db2.from("expense_claims").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]).lte("submitted_at", cutoff.toISOString()),
+        this.detectExpiredContracts(),
       ]);
       const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
       const overdue = dueAll.filter((d) => d.daysUntilDue < 0);
-      const payload = { month, gaps, stale, approaching, overdue, staleExpenses: expenseStaleResult.count ?? 0 };
+      const payload = { month, gaps, stale, approaching, overdue, staleExpenses: expenseStaleResult.count ?? 0, expiredContracts };
       const ok = await notifSvc.sendReminder({ type: "missing_invoice" as ReminderType, payload: { _summary: true, ...payload } });
       if (ok) sent++; else failed++;
       await this._logReminder(db, "missing_invoice", month, "teams", ok, "Monthly summary");
@@ -287,6 +327,9 @@ export class SupabaseReminderService implements IReminderService {
         .in("status", ["submitted", "under_review"])
         .lte("submitted_at", cutoff.toISOString());
       payload = { stale: data ?? [] };
+    } else if (type === "contract_expired") {
+      const items = await this.detectExpiredContracts();
+      payload = { items };
     }
 
     const ok = await notifSvc.sendReminder({ type, payload });
@@ -335,12 +378,13 @@ export class SupabaseReminderService implements IReminderService {
 
   async getSummary(month: string): Promise<ReminderSummary> {
     const db = getSupabase();
-    const [gaps, stale, dueAll, logs, expenseResult] = await Promise.all([
+    const [gaps, stale, dueAll, logs, expenseResult, expiredContracts] = await Promise.all([
       this.detectGaps(month),
       this.detectStaleReviews(3),
       this.detectDueDateIssues(5),
       this.getLogs(month),
       db.from("expense_claims").select("id", { count: "exact", head: true }).eq("status", "submitted"),
+      this.detectExpiredContracts(),
     ]);
 
     const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
@@ -366,6 +410,7 @@ export class SupabaseReminderService implements IReminderService {
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
       pendingExpenses: { count: pendingExpensesCount },
+      contractsExpired: { count: expiredContracts.length },
       lastSent,
       recentLogs: logs.slice(0, 10),
     };
