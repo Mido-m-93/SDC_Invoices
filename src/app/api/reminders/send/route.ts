@@ -12,6 +12,7 @@ const VALID_TYPES = new Set<string>([
   "stale_review",
   "due_date_approaching",
   "due_date_overdue",
+  "contract_expired",
 ]);
 
 /** Derive the current month in JST (UTC+9) */
