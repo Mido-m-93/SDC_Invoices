@@ -906,6 +906,7 @@ const en = {
   contracts_title: "Contracts",
   contracts_tab_contracts: "Client Contracts",
   contracts_tab_members: "Members Contract",
+  contracts_tab_members_list: "Members",
   members_contract_subtitle: "Read-only view of the SharePoint 03_Member contract folder — sync to rescan, nothing is saved to the database.",
   members_contract_sync_button: "Sync from SharePoint",
   members_contract_sync_result: "Found {count} member folder(s)",
