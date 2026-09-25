@@ -786,6 +786,8 @@ const ja = {
   members_delete_confirm: "このメンバーを削除しますか？",
   members_loading: "読み込み中…",
   members_empty_title: "登録されているメンバーがありません。",
+  members_expired_filter: "{count}件の契約が期限切れ",
+  members_expired_none: "この条件に一致するメンバーがいません。",
   members_empty_add: "最初のメンバーを追加",
   members_col_name: "名前",
   members_col_email: "メール",
