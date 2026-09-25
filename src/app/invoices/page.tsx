@@ -227,6 +227,23 @@ export default function InvoicesPage() {
     notify("info", `Approved invoice for ${item.submission.payerName}`, "/invoices");
   };
 
+  const handleReject = (item: InvoiceListItem) => {
+    if (!item.validation) return;
+    const rejected: InvoiceValidationResult = {
+      ...item.validation,
+      humanRejected: true,
+      rejectedBy: user ?? undefined,
+    };
+    const updated = { ...item, validation: rejected };
+    setItems((prev) =>
+      prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+    );
+    setSelectedItem((prev) =>
+      prev?.submission.id === item.submission.id ? updated : prev
+    );
+    notify("info", `Rejected invoice for ${item.submission.payerName}`, "/invoices");
+  };
+
   const [deletingSubmission, setDeletingSubmission] = useState<string | null>(null);
 
   const handleDeleteSubmission = async (item: InvoiceListItem) => {
@@ -639,7 +656,7 @@ export default function InvoicesPage() {
                                 {t("action_undo_validate")}
                               </Button>
                             )}
-                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && (
+                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && !v.humanRejected && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -648,6 +665,19 @@ export default function InvoicesPage() {
                               >
                                 ✓ {t("action_approve")}
                               </Button>
+                            )}
+                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && !v.humanRejected && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleReject(item)}
+                                title={t("invoices_reject_tooltip")}
+                              >
+                                ✕ {t("action_reject")}
+                              </Button>
+                            )}
+                            {v?.humanRejected && (
+                              <span className="text-xs text-red-600 font-medium">✕ {t("action_rejected")}</span>
                             )}
                             {(v?.statusCode === "READY" || v?.humanApproved) && !item.filedDocument && (
                               <Button

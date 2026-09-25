@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [moduleData, setModuleData] = useState<{
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     proposals: { total: number; open: number; accepted: number; pipelineTotal: number; pipelinePending: number } | null;
-    contracts: { total: number; active: number; expiringSoon: number } | null;
+    contracts: { total: number; active: number; expiringSoon: number; expired: number } | null;
     budget: { total: number; draft: number; confirmed: number; sharepointFiles: number } | null;
   }>({ expenses: null, proposals: null, contracts: null, budget: null });
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
@@ -219,6 +219,7 @@ export default function DashboardPage() {
   };
 
   const contractsExpiringSoon = moduleData.contracts?.expiringSoon ?? 0;
+  const contractsExpired = moduleData.contracts?.expired ?? 0;
 
   return (
     <AppShell>
@@ -260,6 +261,7 @@ export default function DashboardPage() {
             subs={[
               { label: t("dashboard_stat_active"),         value: moduleData.contracts?.active ?? 0,       color: "green" },
               { label: t("dashboard_stat_expiring_soon"),  value: contractsExpiringSoon, color: contractsExpiringSoon > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_expired"),        value: contractsExpired, color: contractsExpired > 0 ? "red" : "neutral" },
             ]}
           />
           <ModuleCard

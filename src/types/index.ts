@@ -91,6 +91,10 @@ export interface InvoiceValidationResult {
   targetFolderPath: string;
   // Rule 10: human reviewer must explicitly approve before filing is allowed
   humanApproved?: boolean;
+  // A reviewer can also explicitly reject a REVIEW_REQUIRED invoice instead
+  // of approving it — mirrors humanApproved/approvedBy, keeps Save hidden.
+  humanRejected?: boolean;
+  rejectedBy?: string;
   // Sprint 2: vendor/contract/risk enrichment
   riskLevel?: RiskLevel;
   reviewerRecommendation?: string;
