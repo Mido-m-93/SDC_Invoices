@@ -9,6 +9,7 @@ import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import RefreshIcon from "@/components/ui/RefreshIcon";
 import TrashIcon from "@/components/ui/TrashIcon";
 import MembersContractTab from "@/components/contracts/MembersContractTab";
+import MembersContent from "@/components/members/MembersContent";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
@@ -38,7 +39,7 @@ export default function ContractsPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
   const { user } = useCurrentUser();
-  const [tab, setTab] = useState<"contracts" | "members">("contracts");
+  const [tab, setTab] = useState<"contracts" | "members" | "members_list">("contracts");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -412,7 +413,7 @@ export default function ContractsPage() {
       />
 
       <div className="mb-5 flex gap-1 border-b border-stone-200">
-        {(["contracts", "members"] as const).map((tb) => (
+        {(["contracts", "members", "members_list"] as const).map((tb) => (
           <button
             key={tb}
             onClick={() => setTab(tb)}
@@ -422,17 +423,20 @@ export default function ContractsPage() {
                 : "border-transparent text-stone-400 hover:text-stone-600"
             }`}
           >
-            {tb === "contracts" ? t("contracts_tab_contracts") : t("contracts_tab_members")}
+            {tb === "contracts" ? t("contracts_tab_contracts") : tb === "members" ? t("contracts_tab_members") : t("contracts_tab_members_list")}
           </button>
         ))}
       </div>
 
-      {/* Both tabs stay mounted (hidden, not unmounted) so switching tabs
+      {/* All tabs stay mounted (hidden, not unmounted) so switching tabs
           doesn't discard the Members Contract sync or lose in-progress state. */}
       <div hidden={tab !== "members"}>
         <MembersContractTab />
       </div>
-      <div hidden={tab === "members"}>
+      <div hidden={tab !== "members_list"}>
+        <MembersContent compact />
+      </div>
+      <div hidden={tab !== "contracts"}>
       {contracts.length > 0 && (
         <div className="mb-4 flex items-center gap-3">
           <input
