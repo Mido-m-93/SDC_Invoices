@@ -14,6 +14,7 @@ import { getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import { requireAuth } from "@/lib/auth-guard";
+import { extractMemberName, normaliseMemberName } from "@/lib/memberName";
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -95,28 +96,6 @@ async function listFolderChildren(token: string): Promise<DriveItem[]> {
   return data.value ?? [];
 }
 
-// Extract a human-readable name from a SharePoint item name.
-// Handles patterns like "01_Yamada_Taro.pdf", "Smith-John Contract 2024.pdf",
-// subfolder names like "02_山田太郎", etc.
-function extractMemberName(rawName: string): string {
-  let name = rawName;
-  // Strip file extension
-  name = name.replace(/\.[^.]+$/, "");
-  // Strip leading number + separator  (e.g. "01_", "02-", "3. ")
-  name = name.replace(/^\d+\s*[_\-\.]\s*/, "");
-  // Replace remaining underscores / hyphens with spaces
-  name = name.replace(/[_\-]+/g, " ");
-  // Remove common English suffixes (case-insensitive)
-  name = name.replace(/\s+(contract|agreement|nda|signed|draft|final|v\d+|\d{4})(\s+.*)?$/gi, "");
-  // Collapse multiple spaces
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
-
-function normalise(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, "");
-}
-
 // Reads and AI-extracts the contract PDF once — non-fatal on failure, since a
 // missing/unreadable contract shouldn't block the member record itself from syncing.
 // Hard-timed out: a single hung Graph/AI call must not be able to consume the
@@ -163,7 +142,7 @@ async function runSync(retryFailed = false): Promise<{
   const service = getMemberService();
   const existing = await service.listMembers();
 
-  const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
+  const existingByName = new Map(existing.map((m) => [normaliseMemberName(m.displayName), m]));
   const stillMissing = existing.filter((m) => m.contractStart == null).length;
 
   let added               = 0;
@@ -177,8 +156,8 @@ async function runSync(retryFailed = false): Promise<{
   // Process oldest-attempted-first instead so each run advances the queue.
   const orderedItems = retryFailed
     ? [...items].sort((a, b) => {
-        const ta = existingByName.get(normalise(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
-        const tb = existingByName.get(normalise(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
+        const ta = existingByName.get(normaliseMemberName(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
+        const tb = existingByName.get(normaliseMemberName(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
         return ta.localeCompare(tb);
       })
     : items;
@@ -187,7 +166,7 @@ async function runSync(retryFailed = false): Promise<{
     const displayName = extractMemberName(item.name);
     if (!displayName) { skipped++; continue; }
 
-    const existingMember = existingByName.get(normalise(displayName));
+    const existingMember = existingByName.get(normaliseMemberName(displayName));
 
     if (existingMember) {
       skipped++;
@@ -258,7 +237,7 @@ async function runSync(retryFailed = false): Promise<{
     };
 
     await service.saveMember(newMember);
-    existingByName.set(normalise(displayName), newMember);
+    existingByName.set(normaliseMemberName(displayName), newMember);
     added++;
     addedNames.push(displayName);
   }

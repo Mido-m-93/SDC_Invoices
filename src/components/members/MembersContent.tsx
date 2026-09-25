@@ -7,8 +7,22 @@ import RefreshIcon from "@/components/ui/RefreshIcon";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Member, MemberRole, MemberStatus } from "@/types";
 import { generateId } from "@/lib/utils";
+import { extractMemberName, normaliseMemberName } from "@/lib/memberName";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+
+interface MemberFolderFile {
+  name: string;
+  isFolder: boolean;
+  size: number | null;
+  webUrl: string | null;
+}
+
+interface MemberFolder {
+  name: string;
+  webUrl: string | null;
+  files: MemberFolderFile[];
+}
 
 const EMPTY_MEMBER: Omit<Member, "id" | "createdAt" | "updatedAt" | "avatarUrl"> = {
   displayName: "",
@@ -67,6 +81,10 @@ export default function MembersContent({ compact = false }: MembersContentProps)
   const [form, setForm] = useState({ ...EMPTY_MEMBER });
   const [error, setError] = useState<string | null>(null);
   const [expiredOnly, setExpiredOnly] = useState(false);
+  const [folders, setFolders] = useState<MemberFolder[] | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [foldersError, setFoldersError] = useState<string | null>(null);
+  const [viewingFilesFor, setViewingFilesFor] = useState<Member | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,6 +181,40 @@ export default function MembersContent({ compact = false }: MembersContentProps)
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  // Folder listing is a full-tenant scan (see /api/contracts/member-folders),
+  // so fetch it once and reuse across every "View Files" click instead of
+  // re-scanning SharePoint per member.
+  async function ensureFolders(): Promise<MemberFolder[]> {
+    if (folders) return folders;
+    setLoadingFolders(true);
+    setFoldersError(null);
+    try {
+      const res = await fetch("/api/contracts/member-folders", { method: "POST" });
+      const data = await res.json() as { members?: MemberFolder[]; error?: string };
+      if (!res.ok) {
+        setFoldersError(data.error ?? t("contracts_files_failed"));
+        return [];
+      }
+      const result = data.members ?? [];
+      setFolders(result);
+      return result;
+    } catch {
+      setFoldersError(t("contracts_files_failed"));
+      return [];
+    } finally {
+      setLoadingFolders(false);
+    }
+  }
+
+  function handleViewFiles(m: Member) {
+    setViewingFilesFor(m);
+    void ensureFolders();
+  }
+
+  const matchedFolder = viewingFilesFor
+    ? folders?.find((f) => normaliseMemberName(extractMemberName(f.name)) === normaliseMemberName(viewingFilesFor.displayName)) ?? null
+    : null;
 
   const now = new Date();
   const expiredCount = members.filter((m) => isMemberContractExpired(m, now)).length;
@@ -270,6 +322,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
                   </td>
                   <td className="px-4 py-3 text-xs text-stone-500 font-mono">{m.joinDate || "—"}</td>
                   <td className="px-4 py-3 flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleViewFiles(m)}>{t("contracts_action_view_files")}</Button>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>{t("members_action_edit")}</Button>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(m.id)}>{t("members_action_delete")}</Button>
                   </td>
@@ -390,6 +443,47 @@ export default function MembersContent({ compact = false }: MembersContentProps)
               >
                 {t("members_save")}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingFilesFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]" onClick={() => setViewingFilesFor(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+              <h2 className="text-base font-semibold">{viewingFilesFor.displayName}</h2>
+              <button onClick={() => setViewingFilesFor(null)} className="text-stone-400 hover:text-stone-700">×</button>
+            </div>
+            <div className="px-6 py-5">
+              {loadingFolders && <p className="text-sm text-stone-500">{t("contracts_files_loading")}</p>}
+              {foldersError && <p className="text-sm text-red-600">{foldersError}</p>}
+              {!loadingFolders && !foldersError && folders && !matchedFolder && (
+                <p className="text-sm text-stone-500">{t("members_files_no_match")}</p>
+              )}
+              {matchedFolder && matchedFolder.files.length === 0 && (
+                <p className="text-sm text-stone-500">{t("contracts_files_empty")}</p>
+              )}
+              {matchedFolder && matchedFolder.files.length > 0 && (
+                <ul className="divide-y divide-stone-100">
+                  {matchedFolder.files.map((f) => (
+                    <li key={f.name} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        {f.webUrl ? (
+                          <a href={f.webUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
+                            {f.isFolder ? "📁 " : "📄 "}{f.name}
+                          </a>
+                        ) : (
+                          <span className="text-stone-700 truncate block">{f.isFolder ? "📁 " : "📄 "}{f.name}</span>
+                        )}
+                        {!f.isFolder && f.size != null && (
+                          <span className="text-xs text-stone-400">{Math.round(f.size / 1024)} KB</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
