@@ -102,6 +102,21 @@ async function listFolderChildren(token: string): Promise<DriveItem[]> {
 // whole function's time budget and take the entire sync down with it.
 const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
 
+// A member whose contract already reads as expired gets re-checked against
+// SharePoint periodically — a renewed contract (new file, or the same file
+// edited in place) should get picked up without anyone having to notice the
+// alert and manually re-trigger it. Cooldown keeps this from re-hitting the
+// same still-genuinely-expired member (and burning an OpenAI call) every
+// single day once nothing about their folder has changed.
+const EXPIRED_RECHECK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isMemberContractExpired(m: Member, now: Date): boolean {
+  if (m.status !== "active" || !m.contractEnd) return false;
+  const end = new Date(m.contractEnd).getTime();
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return !Number.isNaN(end) && end < todayStart;
+}
+
 interface FetchContractFieldsResult {
   fields: {
     contractStart: string | null;
@@ -191,8 +206,17 @@ async function runSync(retryFailed = false): Promise<{
       // extraction genuinely fails isn't retried on every single future run —
       // since folder-listing order never changes, that would permanently jam
       // the front of the queue in front of everyone who hasn't been tried yet.
-      if (existingMember.contractStart == null && (retryFailed || existingMember.contractSyncAttemptedAt == null)
-          && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      const needsInitialExtraction = existingMember.contractStart == null
+        && (retryFailed || existingMember.contractSyncAttemptedAt == null);
+
+      // Separately, a member already flagged expired gets re-checked once the
+      // cooldown has passed, regardless of contractStart — a renewal wouldn't
+      // otherwise ever be picked up automatically.
+      const lastAttempt = existingMember.contractSyncAttemptedAt ? new Date(existingMember.contractSyncAttemptedAt).getTime() : 0;
+      const needsExpiredRecheck = isMemberContractExpired(existingMember, new Date())
+        && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
+
+      if ((needsInitialExtraction || needsExpiredRecheck) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
         await service.saveMember({
