@@ -936,6 +936,8 @@ const en = {
   contracts_search_placeholder: "Search by client, vendor, or project…",
   contracts_search_clear: "Clear",
   contracts_search_shown: "shown",
+  contracts_expired_badge: "Expired",
+  contracts_expired_filter: "Expired only",
   contracts_search_no_results: "No contracts match your search.",
   contracts_empty_title: "No contracts registered yet.",
   contracts_empty_add_button: "Add your first contract",

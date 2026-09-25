@@ -14,6 +14,7 @@ import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import type { Contract, Vendor, Client, Proposal, Budget } from "@/types";
 import { generateId } from "@/lib/utils";
+import { isContractExpired } from "@/lib/contractStats";
 
 type ContractForm = Omit<Contract, "id" | "createdAt">;
 
@@ -58,6 +59,7 @@ export default function ContractsPage() {
   const [linkingFile, setLinkingFile] = useState<string | null>(null);
   const [folderFilesFuzzy, setFolderFilesFuzzy] = useState<{ folderName: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [expiredOnly, setExpiredOnly] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -377,13 +379,18 @@ export default function ContractsPage() {
   const resolvedClientName = (c: Contract) =>
     c.clientName || clients.find(cl => cl.id === c.clientId)?.name || null;
 
+  const now = new Date();
   const filteredContracts = (() => {
     const query = search.trim().toLowerCase();
-    if (!query) return contracts;
-    return contracts.filter((c) =>
-      [resolvedClientName(c), c.vendorId && vendorName(c.vendorId), c.projectName]
-        .some((field) => field?.toLowerCase().includes(query))
-    );
+    let result = contracts;
+    if (expiredOnly) result = result.filter((c) => isContractExpired(c, now));
+    if (query) {
+      result = result.filter((c) =>
+        [resolvedClientName(c), c.vendorId && vendorName(c.vendorId), c.projectName]
+          .some((field) => field?.toLowerCase().includes(query))
+      );
+    }
+    return result;
   })();
 
   return (
@@ -439,6 +446,14 @@ export default function ContractsPage() {
               {t("contracts_search_clear")}
             </button>
           )}
+          <button
+            onClick={() => setExpiredOnly((v) => !v)}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+              expiredOnly ? "bg-red-100 text-red-700" : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+            }`}
+          >
+            ⚠ {t("contracts_expired_filter")}
+          </button>
           <span className="text-xs text-stone-400">
             {filteredContracts.length} / {contracts.length} {t("contracts_search_shown")}
           </span>
@@ -535,6 +550,11 @@ export default function ContractsPage() {
                       <Badge tone={STATUS_TONES[c.status]}>
                         {t(`contracts_status_${c.status}` as TranslationKey)}
                       </Badge>
+                      {isContractExpired(c, now) && (
+                        <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700" title={c.endDate}>
+                          ⚠ {t("contracts_expired_badge")}
+                        </span>
+                      )}
                       {c.contractFolderUrl && (
                         <a href={c.contractFolderUrl} target="_blank" rel="noreferrer" className="ml-2 text-xs text-blue-500 hover:underline">
                           {t("contracts_folder_link")}
