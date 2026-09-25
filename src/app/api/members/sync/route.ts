@@ -191,6 +191,21 @@ async function runSync(retryFailed = false): Promise<{
 
     if (existingMember) {
       skipped++;
+
+      // Auto-synced members originally got joinDate set to the sync run date
+      // (a placeholder, not a real hire date). Once a contract start date has
+      // been extracted, it's the closest real date we have — correct joinDate
+      // to match. Cheap (no Graph/AI call), so this runs every time, not just
+      // for members still pending contract extraction.
+      const isAutoSynced = existingMember.notes.startsWith("Auto-synced from SharePoint");
+      if (isAutoSynced && existingMember.contractStart && existingMember.joinDate !== existingMember.contractStart) {
+        existingMember.joinDate = existingMember.contractStart;
+        await service.saveMember({
+          ...existingMember,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       // Backfill contract fields for members synced before this was tracked —
       // capped per run so this route can't time out; leftovers pick up next sync.
       // Gate on contractSyncAttemptedAt (not contractStart) so a member whose
@@ -204,6 +219,7 @@ async function runSync(retryFailed = false): Promise<{
         await service.saveMember({
           ...existingMember,
           ...(result.fields ?? {}),
+          ...(isAutoSynced && result.fields?.contractStart ? { joinDate: result.fields.contractStart } : {}),
           contractSyncAttemptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -228,7 +244,10 @@ async function runSync(retryFailed = false): Promise<{
       role:         "other",
       department:   "",
       employeeCode: "",
-      joinDate:     now.slice(0, 10),
+      // Real contract start beats the sync run date whenever it's already
+      // available; otherwise this gets corrected on a later run once the
+      // contract has been extracted (see the existingMember branch above).
+      joinDate:     fields?.contractStart ?? now.slice(0, 10),
       status:       "active",
       avatarUrl:    "",
       notes:        `Auto-synced from SharePoint (${item.name})`,
