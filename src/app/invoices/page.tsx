@@ -44,6 +44,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
   const [sendingToMF, setSendingToMF] = useState<string | null>(null);
@@ -225,6 +226,38 @@ export default function InvoicesPage() {
       prev?.submission.id === item.submission.id ? updated : prev
     );
     notify("info", `Approved invoice for ${item.submission.payerName}`, "/invoices");
+  };
+
+  const handleReject = async (item: InvoiceListItem) => {
+    if (!item.validation) return;
+    // Unlike Approve (whose decision rides along whenever Save eventually
+    // persists the full validation object), Reject never reaches Save — so
+    // it has to persist itself immediately or the decision is lost on reload.
+    setRejecting(item.submission.id);
+    try {
+      const res = await fetch("/api/invoices/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId: item.submission.id, rejectedBy: user ?? "unknown" }),
+      });
+      const data = await res.json().catch(() => ({})) as { result?: InvoiceValidationResult; error?: string };
+      if (!res.ok || !data.result) {
+        notify("error", data.error ?? `Failed to reject invoice for ${item.submission.payerName}`, "/invoices");
+        return;
+      }
+      const updated = { ...item, validation: data.result };
+      setItems((prev) =>
+        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+      );
+      setSelectedItem((prev) =>
+        prev?.submission.id === item.submission.id ? updated : prev
+      );
+      notify("info", `Rejected invoice for ${item.submission.payerName}`, "/invoices");
+    } catch {
+      notify("error", `Failed to reject invoice for ${item.submission.payerName}`, "/invoices");
+    } finally {
+      setRejecting(null);
+    }
   };
 
   const [deletingSubmission, setDeletingSubmission] = useState<string | null>(null);
@@ -639,7 +672,7 @@ export default function InvoicesPage() {
                                 {t("action_undo_validate")}
                               </Button>
                             )}
-                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && (
+                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && !v.humanRejected && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -648,6 +681,20 @@ export default function InvoicesPage() {
                               >
                                 ✓ {t("action_approve")}
                               </Button>
+                            )}
+                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && !v.humanRejected && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                loading={rejecting === s.id}
+                                onClick={() => handleReject(item)}
+                                title={t("invoices_reject_tooltip")}
+                              >
+                                ✕ {t("action_reject")}
+                              </Button>
+                            )}
+                            {v?.humanRejected && (
+                              <span className="text-xs text-red-600 font-medium">✕ {t("action_rejected")}</span>
                             )}
                             {(v?.statusCode === "READY" || v?.humanApproved) && !item.filedDocument && (
                               <Button
