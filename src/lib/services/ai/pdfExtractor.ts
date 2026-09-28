@@ -153,9 +153,10 @@ Return exactly this JSON:
 
 Rules:
 - Amounts: plain numbers only, strip ¥ ￥ , 円
-- invoiceDate: YYYY-MM-DD; return null if no field explicitly labeled 請求日, 発行日, Issue Date, Invoice Date, or Date issued is found — do NOT guess from context dates
+- invoiceDate: YYYY-MM-DD; return null if no field explicitly labeled 請求日, 発行日, Issue Date, Invoice Date, or Date issued is found — do NOT guess from context dates. The label may use a full-width colon (：) or have extra whitespace around it.
 - taxRate: decimal (0.10 for 10%, 0.08 for 8%)
 - total: if only one amount exists, use it as the total
+- CRITICAL: phone numbers, UPI/payment IDs, bank account numbers, invoice/reference numbers, and postal codes are NEVER amounts — ignore them completely for subtotal/taxAmount/total, even if they appear right next to a "Total"/"Amount"/合計/請求金額 label. A real amount is the smallest number that plausibly prices the described goods/service (often repeated earlier in the document as a unit price or line-item amount) — long unformatted digit strings without any currency symbol, comma grouping, or explicit "○○円"/"$XXX"/"XXX USD" phrasing are identifiers, not amounts.
 - Return null only when a field is genuinely absent`,
       },
     ],
