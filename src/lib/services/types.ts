@@ -49,6 +49,7 @@ import type {
   ProfitAndLoss,
   AccountingSummary,
   ReportingKPIs,
+  Feedback,
 } from "@/types";
 
 // ── Sheets service ────────────────────────────────────────────────────────────
@@ -188,6 +189,12 @@ export interface IVendorService {
   listVendors(): Promise<Vendor[]>;
   saveVendor(vendor: Vendor): Promise<void>;
   deleteVendor(id: string): Promise<void>;
+}
+
+// ── Feedback service ──────────────────────────────────────────────────────────
+export interface IFeedbackService {
+  listFeedback(): Promise<Feedback[]>;
+  submitFeedback(feedback: Feedback): Promise<void>;
 }
 
 // ── Contract service ──────────────────────────────────────────────────────────

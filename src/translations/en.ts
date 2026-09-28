@@ -8,6 +8,7 @@ const en = {
   app_name_short: "Invoice Tool",
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
+  nav_feedback: "Feedback",
   nav_proposals: "Proposals",
   nav_budget: "Budget",
   nav_invoices: "Invoices",
@@ -1360,6 +1361,29 @@ const en = {
   action_send_to_mf: "Send to Money Forward",
   mf_sent: "Sent to Money Forward",
   action_view_in_mf: "View in Money Forward",
+
+  // ── Feedback ────────────────────────────────────────────────────────────────
+  feedback_title: "Feedback",
+  feedback_subtitle: "Tell us what's working, what isn't, or what you'd like to see.",
+  feedback_field_rating: "How's your experience so far? (1–5)",
+  feedback_field_category: "Category",
+  feedback_field_message: "Message",
+  feedback_field_message_placeholder: "Anything you'd like us to know...",
+  feedback_category_bug: "Bug",
+  feedback_category_suggestion: "Suggestion",
+  feedback_category_question: "Question",
+  feedback_category_other: "Other",
+  feedback_submit: "Submit Feedback",
+  feedback_thank_you: "Thanks for the feedback!",
+  feedback_error_rating_required: "Please select a rating first",
+  feedback_error_submit: "Failed to submit feedback",
+  feedback_admin_list_title: "Submissions",
+  feedback_admin_list_empty: "No feedback submitted yet.",
+  feedback_col_submitted_by: "Submitted By",
+  feedback_col_rating: "Rating",
+  feedback_col_category: "Category",
+  feedback_col_message: "Message",
+  feedback_col_submitted_at: "Submitted At",
 } as const;
 
 export default en;

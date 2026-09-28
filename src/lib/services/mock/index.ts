@@ -12,6 +12,7 @@ import type {
   IStorageService,
   IDashboardService,
   IVendorService,
+  IFeedbackService,
   IContractService,
   IProposalService,
   IBudgetService,
@@ -47,6 +48,7 @@ import type {
   LeadStage,
   LeadSummary,
   MemberStatus,
+  Feedback,
 } from "@/types";
 import { safeValidationResult, parseCurrencyString } from "@/lib/validation/invoiceValidator";
 import {
@@ -71,6 +73,8 @@ import {
   loadVendors,
   saveVendor,
   deleteVendor,
+  loadFeedback,
+  saveFeedback,
   loadContracts,
   loadDeletedContracts,
   saveContract,
@@ -386,6 +390,16 @@ export class MockVendorService implements IVendorService {
   }
   async deleteVendor(id: string): Promise<void> {
     deleteVendor(id);
+  }
+}
+
+// ── Mock Feedback Service ─────────────────────────────────────────────────────
+export class MockFeedbackService implements IFeedbackService {
+  async listFeedback(): Promise<Feedback[]> {
+    return loadFeedback();
+  }
+  async submitFeedback(feedback: Feedback): Promise<void> {
+    saveFeedback(feedback);
   }
 }
 

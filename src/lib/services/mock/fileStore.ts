@@ -23,6 +23,7 @@ import type {
   PipelineSyncAuditEntry,
   StagedProposalRecord,
   Budget,
+  Feedback,
 } from "@/types";
 import { parseSnapshotMonth } from "@/lib/utils";
 
@@ -50,6 +51,7 @@ interface MockStore {
   pipelineAuditLog: PipelineSyncAuditEntry[];
   stagedProposalRecords: StagedProposalRecord[];
   budgets: Budget[];
+  feedback: Feedback[];
 }
 
 // ── Seed data (shown when each array is empty) ───────────────────────────────
@@ -112,6 +114,7 @@ export function readStore(): MockStore {
     pipelineAuditLog: [],
     stagedProposalRecords: [],
     budgets: [],
+    feedback: [],
   };
   try {
     if (!fs.existsSync(STORE_PATH)) return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -138,6 +141,7 @@ export function readStore(): MockStore {
       pipelineAuditLog:      store.pipelineAuditLog ?? [],
       stagedProposalRecords: store.stagedProposalRecords ?? [],
       budgets:               store.budgets ?? [],
+      feedback:              store.feedback ?? [],
     };
   } catch {
     return { ...empty, expenseClaims: SEED_EXPENSES, clients: SEED_CLIENTS, proposals: SEED_PROPOSALS, leads: SEED_LEADS, contracts: SEED_CONTRACTS };
@@ -305,6 +309,18 @@ export function saveVendor(vendor: Vendor): void {
 export function deleteVendor(id: string): void {
   const store = readStore();
   store.vendors = store.vendors.filter((v) => v.id !== id);
+  writeStore(store);
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+
+export function loadFeedback(): Feedback[] {
+  return readStore().feedback;
+}
+
+export function saveFeedback(feedback: Feedback): void {
+  const store = readStore();
+  store.feedback.push(feedback);
   writeStore(store);
 }
 
