@@ -123,12 +123,13 @@ interface FetchContractFieldsResult {
     contractEnd: string | null;
     contractedAmount: number | null;
     contractScope: string | null;
+    contractFileUrl: string | null;
   } | null;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { contractInfo } = await Promise.race([
+    const { contractInfo, contractFileUrl } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
@@ -141,6 +142,7 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
         contractEnd:      contractInfo.contractEnd,
         contractedAmount: contractInfo.contractedAmount,
         contractScope:    contractInfo.scope,
+        contractFileUrl:  contractFileUrl ?? null,
       },
     };
   } catch (err) {
@@ -216,7 +218,14 @@ async function runSync(retryFailed = false): Promise<{
       const needsExpiredRecheck = isMemberContractExpired(existingMember, new Date())
         && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
 
-      if ((needsInitialExtraction || needsExpiredRecheck) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      // A member synced before contractFileUrl was tracked has contract fields
+      // but no file link — same cooldown as the expiry recheck so a contract
+      // whose file genuinely can't be resolved isn't re-fetched every run.
+      const needsFileUrlBackfill = existingMember.contractStart != null
+        && existingMember.contractFileUrl == null
+        && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
+
+      if ((needsInitialExtraction || needsExpiredRecheck || needsFileUrlBackfill) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
         await service.saveMember({

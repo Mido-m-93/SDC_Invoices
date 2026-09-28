@@ -688,6 +688,7 @@ export interface Member {
   contractEnd?: string | null;
   contractedAmount?: number | null;
   contractScope?: string | null;
+  contractFileUrl?: string | null;
   // Set whenever a contract-extraction attempt is made (success or failure) so a
   // member whose PDF can't be read doesn't get retried on every single sync run.
   contractSyncAttemptedAt?: string | null;
