@@ -4,8 +4,13 @@
 // Strategies (tried in order):
 //   1. Google Document AI  — if GOOGLE_DOCUMENT_AI_PROJECT_ID +
 //                            GOOGLE_DOCUMENT_AI_PROCESSOR_ID are set.
-//   2. Groq               — free tier LLM; requires GROQ_API_KEY.
-//                            Text extracted with pdfjs-dist (no native deps).
+//   2. Groq               — primary: free tier, open-weight Llama 3.3 70B;
+//                            requires GROQ_API_KEY. Text extracted with
+//                            pdfjs-dist (no native deps) — text-only, can't
+//                            read scanned/image-only PDFs.
+//   3. OpenAI GPT-4o       — fallback: paid, but has a vision path for
+//                            scanned PDFs Groq can't read; requires
+//                            OPENAI_API_KEY.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { ExtractedInvoiceFields } from "@/types";
@@ -123,8 +128,9 @@ async function extractWithGroq(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFi
 
   const rawText = await extractTextFromPdf(pdfBytes);
   if (!rawText.trim()) {
-    console.warn("[pdfExtractor] Groq: no text extracted from PDF (may be a scanned image)");
-    return emptyExtracted();
+    // Groq has no vision path — throw so the caller can fall back to OpenAI's
+    // vision path instead of silently returning an all-null result.
+    throw new Error("Groq: no text extracted from PDF (may be a scanned image) — needs a vision-capable fallback");
   }
 
   const Groq = (await import("groq-sdk")).default;
@@ -414,7 +420,8 @@ async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<Extrac
 // "DOMMatrix is not defined" failure in this serverless runtime.
 
 // ── Main entry point ──────────────────────────────────────────────────────────
-// Priority: Google Document AI → OpenAI GPT-4o → Groq (text-only fallback)
+// Priority: Google Document AI → Groq (primary, free, open-weight) → OpenAI
+// GPT-4o (fallback — only needed for scanned/image-only PDFs Groq can't read)
 
 export async function extractFromPdf(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
   const hasGoogleDocAI =
@@ -425,23 +432,23 @@ export async function extractFromPdf(pdfBytes: Uint8Array): Promise<ExtractedInv
     try {
       return await extractWithGoogleDocumentAI(pdfBytes);
     } catch (err) {
-      console.warn("[pdfExtractor] Google Document AI failed, trying OpenAI:", err);
-    }
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      return await extractWithOpenAI(pdfBytes);
-    } catch (err) {
-      console.warn("[pdfExtractor] OpenAI extraction failed, trying Groq:", err);
+      console.warn("[pdfExtractor] Google Document AI failed, trying Groq:", err);
     }
   }
 
   if (process.env.GROQ_API_KEY) {
-    return await extractWithGroq(pdfBytes);
+    try {
+      return await extractWithGroq(pdfBytes);
+    } catch (err) {
+      console.warn("[pdfExtractor] Groq extraction failed, trying OpenAI:", err);
+    }
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    return await extractWithOpenAI(pdfBytes);
   }
 
   throw new Error(
-    "No extraction strategy configured. Set OPENAI_API_KEY (or GROQ_API_KEY) in .env.local."
+    "No extraction strategy configured. Set GROQ_API_KEY (or OPENAI_API_KEY) in .env.local."
   );
 }
