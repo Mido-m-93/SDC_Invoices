@@ -123,8 +123,12 @@ interface FetchContractFieldsResult {
     contractEnd: string | null;
     contractedAmount: number | null;
     contractScope: string | null;
-    contractFileUrl: string | null;
   } | null;
+  // Resolved independently of contractInfo — the file's webUrl is known as
+  // soon as a candidate is matched, before its content is ever downloaded/read.
+  // So a candidate whose AI text extraction fails (bad scan, rate limit, etc.)
+  // can still yield a usable link even though `fields` comes back null.
+  contractFileUrl: string | null;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
@@ -135,19 +139,18 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null };
     return {
-      fields: {
+      fields: contractInfo ? {
         contractStart:    contractInfo.contractStart,
         contractEnd:      contractInfo.contractEnd,
         contractedAmount: contractInfo.contractedAmount,
         contractScope:    contractInfo.scope,
-        contractFileUrl:  contractFileUrl ?? null,
-      },
+      } : null,
+      contractFileUrl: contractFileUrl ?? null,
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return { fields: null };
+    return { fields: null, contractFileUrl: null };
   }
 }
 
@@ -231,6 +234,7 @@ async function runSync(retryFailed = false): Promise<{
         await service.saveMember({
           ...existingMember,
           ...(result.fields ?? {}),
+          contractFileUrl: result.contractFileUrl ?? existingMember.contractFileUrl ?? null,
           ...(isAutoSynced && result.fields?.contractStart ? { joinDate: result.fields.contractStart } : {}),
           contractSyncAttemptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -241,12 +245,14 @@ async function runSync(retryFailed = false): Promise<{
 
     const now: string = new Date().toISOString();
     let fields: FetchContractFieldsResult["fields"] = null;
+    let contractFileUrl: string | null = null;
     let attemptedExtraction = false;
     if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
       contractsBackfilled++;
       attemptedExtraction = true;
       const result = await fetchContractFields(displayName);
       fields = result.fields;
+      contractFileUrl = result.contractFileUrl;
     }
     const newMember: Member = {
       id:           generateId("mbr"),
@@ -266,6 +272,7 @@ async function runSync(retryFailed = false): Promise<{
       createdAt:    now,
       updatedAt:    now,
       ...fields,
+      contractFileUrl,
       ...(attemptedExtraction ? { contractSyncAttemptedAt: now } : {}),
     };
 
