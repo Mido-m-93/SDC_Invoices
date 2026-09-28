@@ -35,10 +35,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     };
     await storageSvc.saveRun(run);
 
-    // Run receipt validation and SharePoint member check in parallel
+    // Run receipt validation and SharePoint member check in parallel. Only
+    // matched/contractFileUrl are read below — skipExtraction avoids an
+    // entirely unused contract-field Groq call on every single validation.
     const [result, spResult] = await Promise.all([
       svc.validateClaim(claim),
-      checkMemberBySharePointContracts(claim.submittedBy).catch(() => ({
+      checkMemberBySharePointContracts(claim.submittedBy, { skipExtraction: true }).catch(() => ({
         matched: false,
         contractFileName: null,
         contractFileUrl: null,
