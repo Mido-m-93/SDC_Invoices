@@ -450,41 +450,52 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-[1px]">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-y-auto max-h-[90vh]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-y-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
               <h2 className="text-base font-semibold">{editing ? t("proposals_modal_edit_title") : t("proposals_modal_new_title")}</h2>
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700 text-xl">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <Field label={t("proposals_field_project_name")}>
-                <input className={input} value={form.projectName} onChange={e => set("projectName", e.target.value)} placeholder={t("proposals_field_project_name_placeholder")} />
-              </Field>
-              <Field label={t("proposals_field_client")}>
-                <ClientPicker
-                  clients={clients}
-                  clientId={form.clientId}
-                  clientName={form.clientName ?? ""}
-                  onChange={(clientId, clientName) => setForm(f => ({ ...f, clientId, clientName }))}
-                  onClientCreated={(c) => setClients(cs => [...cs, c])}
-                  className={input}
-                />
-              </Field>
-              <Field label={t("proposals_field_lead")}>
-                <select
-                  className={input}
-                  value={form.leadId ?? ""}
-                  disabled={!!editing}
-                  onChange={e => set("leadId", e.target.value)}
-                >
-                  <option value="">{t("proposals_field_lead_placeholder")}</option>
-                  {leads
-                    .filter(l => !form.clientId || l.clientId === form.clientId)
-                    .map(l => (
-                      <option key={l.id} value={l.id}>{l.title} — {l.clientName}</option>
-                    ))}
-                </select>
-              </Field>
               <div className="grid grid-cols-2 gap-4">
+                <Field label={t("proposals_field_project_name")}>
+                  <input className={input} value={form.projectName} onChange={e => set("projectName", e.target.value)} placeholder={t("proposals_field_project_name_placeholder")} />
+                </Field>
+                <Field label={t("proposals_field_client")}>
+                  <ClientPicker
+                    clients={clients}
+                    clientId={form.clientId}
+                    clientName={form.clientName ?? ""}
+                    onChange={(clientId, clientName) => setForm(f => ({ ...f, clientId, clientName }))}
+                    onClientCreated={(c) => setClients(cs => [...cs, c])}
+                    className={input}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={t("proposals_field_lead")}>
+                  <select
+                    className={input}
+                    value={form.leadId ?? ""}
+                    disabled={!!editing}
+                    onChange={e => set("leadId", e.target.value)}
+                  >
+                    <option value="">{t("proposals_field_lead_placeholder")}</option>
+                    {leads
+                      .filter(l => !form.clientId || l.clientId === form.clientId)
+                      .map(l => (
+                        <option key={l.id} value={l.id}>{l.title} — {l.clientName}</option>
+                      ))}
+                  </select>
+                </Field>
+                <Field label={t("proposals_field_status")}>
+                  <select className={input} value={form.status} onChange={e => set("status", e.target.value as Proposal["status"])}>
+                    {STATUSES.map((v) => (
+                      <option key={v} value={v}>{statusLabel(v)}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
                 <Field label={t("proposals_field_date")}>
                   <input type="date" className={input} value={form.proposalDate} onChange={e => set("proposalDate", e.target.value)} />
                 </Field>
@@ -495,64 +506,63 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     <option value="EUR">EUR</option>
                   </select>
                 </Field>
+                <Field label={t("proposals_field_amount")}>
+                  <input type="number" className={input} value={form.estimatedAmount || ""} onChange={e => set("estimatedAmount", Number(e.target.value))} placeholder="0" />
+                </Field>
               </div>
-              <Field label={t("proposals_field_amount")}>
-                <input type="number" className={input} value={form.estimatedAmount || ""} onChange={e => set("estimatedAmount", Number(e.target.value))} placeholder="0" />
-              </Field>
               <Field label={t("proposals_field_description")}>
                 <textarea className={`${input} h-20 resize-none`} value={form.description} onChange={e => set("description", e.target.value)} placeholder={t("proposals_field_description_placeholder")} />
               </Field>
-              <Field label={t("proposals_field_status")}>
-                <select className={input} value={form.status} onChange={e => set("status", e.target.value as Proposal["status"])}>
-                  {STATUSES.map((v) => (
-                    <option key={v} value={v}>{statusLabel(v)}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={t("proposals_field_quote_sheet_url")}>
-                <input className={input} value={form.quoteSheetUrl ?? ""} onChange={e => set("quoteSheetUrl", e.target.value)} placeholder="https://..." />
-              </Field>
-              <Field label={t("proposals_field_quote_sheet_amount")}>
-                <input
-                  type="number"
-                  className={input}
-                  value={form.quoteSheetAmount ?? ""}
-                  onChange={e => set("quoteSheetAmount", e.target.value === "" ? null : Number(e.target.value))}
-                  placeholder="0"
-                />
-              </Field>
-              <Field label={t("proposals_field_quote_sheet_date")}>
-                <input
-                  type="date"
-                  className={input}
-                  value={form.quoteSheetCreatedAt ?? ""}
-                  onChange={e => set("quoteSheetCreatedAt", e.target.value || null)}
-                />
-              </Field>
-              <Field label={t("proposals_field_internal_approval_date")}>
-                <input
-                  type="date"
-                  className={input}
-                  value={form.internalApprovalAt ?? ""}
-                  onChange={e => set("internalApprovalAt", e.target.value || null)}
-                />
-              </Field>
-              <Field label={t("proposals_field_preliminary_notice_date")}>
-                <input
-                  type="date"
-                  className={input}
-                  value={form.preliminaryNoticeDate ?? ""}
-                  onChange={e => set("preliminaryNoticeDate", e.target.value || null)}
-                />
-              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={t("proposals_field_quote_sheet_url")}>
+                  <input className={input} value={form.quoteSheetUrl ?? ""} onChange={e => set("quoteSheetUrl", e.target.value)} placeholder="https://..." />
+                </Field>
+                <Field label={t("proposals_field_quote_sheet_amount")}>
+                  <input
+                    type="number"
+                    className={input}
+                    value={form.quoteSheetAmount ?? ""}
+                    onChange={e => set("quoteSheetAmount", e.target.value === "" ? null : Number(e.target.value))}
+                    placeholder="0"
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Field label={t("proposals_field_quote_sheet_date")}>
+                  <input
+                    type="date"
+                    className={input}
+                    value={form.quoteSheetCreatedAt ?? ""}
+                    onChange={e => set("quoteSheetCreatedAt", e.target.value || null)}
+                  />
+                </Field>
+                <Field label={t("proposals_field_internal_approval_date")}>
+                  <input
+                    type="date"
+                    className={input}
+                    value={form.internalApprovalAt ?? ""}
+                    onChange={e => set("internalApprovalAt", e.target.value || null)}
+                  />
+                </Field>
+                <Field label={t("proposals_field_preliminary_notice_date")}>
+                  <input
+                    type="date"
+                    className={input}
+                    value={form.preliminaryNoticeDate ?? ""}
+                    onChange={e => set("preliminaryNoticeDate", e.target.value || null)}
+                  />
+                </Field>
+              </div>
               <div className="border-t border-stone-100 pt-4 space-y-4">
                 <p className="text-xs text-stone-400">{t("proposals_field_pipeline_links")}</p>
-                <Field label={t("proposals_field_contract_id")}>
-                  <input className={input} value={form.contractId ?? ""} onChange={e => set("contractId", e.target.value)} placeholder={t("proposals_field_contract_id_placeholder")} />
-                </Field>
-                <Field label={t("proposals_field_folder_url")}>
-                  <input className={input} value={form.folderUrl ?? ""} onChange={e => set("folderUrl", e.target.value)} placeholder="https://drive.google.com/..." />
-                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label={t("proposals_field_contract_id")}>
+                    <input className={input} value={form.contractId ?? ""} onChange={e => set("contractId", e.target.value)} placeholder={t("proposals_field_contract_id_placeholder")} />
+                  </Field>
+                  <Field label={t("proposals_field_folder_url")}>
+                    <input className={input} value={form.folderUrl ?? ""} onChange={e => set("folderUrl", e.target.value)} placeholder="https://drive.google.com/..." />
+                  </Field>
+                </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
