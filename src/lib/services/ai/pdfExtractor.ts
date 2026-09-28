@@ -102,6 +102,21 @@ function fallbackAmounts(text: string): { total: number | null; subtotal: number
 // Uses pdfjs-dist legacy build — pure JS, no native dependencies.
 
 async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
+  // pdfjs-dist's Node path tries to polyfill DOMMatrix/ImageData/Path2D from
+  // the optional native "@napi-rs/canvas" package, and just warns and leaves
+  // them undefined if that fails to load — which it reliably does in this
+  // serverless runtime (its platform-specific binary isn't in the traced
+  // deployment bundle, even though it resolves fine in local dev via a
+  // transitive dependency). A top-level `new DOMMatrix()` inside pdfjs-dist's
+  // own canvas module then throws the moment pdf.mjs is imported at all, text
+  // extraction or not. Providing DOMMatrix ourselves via a pure-JS package
+  // (no native binary to fail to bundle) heads that off before the import.
+  if (!("DOMMatrix" in globalThis)) {
+    const { default: CSSMatrix } = await import("dommatrix");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).DOMMatrix = CSSMatrix;
+  }
+
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
   // exercises canvas-dependent code and throws "DOMMatrix is not defined" in
