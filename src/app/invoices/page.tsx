@@ -586,7 +586,7 @@ export default function InvoicesPage() {
                         <td className="px-4 py-3 max-w-[160px]">
                           {s.invoiceAttachment ? (
                             /^https?:\/\//i.test(s.invoiceAttachment) ? (
-                              <a href={s.invoiceAttachment} target="_blank" rel="noopener noreferrer"
+                              <a href={`/api/files/sharepoint-download?url=${encodeURIComponent(s.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${s.payerName || s.id}.pdf`)}&inline=1`} target="_blank" rel="noopener noreferrer"
                                 className="text-[#2d6a4f] hover:underline text-xs truncate block">
                                 {t("action_open_link")} ↗
                               </a>
