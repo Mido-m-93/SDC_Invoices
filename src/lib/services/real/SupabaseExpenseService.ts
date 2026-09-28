@@ -1,5 +1,4 @@
 import "server-only";
-import OpenAI, { toFile } from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -9,7 +8,7 @@ import type {
   ExpenseValidationResult,
 } from "@/types";
 
-const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the attached receipt or invoice carefully and extract the following fields.
+const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the receipt/invoice text below carefully and extract the following fields.
 
 Return ONLY a JSON object — no markdown, no explanation, no code fences:
 {"amount":5000,"date":"2026-07-03","vendor":"ヤマダ電機","currency":"JPY","purpose":"USB cable for office laptop"}
@@ -266,73 +265,49 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: upload receipt to OpenAI then extract with GPT-4o via Responses API
-      if (fileBuffer) {
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const isImage = mimeType.startsWith("image/");
-        const extension = mimeType.split("/")[1] ?? "pdf";
-        let uploadedId: string | null = null;
+      // Phase 2: extract text locally (PDF only — Groq has no image/vision
+      // input, unlike the OpenAI vision path this replaced), then parse with
+      // Groq. A photographed/scanned receipt (image, no embedded text) is
+      // left with all fields null rather than extracted — same tradeoff as
+      // invoice/proposal/contract extraction elsewhere in this codebase.
+      if (fileBuffer && mimeType === "application/pdf") {
         try {
-          // Upload the file — filename extension must match the actual mime type
-          const uploaded = await client.files.create({
-            file:    await toFile(fileBuffer, `receipt.${extension}`, { type: mimeType }),
-            purpose: "user_data",
-          });
-          uploadedId = uploaded.id;
+          const { getDocumentProxy, extractText } = await import("unpdf");
+          const pdf = await getDocumentProxy(new Uint8Array(fileBuffer));
+          const { text: rawText } = await extractText(pdf, { mergePages: true });
 
-          // Call Responses API with the uploaded file
-          // Images require "input_image"; documents (PDFs) require "input_file"
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const resp: any = await (client.responses.create as any)({
-            model: "gpt-4o",
-            input: [{
-              role: "user",
-              content: [
-                isImage
-                  ? { type: "input_image", file_id: uploadedId }
-                  : { type: "input_file", file_id: uploadedId },
-                { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
-              ],
-            }],
-          });
+          if (rawText.trim()) {
+            if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+            const Groq = (await import("groq-sdk")).default;
+            const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+            const response = await client.chat.completions.create({
+              model: "openai/gpt-oss-120b",
+              max_tokens: 512,
+              messages: [{ role: "user", content: `${EXPENSE_EXTRACT_PROMPT}\n\nRECEIPT TEXT:\n${rawText.slice(0, 8000)}` }],
+            });
 
-          // Extract text — check output_text first, then walk output array
-          let rawText = "";
-          if (typeof resp.output_text === "string" && resp.output_text) {
-            rawText = resp.output_text;
-          } else if (Array.isArray(resp.output)) {
-            for (const item of resp.output) {
-              for (const part of (item.content ?? [])) {
-                if (typeof part.text === "string") rawText += part.text;
+            const cleaned = (response.choices[0]?.message?.content ?? "").replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+            const m = cleaned.match(/\{[\s\S]*\}/);
+            if (m) {
+              const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+              const rawAmt = result.amount;
+              if (typeof rawAmt === "number") {
+                extractedAmount = rawAmt;
+              } else if (typeof rawAmt === "string") {
+                const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
+                extractedAmount = isNaN(n) ? null : n;
+              }
+              extractedDate    = result.date    ?? null;
+              extractedVendor  = result.vendor  ?? null;
+              extractedPurpose = result.purpose ?? null;
+              if (extractedAmount !== null) {
+                amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
               }
             }
           }
-
-          const cleaned = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-          const m = cleaned.match(/\{[\s\S]*\}/);
-          if (m) {
-            const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
-            const rawAmt = result.amount;
-            if (typeof rawAmt === "number") {
-              extractedAmount = rawAmt;
-            } else if (typeof rawAmt === "string") {
-              const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
-              extractedAmount = isNaN(n) ? null : n;
-            }
-            extractedDate    = result.date    ?? null;
-            extractedVendor  = result.vendor  ?? null;
-            extractedPurpose = result.purpose ?? null;
-            if (extractedAmount !== null) {
-              amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
-            }
-          }
         } catch (err) {
-          console.error("[validateClaim] GPT extraction failed:", err);
+          console.error("[validateClaim] extraction failed:", err);
           receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
-        } finally {
-          if (uploadedId) {
-            client.files.delete(uploadedId).catch(() => { /* cleanup */ });
-          }
         }
       }
     }

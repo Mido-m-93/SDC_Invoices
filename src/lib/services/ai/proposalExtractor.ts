@@ -1,5 +1,5 @@
 import "server-only";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 
 export interface ExtractedProposalFields {
   clientName: string | null;
@@ -57,51 +57,39 @@ function parseResponse(text: string): ExtractedProposalFields {
   };
 }
 
-let _client: OpenAI | undefined;
-function getClient(): OpenAI {
-  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _client: Groq | undefined;
+function getClient(): Groq {
+  if (!_client) {
+    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+    _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
   return _client;
 }
 
-export async function extractProposalFromPdf(pdfBytes: Uint8Array): Promise<ExtractedProposalFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-  const client = getClient();
-  const plainBuffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-  const fileBlob = new File([plainBuffer], "proposal.pdf", { type: "application/pdf" });
-  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: [{ role: "user", content: [{ type: "input_file", file_id: uploadedFile.id }, { type: "input_text", text: PROPOSAL_EXTRACT_PROMPT }] }],
-      max_output_tokens: 512,
-    });
-    return parseResponse(response.output_text ?? "{}");
-  } finally {
-    await client.files.delete(uploadedFile.id).catch((e: unknown) => console.warn("[proposalExtractor] File cleanup failed:", e));
-  }
-}
-
-export async function extractProposalFromDocx(docxBytes: Uint8Array): Promise<ExtractedProposalFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-  const mammoth = await import("mammoth");
-  const buffer = Buffer.from(docxBytes);
-  const { value: rawText } = await mammoth.extractRawText({ buffer });
-  const response = await getClient().chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 512,
-    messages: [{ role: "user", content: `${PROPOSAL_EXTRACT_PROMPT}\n\nDOCUMENT TEXT:\n${rawText.slice(0, 8000)}` }],
-  });
-  return parseResponse(response.choices[0]?.message?.content ?? "{}");
-}
-
 export async function extractProposalFromText(text: string): Promise<ExtractedProposalFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+  if (!text.trim()) return parseResponse("{}");
   const response = await getClient().chat.completions.create({
-    model: "gpt-4o",
+    model: "openai/gpt-oss-120b",
     max_tokens: 512,
     messages: [{ role: "user", content: `${PROPOSAL_EXTRACT_PROMPT}\n\nDOCUMENT TEXT:\n${text.slice(0, 8000)}` }],
   });
   return parseResponse(response.choices[0]?.message?.content ?? "{}");
+}
+
+// Text extracted locally via unpdf, then parsed by Groq — no vision fallback,
+// so a scanned (image-only) proposal PDF yields no fields.
+export async function extractProposalFromPdf(pdfBytes: Uint8Array): Promise<ExtractedProposalFields> {
+  const { getDocumentProxy, extractText } = await import("unpdf");
+  const pdf = await getDocumentProxy(pdfBytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return extractProposalFromText(text);
+}
+
+export async function extractProposalFromDocx(docxBytes: Uint8Array): Promise<ExtractedProposalFields> {
+  const mammoth = await import("mammoth");
+  const buffer = Buffer.from(docxBytes);
+  const { value: rawText } = await mammoth.extractRawText({ buffer });
+  return extractProposalFromText(rawText);
 }
 
 export function hasAnyProposalField(fields: ExtractedProposalFields | null): boolean {

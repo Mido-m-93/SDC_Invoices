@@ -1,13 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // lib/services/ai/contractExtractor.ts — member contract PDF field extraction
 //
-// Deliberately kept in its own module, separate from pdfExtractor.ts. That file
-// dynamically imports pdfjs-dist for invoice text extraction, and pdfjs-dist
-// throws "ReferenceError: DOMMatrix is not defined" the moment it's imported
-// in this serverless runtime — even a lazy `await import(...)` inside an
-// unrelated function can crash module initialization for anything importing
-// the same file. Extraction here goes straight to OpenAI's vision-capable
-// Files/Responses API instead, so this module never touches pdfjs at all.
+// Groq only (no OpenAI): text is extracted locally via unpdf, then parsed by
+// Groq's LLM — same pattern as invoice extraction in pdfExtractor.ts. No
+// vision fallback, so a scanned (image-only) contract yields no fields; see
+// extractContractFieldsFromImage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ExtractedContractFields {
@@ -68,97 +65,21 @@ function parseContractResponse(text: string): ExtractedContractFields {
   };
 }
 
-export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const plainBuffer = pdfBytes.buffer.slice(
-    pdfBytes.byteOffset,
-    pdfBytes.byteOffset + pdfBytes.byteLength
-  ) as ArrayBuffer;
-  const fileBlob = new File([plainBuffer], "contract.pdf", { type: "application/pdf" });
-  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
-
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: [
-        {
-          role: "user",
-          content: [
-            { type: "input_file", file_id: uploadedFile.id },
-            { type: "input_text", text: CONTRACT_EXTRACT_PROMPT },
-          ],
-        },
-      ],
-      max_output_tokens: 512,
-    });
-    return parseContractResponse(response.output_text ?? "{}");
-  } finally {
-    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
-      console.warn("[contractExtractor] File cleanup failed:", e)
-    );
+let _client: import("groq-sdk").default | undefined;
+async function getClient() {
+  if (!_client) {
+    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+    const Groq = (await import("groq-sdk")).default;
+    _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
+  return _client;
 }
 
-// Scanned contract images (.jpg/.png) — same Files/Responses upload as PDFs,
-// just tagged input_image instead of input_file.
-export async function extractContractFieldsFromImage(
-  imageBytes: Uint8Array,
-  mimeType: string,
-  filename: string,
-): Promise<ExtractedContractFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const plainBuffer = imageBytes.buffer.slice(
-    imageBytes.byteOffset,
-    imageBytes.byteOffset + imageBytes.byteLength
-  ) as ArrayBuffer;
-  const fileBlob = new File([plainBuffer], filename, { type: mimeType });
-  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
-
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: [
-        {
-          role: "user",
-          content: [
-            { type: "input_image", file_id: uploadedFile.id, detail: "auto" },
-            { type: "input_text", text: CONTRACT_EXTRACT_PROMPT },
-          ],
-        },
-      ],
-      max_output_tokens: 512,
-    });
-    return parseContractResponse(response.output_text ?? "{}");
-  } finally {
-    await client.files.delete(uploadedFile.id).catch((e: unknown) =>
-      console.warn("[contractExtractor] File cleanup failed:", e)
-    );
-  }
-}
-
-// Word contracts (.doc/.docx) can't go through the vision Files/Responses API
-// the way PDFs do — extract plain text locally (mammoth, pure JS, no native
-// deps) and send that as text instead.
-export async function extractContractFieldsFromDocx(docxBytes: Uint8Array): Promise<ExtractedContractFields> {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
-
-  const mammoth = await import("mammoth");
-  const buffer = Buffer.from(docxBytes);
-  const { value: rawText } = await mammoth.extractRawText({ buffer });
-
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
+async function extractViaGroq(rawText: string): Promise<ExtractedContractFields> {
+  if (!rawText.trim()) return parseContractResponse("{}");
+  const client = await getClient();
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: "openai/gpt-oss-120b",
     max_tokens: 512,
     messages: [
       {
@@ -167,8 +88,35 @@ export async function extractContractFieldsFromDocx(docxBytes: Uint8Array): Prom
       },
     ],
   });
-
   return parseContractResponse(response.choices[0]?.message?.content ?? "{}");
+}
+
+export async function extractContractFields(pdfBytes: Uint8Array): Promise<ExtractedContractFields> {
+  const { getDocumentProxy, extractText } = await import("unpdf");
+  const pdf = await getDocumentProxy(pdfBytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return extractViaGroq(text);
+}
+
+// Scanned contract images (.jpg/.png) — Groq has no vision/image input, and
+// unpdf only reads PDFs, so there's no text to extract here at all. Returning
+// an empty result (rather than throwing) lets the caller's candidate loop
+// move on to try another file for this member instead of failing outright.
+export async function extractContractFieldsFromImage(
+  _imageBytes: Uint8Array,
+  _mimeType: string,
+  _filename: string,
+): Promise<ExtractedContractFields> {
+  return parseContractResponse("{}");
+}
+
+// Word contracts (.doc/.docx) — extract plain text locally (mammoth, pure JS,
+// no native deps) and send that as text, same as the PDF path above.
+export async function extractContractFieldsFromDocx(docxBytes: Uint8Array): Promise<ExtractedContractFields> {
+  const mammoth = await import("mammoth");
+  const buffer = Buffer.from(docxBytes);
+  const { value: rawText } = await mammoth.extractRawText({ buffer });
+  return extractViaGroq(rawText);
 }
 
 // True only if at least one real field was extracted — lets a caller decide
