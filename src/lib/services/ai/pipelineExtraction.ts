@@ -2,12 +2,11 @@
 // lib/services/ai/pipelineExtraction.ts — pipeline record extraction
 //
 // Turns freeform text (a Notion page body) into structured pipeline items.
-// Uses OpenAI (OPENAI_API_KEY is already configured in this project), same
-// JSON-extraction pattern as contractExtractor.ts's docx path.
+// Groq only (no OpenAI) — same pattern as contractExtractor.ts's docx path.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 
 export interface ExtractedPipelineItem {
   rawClientName: string;
@@ -20,9 +19,12 @@ export interface ExtractedPipelineItem {
   notes: string | null;
 }
 
-let _client: OpenAI | undefined;
-function getClient(): OpenAI {
-  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _client: Groq | undefined;
+function getClient(): Groq {
+  if (!_client) {
+    if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+    _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
   return _client;
 }
 
@@ -88,12 +90,9 @@ export async function extractPipelineRecordsFromText(
   rawText: string
 ): Promise<ExtractedPipelineItem[]> {
   if (!rawText.trim()) return [];
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set — required for pipeline extraction");
-  }
 
   const response = await getClient().chat.completions.create({
-    model: "gpt-4o",
+    model: "openai/gpt-oss-120b",
     max_tokens: 2048,
     messages: [
       {
@@ -111,34 +110,22 @@ ${PIPELINE_EXTRACT_PROMPT_SHAPE}`,
 }
 
 // PDF client/deal documents (proposals, deal sheets) found while scanning
-// each client's own WorkTogether folder — deliberately NOT routed through
-// pdfExtractor.ts's pdfjs-dist text extraction. That module can crash at
-// import time in this serverless runtime ("DOMMatrix is not defined" — see
-// contractExtractor.ts's header comment for the same reasoning), so PDFs use
-// OpenAI's native file understanding instead, same pattern as
-// extractProposalFromPdf in proposalExtractor.ts.
+// each client's own WorkTogether folder. Text extracted locally via unpdf,
+// then parsed the same way as the freeform-text path above — no vision
+// fallback, so a scanned (image-only) PDF yields no records.
 export async function extractPipelineRecordsFromPdf(pdfBytes: Uint8Array): Promise<ExtractedPipelineItem[]> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set — required for pipeline extraction");
-  }
-  const client = getClient();
-  const plainBuffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-  const fileBlob = new File([plainBuffer], "pipeline-doc.pdf", { type: "application/pdf" });
-  const uploadedFile = await client.files.create({ file: fileBlob, purpose: "user_data" });
-  try {
-    const response = await client.responses.create({
-      model: "gpt-4o",
-      input: [{
-        role: "user",
-        content: [
-          { type: "input_file", file_id: uploadedFile.id },
-          { type: "input_text", text: `${PIPELINE_EXTRACT_PROMPT_HEADER}\n\n${PIPELINE_EXTRACT_PROMPT_SHAPE}` },
-        ],
-      }],
-      max_output_tokens: 2048,
-    });
-    return parseItemsResponse(response.output_text ?? "[]");
-  } finally {
-    await client.files.delete(uploadedFile.id).catch((e: unknown) => console.warn("[pipelineExtraction] File cleanup failed:", e));
-  }
+  const { getDocumentProxy, extractText } = await import("unpdf");
+  const pdf = await getDocumentProxy(pdfBytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  if (!text.trim()) return [];
+
+  const response = await getClient().chat.completions.create({
+    model: "openai/gpt-oss-120b",
+    max_tokens: 2048,
+    messages: [{
+      role: "user",
+      content: `${PIPELINE_EXTRACT_PROMPT_HEADER}\n\n${text.slice(0, 12000)}\n\n${PIPELINE_EXTRACT_PROMPT_SHAPE}`,
+    }],
+  });
+  return parseItemsResponse(response.choices[0]?.message?.content?.trim() ?? "[]");
 }

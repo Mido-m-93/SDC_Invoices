@@ -106,7 +106,7 @@ const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
 // SharePoint periodically — a renewed contract (new file, or the same file
 // edited in place) should get picked up without anyone having to notice the
 // alert and manually re-trigger it. Cooldown keeps this from re-hitting the
-// same still-genuinely-expired member (and burning an OpenAI call) every
+// same still-genuinely-expired member (and burning a Groq call) every
 // single day once nothing about their folder has changed.
 const EXPIRED_RECHECK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 

@@ -18,7 +18,7 @@ const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2025-09-03";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 500; // safety cap against runaway pagination
-// Per-batch deadline so one slow/rate-limited OpenAI call can't block the
+// Per-batch deadline so one slow/rate-limited Groq call can't block the
 // whole invocation past the API route's maxDuration (60s) — leaves headroom
 // for the Notion query + audit logging + response overhead around it.
 const PER_BATCH_TIMEOUT_MS = 40_000;
@@ -206,7 +206,7 @@ function batchPageTexts(blocks: string[]): string[] {
 
 // Races a promise against a fixed deadline. On timeout, resolves to the
 // TIMED_OUT sentinel instead of rejecting — the underlying call is NOT
-// cancelled (fetch/OpenAI SDK calls aren't abortable here), it just stops
+// cancelled (fetch/Groq SDK calls aren't abortable here), it just stops
 // being waited on so one slow batch can't block every other batch's result.
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
   return Promise.race([

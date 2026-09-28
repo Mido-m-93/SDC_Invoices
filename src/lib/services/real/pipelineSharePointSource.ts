@@ -106,9 +106,8 @@ async function fileToText(siteId: string, token: string, item: GraphDriveItem): 
   }
 }
 
-// PDFs go straight to OpenAI's native file understanding (extractItemsFromFile
-// below), bypassing the text step entirely — see extractPipelineRecordsFromPdf's
-// header comment for why pdfjs-dist-based text extraction is avoided here.
+// PDFs are handled by extractPipelineRecordsFromPdf (unpdf text extraction +
+// Groq), not the local readItemText path above.
 async function extractItemsFromFile(siteId: string, token: string, item: GraphDriveItem): Promise<ExtractedPipelineItem[] | null> {
   const lower = item.name.toLowerCase();
   if (lower.endsWith(".pdf")) {
