@@ -53,18 +53,17 @@ const FINANCE_ITEMS = [
 // nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
 const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
-const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/feedback"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
   { key: "nav_users" as const, href: "/users", icon: UsersIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
+  { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon },
 ];
 
 const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon }];
-
-const FEEDBACK_ITEM = { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon };
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
@@ -155,27 +154,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
-
-            {/* Feedback — visible to every member, not grouped/gated */}
-            {(() => {
-              const { key, href, icon: Icon } = FEEDBACK_ITEM;
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={clsx(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-                    active
-                      ? "bg-white/10 text-white"
-                      : "text-white/60 hover:bg-white/5 hover:text-white",
-                  )}
-                >
-                  <Icon size={15} />
-                  <span>{t(key)}</span>
-                </Link>
-              );
-            })()}
 
             {/* Sales group */}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
