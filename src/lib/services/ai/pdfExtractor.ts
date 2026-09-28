@@ -51,26 +51,53 @@ function normalizeDate(str: string | null | undefined): string | null {
     const day   = jpMatch[3].padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
+  // Slash-formatted date (e.g. "6/6/2026", captured from a raw label match —
+  // this org's own invoices use day-first, confirmed by unambiguous dates
+  // like "18/4/2026" elsewhere in the same documents). Parsed manually and
+  // built with explicit numeric fields instead of the generic `new Date(str)`
+  // fallback below, which parses as local midnight and can shift the date by
+  // a day once converted to UTC depending on the server's timezone.
+  const slash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    const [, dd, mm, yyyy] = slash;
+    const day = parseInt(dd, 10), month = parseInt(mm, 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${yyyy}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   return str;
 }
 
-// ── Regex fallbacks — applied when Claude returns null for a field ────────────
-// These run on rawText that Claude already extracted, so no extra API call needed.
+// ── Regex fallbacks — applied when Groq returns null for a field ─────────────
+// These run on rawText already extracted locally, so no extra API call needed.
+// Label-anchored (start of line, not a bare scan) so a document with several
+// dates/names doesn't return whichever one happens to appear first — e.g. an
+// unanchored date scan would just as easily grab a due date or period date
+// instead of the issue date.
+
+function extractLabeledLine(text: string, labels: string[]): string | null {
+  for (const label of labels) {
+    const re = new RegExp(`^\\s*${label}\\s*[：:]\\s*(.+)$`, "im");
+    const m = text.match(re);
+    if (m && m[1].trim()) return m[1].trim();
+  }
+  return null;
+}
+
+const DATE_LABELS = ["Issue Date", "Invoice Date", "Date issued", "請求日", "発行日"];
+const NAME_LABELS = ["Name", "氏名", "名前", "請求者", "発行者", "From", "Issued by"];
 
 function fallbackDate(text: string): string | null {
   if (!text) return null;
-  // ISO / slash: 2026-06-01, 2026/06/01
-  const iso = text.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  // Japanese: 2026年6月1日, 2026年6月
-  const jp = text.match(/(20\d{2})年\s*(\d{1,2})月(?:\s*(\d{1,2})日)?/);
-  if (jp) {
-    const y = jp[1], m = jp[2].padStart(2, "0"), d = (jp[3] ?? "01").padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-  return null;
+  const labeled = extractLabeledLine(text, DATE_LABELS);
+  return labeled ? normalizeDate(labeled) : null;
+}
+
+function fallbackMemberName(text: string): string | null {
+  if (!text) return null;
+  return extractLabeledLine(text, NAME_LABELS);
 }
 
 function fallbackAmounts(text: string): { total: number | null; subtotal: number | null; taxAmount: number | null } {
@@ -193,7 +220,8 @@ Rules:
     return emptyExtracted(rawText.slice(0, 1000));
   }
 
-  const groqDate     = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null);
+  const groqDate     = normalizeDate(typeof parsed.invoiceDate === "string" ? parsed.invoiceDate : null) ?? fallbackDate(rawText);
+  const groqMember   = (typeof parsed.memberName === "string" ? parsed.memberName : null) ?? fallbackMemberName(rawText);
   const groqTotal    = parseNumericField(parsed.total);
   const groqSubtotal = parseNumericField(parsed.subtotal);
   const groqTax      = parseNumericField(parsed.taxAmount);
@@ -232,7 +260,7 @@ Rules:
     taxAmount,
     total,
     taxRate:        parseNumericField(parsed.taxRate),
-    memberName:     typeof parsed.memberName === "string" ? parsed.memberName : null,
+    memberName:     groqMember,
     payerNameOnDoc: typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null,
     rawText:        rawText.slice(0, 1000),
   };

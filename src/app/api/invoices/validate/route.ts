@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
               console.log(`[Drive check] No match for "${searchName}" in ${monthFolderId ? "month folder" : "root"} (results=${res.data.files?.map(f => f.name).join(", ")})`);
               // No match, but still hand back where we looked so a reviewer can
               // browse the folder manually instead of just trusting "safe to file".
-              return { notFound: true as const, folderId: monthFolderId ?? rootFolderId };
+              return { notFound: true as const, folderId: monthFolderId ?? rootFolderId, searchName };
             }
             console.log(`[Drive check] Found: "${found.name}" for "${searchName}" (month=${parsedMonth}) — extracting amount for comparison`);
 
@@ -504,7 +504,15 @@ export async function POST(req: NextRequest) {
       // `r` (rather than returning early) so every later branch's `...r`
       // spread still carries it through to the final result.
       if (driveAny?.notFound && driveAny.folderId) {
-        r.driveFolderUrl = `https://drive.google.com/drive/folders/${driveAny.folderId as string}`;
+        // A plain folder-browse link shows every contractor's filed invoices
+        // for the month, not just this one — scope it to a Drive search for
+        // this contractor's name within that folder instead (Drive's web
+        // search supports "parent:<id>" as a query operator), so it actually
+        // lands on the same contractor's files rather than the whole folder.
+        const searchName = (driveAny as { searchName?: string }).searchName;
+        r.driveFolderUrl = searchName
+          ? `https://drive.google.com/drive/search?q=${encodeURIComponent(`${searchName} parent:${driveAny.folderId as string}`)}`
+          : `https://drive.google.com/drive/folders/${driveAny.folderId as string}`;
       }
 
       // Drive check: file found — compare amounts against the submitted invoice
