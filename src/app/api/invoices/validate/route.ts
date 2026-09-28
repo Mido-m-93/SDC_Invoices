@@ -42,6 +42,10 @@ function matchMemberByName(submitterName: string, members: Member[]): Member | n
 }
 
 export const dynamic = 'force-dynamic';
+// Chains SharePoint download + AI PDF extraction + Drive search + AI
+// consistency verification per submission — give it real headroom instead of
+// Vercel's short default.
+export const maxDuration = 300;
 
 /**
  * POST /api/invoices/validate
@@ -199,15 +203,22 @@ export async function POST(req: NextRequest) {
               const monthNoPad = String(Number(monthStr));
               const folderCandidates = [`${yearStr}年${monthNoPad}月`, `${yearStr}年${monthStr}月`, `${yearStr}-${monthStr}`];
 
+              // Run candidate queries (and, below, per-year-folder searches) in
+              // parallel rather than sequentially awaited — each is a separate
+              // network round-trip, and doing them one at a time for every older
+              // invoice (nested inside a year folder) was slow enough to blow
+              // past the client's 30s timeout.
               const findMonthFolder = async (parentId: string): Promise<string | null> => {
-                for (const folderName of folderCandidates) {
-                  const folderRes = await drive.files.list({
+                const results = await Promise.all(folderCandidates.map((folderName) =>
+                  drive.files.list({
                     q: `name contains '${folderName}' and mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed=false`,
                     fields: "files(id,name)",
                     supportsAllDrives: true,
                     includeItemsFromAllDrives: true,
                     pageSize: 1,
-                  });
+                  })
+                ));
+                for (const folderRes of results) {
                   const mf = folderRes.data.files?.[0];
                   if (mf?.id) return mf.id;
                 }
@@ -224,11 +235,12 @@ export async function POST(req: NextRequest) {
                   includeItemsFromAllDrives: true,
                   pageSize: 20,
                 });
-                for (const yf of yearFoldersRes.data.files ?? []) {
-                  if (!yf.id) continue;
-                  monthFolderId = await findMonthFolder(yf.id);
-                  if (monthFolderId) break;
-                }
+                const yearMatches = await Promise.all(
+                  (yearFoldersRes.data.files ?? [])
+                    .filter((yf) => !!yf.id)
+                    .map((yf) => findMonthFolder(yf.id!))
+                );
+                monthFolderId = yearMatches.find((id) => id !== null) ?? null;
               }
               console.log(monthFolderId
                 ? `[Drive check] Month folder for ${parsedMonth} found (id=${monthFolderId})`
