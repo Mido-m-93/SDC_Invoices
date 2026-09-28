@@ -71,6 +71,10 @@ export interface ExtractedInvoiceFields {
   memberName: string | null;       // invoice issuer = the member/contractor (receives payment)
   payerNameOnDoc: string | null;  // company being billed = SDC
   rawText: string;                     // full extracted text for audit
+  // Detected from the PDF's own text (¥/$/USD/円 etc.), not guessed from the
+  // form submission — the document itself is the source of truth for what
+  // currency its amounts are actually in. Defaults to "JPY" (see detectCurrency).
+  currency: string;
 }
 
 // ── Validation result for a single invoice ───────────────────────────────────
