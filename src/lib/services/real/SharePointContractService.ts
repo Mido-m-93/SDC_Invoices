@@ -269,11 +269,15 @@ async function extractFromCandidates(
  * Handles two folder structures:
  *   - Direct PDF: 03_Member/MemberName.pdf
  *   - Subfolder:  03_Member/MemberName/業務委託基本契約書_MemberName.pdf
- * When matched, also downloads the PDF and extracts contract fields (amount, dates, scope).
+ * When matched, also downloads the PDF and extracts contract fields (amount, dates, scope) —
+ * unless `skipExtraction` is set, for callers that only need the matched/not-matched
+ * verdict and a file link (e.g. expense validation) and would otherwise pay for a
+ * full download + AI extraction whose result they never read.
  * Throws on network/auth failure so the caller can catch and fall back gracefully.
  */
 export async function checkMemberBySharePointContracts(
   submitterName: string,
+  options?: { skipExtraction?: boolean },
 ): Promise<ContractCheckResult> {
   const token = await getToken();
   const site  = await graphGet<{ id: string }>(`/sites/${SP_SITE}`, token);
@@ -367,6 +371,11 @@ export async function checkMemberBySharePointContracts(
       contractInfo: null,
       extractionError: null,
     };
+  }
+
+  if (options?.skipExtraction) {
+    const top = candidates[0];
+    return { matched: true, contractFileName: top.name, contractFileUrl: top.webUrl || null, contractInfo: null, extractionError: null };
   }
 
   const { fileName, fileUrl, contractInfo, extractionError } = await extractFromCandidates(matchedItem.siteId, candidates);
