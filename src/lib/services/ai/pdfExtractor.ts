@@ -9,8 +9,6 @@
 // not called from extractFromPdf right now — see the comment there.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -119,21 +117,24 @@ async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
 
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
-  // exercises canvas-dependent code and throws "DOMMatrix is not defined" in
-  // this serverless runtime (no DOM, no native canvas). Pointing workerSrc at
-  // the real worker module avoids that path entirely.
+  // needs a real, loadable module to fall back to ("No workerSrc specified").
   //
-  // Resolved via createRequire, not import.meta.resolve — webpack can't
-  // statically analyze import.meta.resolve and silently mishandles it in the
-  // production bundle ("Critical dependency: Accessing import.meta directly
-  // is unsupported"). The specifier is also built at runtime, not a string
-  // literal, so webpack can't see it as a require target either and try to
-  // validate it against pdfjs-dist's ESM "type": "module" (a hard build
-  // error) — it just defers to Node's own resolution at runtime, which finds
-  // the real file fine regardless of how this file itself got bundled.
-  const require = createRequire(import.meta.url);
-  const workerSpecifier = ["pdfjs-dist", "legacy", "build", "pdf.worker.mjs"].join("/");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(require.resolve(workerSpecifier)).href;
+  // The worker path must be a literal string, not built at runtime — Vercel's
+  // deployment file tracer (@vercel/nft) only detects and bundles files it can
+  // see referenced as literal specifiers, the same way it already does for
+  // the pdf.mjs import right above. A runtime-constructed specifier (tried
+  // previously, to dodge a *different* problem — see below) is invisible to
+  // it, so the worker file silently never made it into the deployed function
+  // ("Cannot find module 'pdfjs-dist/legacy/build/pdf.worker.mjs'").
+  //
+  // import.meta.resolve (not require.resolve) despite webpack's build-time
+  // "Critical dependency: Accessing import.meta directly is unsupported"
+  // warning: it's only a warning (build still succeeds) because webpack
+  // can't optimize the call, but Node still runs it natively at runtime.
+  // require.resolve with this same literal specifier is a hard build
+  // *error* instead, since webpack additionally tries to validate literal
+  // require targets against the target package's declared ESM type.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
