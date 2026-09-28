@@ -1,9 +1,12 @@
-// GET /api/files/sharepoint-download?url=<encoded SharePoint URL>&filename=<name>
-// Proxies a SharePoint/OneDrive file through Graph and streams it back with
-// Content-Disposition: attachment, so a plain <a href> triggers a real
-// browser download instead of opening the SharePoint viewer. Used by the
-// "Download PDF" buttons on the invoice and expense validation panels for
-// the file the submitter actually uploaded (invoiceAttachment / receiptUrl).
+// GET /api/files/sharepoint-download?url=<encoded SharePoint URL>&filename=<name>&inline=1
+// Proxies a SharePoint/OneDrive file through Graph and streams it back —
+// Content-Disposition: attachment by default, so a plain <a href> triggers a
+// real browser download instead of opening the SharePoint viewer; pass
+// inline=1 to open it in the browser instead (used by "View Invoice" links,
+// since linking straight to the raw SharePoint URL 404s without Graph auth).
+// Used by the "Download PDF" buttons on the invoice and expense validation
+// panels for the file the submitter actually uploaded (invoiceAttachment /
+// receiptUrl).
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
@@ -26,6 +29,7 @@ export async function GET(req: NextRequest) {
 
   const url = req.nextUrl.searchParams.get("url");
   const filename = req.nextUrl.searchParams.get("filename") || "download";
+  const inline = req.nextUrl.searchParams.get("inline") === "1";
   if (!url) return NextResponse.json({ error: "?url= is required" }, { status: 400 });
 
   try {
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         "Content-Type": sniffContentType(filename),
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(filename)}"`,
       },
     });
   } catch (err) {

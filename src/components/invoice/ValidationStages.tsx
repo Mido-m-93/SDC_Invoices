@@ -231,7 +231,9 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage1Status}
         statusLabel={statusLabel(stage1Status)}
         detail={stage1Detail}
-        link={submission?.invoiceAttachment || null}
+        link={submission?.invoiceAttachment
+          ? `/api/files/sharepoint-download?url=${encodeURIComponent(submission.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${submission.payerName || submission.id}.pdf`)}&inline=1`
+          : null}
         linkLabel={t("validate_view_invoice")}
       />
       <StageCard
