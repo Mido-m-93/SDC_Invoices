@@ -51,7 +51,7 @@ async function findAndExtractContract(
   // Use Groq to pick the best-matching contract filename for this member name.
   const fileList = contracts.map((c) => `- ${c.name} (id: ${c.id})`).join("\n");
   const pick = await getClient().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
     max_tokens: 128,
     messages: [
       {
@@ -173,7 +173,7 @@ Respond with ONLY this JSON (no markdown):
 }`;
 
   const response = await getClient().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
     max_tokens: 512,
     messages: [
       { role: "system", content: systemPrompt },

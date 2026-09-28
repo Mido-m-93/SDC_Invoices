@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       const Groq = (await import("groq-sdk")).default;
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });

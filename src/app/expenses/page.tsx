@@ -716,7 +716,9 @@ export default function ExpensesPage() {
                     ? `${t("expenses_error_label")}: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
                     : "",
                 ].filter(Boolean)}
-                link={validationPanel.claim.receiptUrl || null}
+                link={validationPanel.claim.receiptUrl
+                  ? `/api/files/sharepoint-download?url=${encodeURIComponent(validationPanel.claim.receiptUrl)}&filename=${encodeURIComponent(validationPanel.claim.receiptFilename || `receipt_${validationPanel.claim.submittedBy}`)}&inline=1`
+                  : null}
                 linkLabel={t("validate_view_receipt")}
                 isLast
               />
