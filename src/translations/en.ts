@@ -348,6 +348,7 @@ const en = {
   status_DUPLICATE_FILE: "Duplicate File",
   status_SAVED: "Saved",
   status_SAVE_ERROR: "Save Error",
+  status_REJECTED: "Rejected",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",
