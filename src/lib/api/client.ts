@@ -26,10 +26,11 @@ import type {
 
 async function apiFetch<T>(
   path: string,
-  options?: RequestInit
+  options?: RequestInit,
+  timeoutMs = 30_000
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(path, {
       headers: { "Content-Type": "application/json" },
@@ -49,7 +50,7 @@ async function apiFetch<T>(
     return res.json() as Promise<T>;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error(`Request timed out after 30s: ${path}`);
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${path}`);
     }
     throw err;
   } finally {
@@ -87,12 +88,15 @@ export async function validateInvoice(
   validatedBy?: string,
   allMonthSubmissions?: InvoiceSubmission[]
 ): Promise<InvoiceValidationResult> {
+  // Chains SharePoint download + AI PDF extraction + Drive search + AI
+  // consistency verification — routinely takes longer than the default 30s.
   const data = await apiFetch<{ results: InvoiceValidationResult[] }>(
     "/api/invoices/validate",
     {
       method: "POST",
       body: JSON.stringify({ submission, validatedBy, allMonthSubmissions }),
-    }
+    },
+    120_000
   );
   return data.results[0];
 }
@@ -107,7 +111,8 @@ export async function validateInvoiceBatch(
     {
       method: "POST",
       body: JSON.stringify({ submissions, month, validatedBy }),
-    }
+    },
+    120_000
   );
   return data.results;
 }

@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // lib/services/ai/pdfExtractor.ts — PDF field extraction
 //
-// Active strategy: Groq (free tier LLM; requires GROQ_API_KEY). Text is
+// Active strategy: Groq only (free tier LLM; requires GROQ_API_KEY). Text is
 // extracted locally with pdfjs-dist, then parsed by Groq's LLM — no vision/
 // OCR fallback, so a scanned (image-only) PDF yields no fields.
 //
@@ -130,8 +130,9 @@ async function extractWithGroq(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFi
 
   const rawText = await extractTextFromPdf(pdfBytes);
   if (!rawText.trim()) {
-    console.warn("[pdfExtractor] Groq: no text extracted from PDF (may be a scanned image)");
-    return emptyExtracted();
+    // Groq has no vision path — throw so the caller can fall back to OpenAI's
+    // vision path instead of silently returning an all-null result.
+    throw new Error("Groq: no text extracted from PDF (may be a scanned image) — needs a vision-capable fallback");
   }
 
   const Groq = (await import("groq-sdk")).default;
@@ -420,7 +421,6 @@ async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<Extrac
 // extractTextFromPdf) can crash on pdfjs-dist's module-load-time
 // "DOMMatrix is not defined" failure in this serverless runtime.
 
-// ── Main entry point ──────────────────────────────────────────────────────────
 // Groq only, by request — Google Document AI and OpenAI are still defined
 // above (OpenAI ran out of credits; Google Document AI's key had its own
 // unrelated issue) but deliberately not called here. Re-enable either by
