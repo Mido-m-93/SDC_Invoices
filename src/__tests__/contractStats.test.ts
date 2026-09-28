@@ -66,18 +66,35 @@ describe("computeContractStats", () => {
     expect(stats.expiringSoon).toBe(0);
   });
 
-  it("does not count an active contract whose end date has already passed", () => {
+  it("does not count an active contract whose end date has already passed as expiringSoon, but does count it as expired", () => {
     const contracts = [makeContract({ status: "active", endDate: "2026-05-31" })];
 
     const stats = computeContractStats(contracts, new Date("2026-06-01"));
 
     expect(stats.expiringSoon).toBe(0);
+    expect(stats.expired).toBe(1);
+  });
+
+  it("does not count a non-active contract as expired even if its end date has passed", () => {
+    const contracts = [makeContract({ status: "draft", endDate: "2026-05-31" })];
+
+    const stats = computeContractStats(contracts, new Date("2026-06-01"));
+
+    expect(stats.expired).toBe(0);
+  });
+
+  it("excludes an active contract with a malformed endDate from expired instead of throwing", () => {
+    const contracts = [makeContract({ status: "active", endDate: "not-a-date" })];
+
+    const stats = computeContractStats(contracts, new Date("2026-06-01"));
+
+    expect(stats.expired).toBe(0);
   });
 
   it("returns all-zero stats for an empty contracts array", () => {
     const stats = computeContractStats([], new Date("2026-06-01"));
 
-    expect(stats).toEqual({ total: 0, active: 0, expiringSoon: 0 });
+    expect(stats).toEqual({ total: 0, active: 0, expiringSoon: 0, expired: 0 });
   });
 
   it("counts active as 0 when no contract has status active", () => {

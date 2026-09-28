@@ -187,6 +187,28 @@ export default function ExpensesPage() {
     finally { setValidating(null); }
   }
 
+  const [undoingValidateId, setUndoingValidateId] = useState<string | null>(null);
+
+  async function handleUndoValidate(id: string) {
+    setUndoingValidateId(id);
+    const claim = claims.find((c) => c.id === id) ?? null;
+    try {
+      const res = await fetch(`/api/expenses/${id}/undo-validate`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        notify("error", data.error ?? t("expenses_validation_failed"), "/expenses");
+        return;
+      }
+      setValidationPanel((prev) => (prev?.claim.id === id ? null : prev));
+      notify("info", `Undid validation for expense claim${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
+      load();
+    } catch {
+      notify("error", t("expenses_validation_failed"), "/expenses");
+    } finally {
+      setUndoingValidateId(null);
+    }
+  }
+
   async function handleApprove() {
     if (!approvingId || !approveAction) return;
     const claim = claims.find((c) => c.id === approvingId) ?? null;
@@ -204,6 +226,27 @@ export default function ExpensesPage() {
     } catch {
       setError(t("expenses_status_update_failed"));
       notify("error", t("expenses_status_update_failed"), "/expenses");
+    }
+  }
+
+  const [undoingId, setUndoingId] = useState<string | null>(null);
+
+  async function handleUndoReview(id: string) {
+    setUndoingId(id);
+    const claim = claims.find((c) => c.id === id) ?? null;
+    try {
+      const res = await fetch(`/api/expenses/${id}/undo-review`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        notify("error", data.error ?? t("expenses_status_update_failed"), "/expenses");
+        return;
+      }
+      notify("info", `Reverted expense claim${claim ? ` for ${claim.submittedBy}` : ""} to submitted`, "/expenses");
+      load();
+    } catch {
+      notify("error", t("expenses_status_update_failed"), "/expenses");
+    } finally {
+      setUndoingId(null);
     }
   }
 
@@ -422,11 +465,17 @@ export default function ExpensesPage() {
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("expenses_action_edit")}</Button>
                     <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>{t("expenses_action_validate")}</Button>
+                    {(c.extractedAmount !== null || c.extractedDate !== null || c.extractedVendor !== null || c.policyViolations.length > 0) && (
+                      <Button variant="ghost" size="sm" loading={undoingValidateId === c.id} onClick={() => handleUndoValidate(c.id)}>{t("expenses_action_undo_validate")}</Button>
+                    )}
                     {(c.status === "submitted" || c.status === "under_review") && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>{t("expenses_action_approve")}</Button>
                     )}
                     {c.status !== "rejected" && c.status !== "paid" && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>{t("expenses_action_reject")}</Button>
+                    )}
+                    {(c.status === "approved" || c.status === "rejected") && (
+                      <Button variant="ghost" size="sm" loading={undoingId === c.id} onClick={() => handleUndoReview(c.id)}>{t("expenses_action_undo")}</Button>
                     )}
                     {SHOW_SEND_TO_MF && (c.status === "approved" || c.status === "paid") && !c.mfBillingUrl && (
                       <Button variant="ghost" size="sm" loading={sendingToMF === c.id} onClick={() => handleSendToMF(c.id)}>💴 {t("action_send_to_mf")}</Button>

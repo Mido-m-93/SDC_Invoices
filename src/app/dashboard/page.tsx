@@ -36,6 +36,7 @@ const REMINDER_TYPE_KEY: Record<ReminderType, TranslationKey> = {
   missing_expense_receipt: "reminder_missing_expense_receipt",
   stale_expense_review: "reminder_stale_expense_review",
   escalation: "reminder_escalation",
+  contract_expired: "reminder_contract_expired",
 };
 
 export default function DashboardPage() {
@@ -52,7 +53,7 @@ export default function DashboardPage() {
   const [moduleData, setModuleData] = useState<{
     expenses: { total: number; submitted: number; underReview: number; violations: number; pendingAmount: number } | null;
     proposals: { total: number; open: number; accepted: number; pipelineTotal: number; pipelinePending: number } | null;
-    contracts: { total: number; active: number; expiringSoon: number } | null;
+    contracts: { total: number; active: number; expiringSoon: number; expired: number } | null;
     budget: { total: number; draft: number; confirmed: number; sharepointFiles: number } | null;
   }>({ expenses: null, proposals: null, contracts: null, budget: null });
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
@@ -219,6 +220,7 @@ export default function DashboardPage() {
   };
 
   const contractsExpiringSoon = moduleData.contracts?.expiringSoon ?? 0;
+  const contractsExpired = moduleData.contracts?.expired ?? 0;
 
   return (
     <AppShell>
@@ -260,6 +262,7 @@ export default function DashboardPage() {
             subs={[
               { label: t("dashboard_stat_active"),         value: moduleData.contracts?.active ?? 0,       color: "green" },
               { label: t("dashboard_stat_expiring_soon"),  value: contractsExpiringSoon, color: contractsExpiringSoon > 0 ? "amber" : "neutral" },
+              { label: t("dashboard_stat_expired"),        value: contractsExpired, color: contractsExpired > 0 ? "red" : "neutral" },
             ]}
           />
           <ModuleCard
@@ -436,8 +439,15 @@ function ReminderStatusSection({
           label: language === "ja" ? "未処理経費" : "Pending Expenses",
           value: String(summary.pendingExpenses.count),
           color: summary.pendingExpenses.count > 0 ? "amber" : "green",
-          type: "missing_invoice" as ReminderType,
+          type: "stale_expense_review" as ReminderType,
           href: "/expenses",
+        },
+        {
+          label: t("reminder_contract_expired"),
+          value: String(summary.contractsExpired.count),
+          color: summary.contractsExpired.count > 0 ? "red" : "green",
+          type: "contract_expired" as ReminderType,
+          href: "/contracts",
         },
       ]
     : [];
@@ -476,6 +486,7 @@ function ReminderStatusSection({
                     ["missing_invoice",       t("reminder_send_type_missing")],
                     ["stale_review",          t("reminder_send_type_stale")],
                     ["due_date_approaching",  t("reminder_send_type_due")],
+                    ["contract_expired",      t("reminder_send_type_contract_expired")],
                   ] as [ReminderType | "all", string][]).map(([type, label]) => (
                     <button
                       key={type}
@@ -497,7 +508,7 @@ function ReminderStatusSection({
           <p className="text-xs text-stone-400">{t("reminder_loading")}</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
               {chips.map((chip) => {
                 const cardClass = `rounded-lg px-3 py-2.5 border transition-all cursor-pointer ${
                   chip.color === "red"   ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" :

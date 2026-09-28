@@ -91,6 +91,10 @@ export interface InvoiceValidationResult {
   targetFolderPath: string;
   // Rule 10: human reviewer must explicitly approve before filing is allowed
   humanApproved?: boolean;
+  // A reviewer can also explicitly reject a REVIEW_REQUIRED invoice instead
+  // of approving it — mirrors humanApproved/approvedBy, keeps Save hidden.
+  humanRejected?: boolean;
+  rejectedBy?: string;
   // Sprint 2: vendor/contract/risk enrichment
   riskLevel?: RiskLevel;
   reviewerRecommendation?: string;
@@ -348,7 +352,8 @@ export type ReminderType =
   | "due_date_overdue"
   | "missing_expense_receipt"
   | "stale_expense_review"
-  | "escalation";
+  | "escalation"
+  | "contract_expired";
 
 export type ReminderChannel = "teams" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";
@@ -391,12 +396,20 @@ export interface DueDateAlert {
   amount: string;
 }
 
+export interface ExpiredContractAlert {
+  id: string;
+  kind: "contract" | "member";
+  name: string;              // client/vendor name (contract) or display name (member)
+  endDate: string;            // ISO date YYYY-MM-DD
+}
+
 export interface ReminderSummary {
   missingInvoice: { count: number; total: number };
   staleReview: { count: number; oldestDays: number };
   dueDateApproaching: { count: number };
   dueDateOverdue: { count: number };
   pendingExpenses: { count: number };
+  contractsExpired: { count: number };
   lastSent: string | null;
   recentLogs: ReminderLog[];
 }

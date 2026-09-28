@@ -14,6 +14,7 @@ import { getMemberService } from "@/lib/services";
 import { generateId } from "@/lib/utils";
 import { checkMemberBySharePointContracts } from "@/lib/services/real/SharePointContractService";
 import { requireAuth } from "@/lib/auth-guard";
+import { extractMemberName, normaliseMemberName } from "@/lib/memberName";
 import type { Member } from "@/types";
 
 export const dynamic = 'force-dynamic';
@@ -95,33 +96,26 @@ async function listFolderChildren(token: string): Promise<DriveItem[]> {
   return data.value ?? [];
 }
 
-// Extract a human-readable name from a SharePoint item name.
-// Handles patterns like "01_Yamada_Taro.pdf", "Smith-John Contract 2024.pdf",
-// subfolder names like "02_山田太郎", etc.
-function extractMemberName(rawName: string): string {
-  let name = rawName;
-  // Strip file extension
-  name = name.replace(/\.[^.]+$/, "");
-  // Strip leading number + separator  (e.g. "01_", "02-", "3. ")
-  name = name.replace(/^\d+\s*[_\-\.]\s*/, "");
-  // Replace remaining underscores / hyphens with spaces
-  name = name.replace(/[_\-]+/g, " ");
-  // Remove common English suffixes (case-insensitive)
-  name = name.replace(/\s+(contract|agreement|nda|signed|draft|final|v\d+|\d{4})(\s+.*)?$/gi, "");
-  // Collapse multiple spaces
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
-
-function normalise(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, "");
-}
-
 // Reads and AI-extracts the contract PDF once — non-fatal on failure, since a
 // missing/unreadable contract shouldn't block the member record itself from syncing.
 // Hard-timed out: a single hung Graph/AI call must not be able to consume the
 // whole function's time budget and take the entire sync down with it.
 const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
+
+// A member whose contract already reads as expired gets re-checked against
+// SharePoint periodically — a renewed contract (new file, or the same file
+// edited in place) should get picked up without anyone having to notice the
+// alert and manually re-trigger it. Cooldown keeps this from re-hitting the
+// same still-genuinely-expired member (and burning an OpenAI call) every
+// single day once nothing about their folder has changed.
+const EXPIRED_RECHECK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isMemberContractExpired(m: Member, now: Date): boolean {
+  if (m.status !== "active" || !m.contractEnd) return false;
+  const end = new Date(m.contractEnd).getTime();
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return !Number.isNaN(end) && end < todayStart;
+}
 
 interface FetchContractFieldsResult {
   fields: {
@@ -163,7 +157,7 @@ async function runSync(retryFailed = false): Promise<{
   const service = getMemberService();
   const existing = await service.listMembers();
 
-  const existingByName = new Map(existing.map((m) => [normalise(m.displayName), m]));
+  const existingByName = new Map(existing.map((m) => [normaliseMemberName(m.displayName), m]));
   const stillMissing = existing.filter((m) => m.contractStart == null).length;
 
   let added               = 0;
@@ -177,8 +171,8 @@ async function runSync(retryFailed = false): Promise<{
   // Process oldest-attempted-first instead so each run advances the queue.
   const orderedItems = retryFailed
     ? [...items].sort((a, b) => {
-        const ta = existingByName.get(normalise(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
-        const tb = existingByName.get(normalise(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
+        const ta = existingByName.get(normaliseMemberName(extractMemberName(a.name)))?.contractSyncAttemptedAt ?? "";
+        const tb = existingByName.get(normaliseMemberName(extractMemberName(b.name)))?.contractSyncAttemptedAt ?? "";
         return ta.localeCompare(tb);
       })
     : items;
@@ -187,23 +181,48 @@ async function runSync(retryFailed = false): Promise<{
     const displayName = extractMemberName(item.name);
     if (!displayName) { skipped++; continue; }
 
-    const existingMember = existingByName.get(normalise(displayName));
+    const existingMember = existingByName.get(normaliseMemberName(displayName));
 
     if (existingMember) {
       skipped++;
+
+      // Auto-synced members originally got joinDate set to the sync run date
+      // (a placeholder, not a real hire date). Once a contract start date has
+      // been extracted, it's the closest real date we have — correct joinDate
+      // to match. Cheap (no Graph/AI call), so this runs every time, not just
+      // for members still pending contract extraction.
+      const isAutoSynced = existingMember.notes.startsWith("Auto-synced from SharePoint");
+      if (isAutoSynced && existingMember.contractStart && existingMember.joinDate !== existingMember.contractStart) {
+        existingMember.joinDate = existingMember.contractStart;
+        await service.saveMember({
+          ...existingMember,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       // Backfill contract fields for members synced before this was tracked —
       // capped per run so this route can't time out; leftovers pick up next sync.
       // Gate on contractSyncAttemptedAt (not contractStart) so a member whose
       // extraction genuinely fails isn't retried on every single future run —
       // since folder-listing order never changes, that would permanently jam
       // the front of the queue in front of everyone who hasn't been tried yet.
-      if (existingMember.contractStart == null && (retryFailed || existingMember.contractSyncAttemptedAt == null)
-          && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      const needsInitialExtraction = existingMember.contractStart == null
+        && (retryFailed || existingMember.contractSyncAttemptedAt == null);
+
+      // Separately, a member already flagged expired gets re-checked once the
+      // cooldown has passed, regardless of contractStart — a renewal wouldn't
+      // otherwise ever be picked up automatically.
+      const lastAttempt = existingMember.contractSyncAttemptedAt ? new Date(existingMember.contractSyncAttemptedAt).getTime() : 0;
+      const needsExpiredRecheck = isMemberContractExpired(existingMember, new Date())
+        && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
+
+      if ((needsInitialExtraction || needsExpiredRecheck) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
         await service.saveMember({
           ...existingMember,
           ...(result.fields ?? {}),
+          ...(isAutoSynced && result.fields?.contractStart ? { joinDate: result.fields.contractStart } : {}),
           contractSyncAttemptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -228,7 +247,10 @@ async function runSync(retryFailed = false): Promise<{
       role:         "other",
       department:   "",
       employeeCode: "",
-      joinDate:     now.slice(0, 10),
+      // Real contract start beats the sync run date whenever it's already
+      // available; otherwise this gets corrected on a later run once the
+      // contract has been extracted (see the existingMember branch above).
+      joinDate:     fields?.contractStart ?? now.slice(0, 10),
       status:       "active",
       avatarUrl:    "",
       notes:        `Auto-synced from SharePoint (${item.name})`,
@@ -239,7 +261,7 @@ async function runSync(retryFailed = false): Promise<{
     };
 
     await service.saveMember(newMember);
-    existingByName.set(normalise(displayName), newMember);
+    existingByName.set(normaliseMemberName(displayName), newMember);
     added++;
     addedNames.push(displayName);
   }
