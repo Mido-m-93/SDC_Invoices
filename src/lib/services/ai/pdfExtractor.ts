@@ -9,6 +9,8 @@
 // not called from extractFromPdf right now — see the comment there.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -104,10 +106,19 @@ async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
   // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
   // exercises canvas-dependent code and throws "DOMMatrix is not defined" in
   // this serverless runtime (no DOM, no native canvas). Pointing workerSrc at
-  // the real worker module — resolved via import.meta.resolve so it finds the
-  // installed package regardless of how this file itself got bundled —
-  // avoids that path entirely.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  // the real worker module avoids that path entirely.
+  //
+  // Resolved via createRequire, not import.meta.resolve — webpack can't
+  // statically analyze import.meta.resolve and silently mishandles it in the
+  // production bundle ("Critical dependency: Accessing import.meta directly
+  // is unsupported"). The specifier is also built at runtime, not a string
+  // literal, so webpack can't see it as a require target either and try to
+  // validate it against pdfjs-dist's ESM "type": "module" (a hard build
+  // error) — it just defers to Node's own resolution at runtime, which finds
+  // the real file fine regardless of how this file itself got bundled.
+  const require = createRequire(import.meta.url);
+  const workerSpecifier = ["pdfjs-dist", "legacy", "build", "pdf.worker.mjs"].join("/");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(require.resolve(workerSpecifier)).href;
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
