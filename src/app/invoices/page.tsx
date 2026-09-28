@@ -30,8 +30,8 @@ import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 
-const STATUS_FILTERS: Array<"ALL" | InvoiceStatusCode> = [
-  "ALL", "READY", "REVIEW_REQUIRED", "MISSING_ATTACHMENT", "SAVED", "ALREADY_PROCESSED",
+const STATUS_FILTERS: Array<"ALL" | "REJECTED" | InvoiceStatusCode> = [
+  "ALL", "READY", "REVIEW_REQUIRED", "MISSING_ATTACHMENT", "SAVED", "ALREADY_PROCESSED", "REJECTED",
 ];
 
 export default function InvoicesPage() {
@@ -360,6 +360,8 @@ export default function InvoicesPage() {
       ? items
       : filterStatus === "SAVED"
       ? items.filter((i) => i.filedDocument != null)
+      : filterStatus === "REJECTED"
+      ? items.filter((i) => i.validation?.humanRejected)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -378,6 +380,7 @@ export default function InvoicesPage() {
     if (f === "ALREADY_PROCESSED") return items.filter((i) =>
       ["ALREADY_PROCESSED", "DUPLICATE_FILE"].includes(i.validation?.statusCode ?? "")
     ).length;
+    if (f === "REJECTED") return items.filter((i) => i.validation?.humanRejected).length;
     return items.filter((i) => i.validation?.statusCode === f).length;
   };
 
