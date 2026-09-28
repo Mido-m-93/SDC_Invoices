@@ -6,6 +6,7 @@
 // scanned (image-only) PDF yields no fields.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { detectCurrency } from "@/lib/utils";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ function emptyExtracted(rawText = ""): ExtractedInvoiceFields {
     memberName: null,
     payerNameOnDoc: null,
     rawText,
+    currency: detectCurrency(rawText),
   };
 }
 
@@ -261,6 +263,10 @@ Rules:
     memberName:     groqMember,
     payerNameOnDoc: typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null,
     rawText:        rawText.slice(0, 1000),
+    // Detected from the PDF's own text, not the LLM's output — same
+    // reasoning as the currency-tagged amount checks above: the document
+    // itself says "USD"/"¥"/"円" far more reliably than the model reports it.
+    currency: detectCurrency(rawText),
   };
 }
 

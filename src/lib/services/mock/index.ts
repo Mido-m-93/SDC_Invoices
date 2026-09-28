@@ -197,6 +197,7 @@ export class MockValidationService implements IValidationService {
       memberName: submission.payerName,
       payerNameOnDoc: null,
       rawText: "消費税",
+      currency: "JPY",
     };
 
     const base = safeValidationResult(submission, mockExtracted, true, false);

@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     const amount = parseAmount(submission.claimedAmountTaxIncluded);
 
     const partnerName = (submission.payerName || submission.externalProjectName || submission.internalDepartment || "Unknown").trim() || "Unknown";
-    const currency  = detectCurrency(submission.claimedAmountTaxIncluded) as "JPY" | "USD";
+    // Prefer the currency detected from the invoice PDF's own text over a
+    // guess from the form string — the document is the authoritative source
+    // for what currency is actually being billed in.
+    const currency  = (validation.extractedFields?.currency ?? detectCurrency(submission.claimedAmountTaxIncluded)) as "JPY" | "USD";
 
     // MF requires due_date unless the partner has a payment-deadline setting
     // configured on their MF profile — most partners created via this API
