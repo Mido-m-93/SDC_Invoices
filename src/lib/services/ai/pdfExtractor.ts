@@ -2,15 +2,13 @@
 // lib/services/ai/pdfExtractor.ts — PDF field extraction
 //
 // Active strategy: Groq only (free tier LLM; requires GROQ_API_KEY). Text is
-// extracted locally with pdfjs-dist, then parsed by Groq's LLM — no vision/
-// OCR fallback, so a scanned (image-only) PDF yields no fields.
+// extracted locally via unpdf, then parsed by Groq's LLM — no vision/OCR
+// fallback, so a scanned (image-only) PDF yields no fields.
 //
 // Google Document AI and OpenAI GPT-4o extractors are also defined below but
 // not called from extractFromPdf right now — see the comment there.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -99,65 +97,18 @@ function fallbackAmounts(text: string): { total: number | null; subtotal: number
 }
 
 // ── Text extraction helper (used by Groq path) ───────────────────────────────
-// Uses pdfjs-dist legacy build — pure JS, no native dependencies.
+// unpdf bundles its own pdfjs-dist build specifically configured for
+// serverless/edge runtimes — no worker, no canvas/DOMMatrix polyfill needed.
+// Plain pdfjs-dist required several increasingly elaborate workarounds here
+// (a DOMMatrix polyfill, then hand-resolving its worker script around two
+// different bundlers' static analysis) and still didn't work reliably on
+// Vercel; unpdf exists specifically to avoid all of that.
 
 async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
-  // pdfjs-dist's Node path tries to polyfill DOMMatrix/ImageData/Path2D from
-  // the optional native "@napi-rs/canvas" package, and just warns and leaves
-  // them undefined if that fails to load — which it reliably does in this
-  // serverless runtime (its platform-specific binary isn't in the traced
-  // deployment bundle, even though it resolves fine in local dev via a
-  // transitive dependency). A top-level `new DOMMatrix()` inside pdfjs-dist's
-  // own canvas module then throws the moment pdf.mjs is imported at all, text
-  // extraction or not. Providing DOMMatrix ourselves via a pure-JS package
-  // (no native binary to fail to bundle) heads that off before the import.
-  if (!("DOMMatrix" in globalThis)) {
-    const { default: CSSMatrix } = await import("dommatrix");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (globalThis as any).DOMMatrix = CSSMatrix;
-  }
-
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
-  // needs a real, loadable module to fall back to ("No workerSrc specified").
-  // Getting a working workerSrc here took three attempts, each failing a
-  // different way, because two separate static analyzers each need to see
-  // this differently:
-  //   - Vercel's deployment file tracer (@vercel/nft) only bundles files it
-  //     can see referenced as a literal specifier — a runtime-built one is
-  //     invisible to it, so the worker file silently never made it into the
-  //     deployed function ("Cannot find module '...pdf.worker.mjs'").
-  //   - webpack, if it instead sees that literal specifier passed to
-  //     require.resolve, tries to validate it against the target package's
-  //     declared ESM type and fails the build outright. Passed to
-  //     import.meta.resolve it only warns at build time ("Critical
-  //     dependency: Accessing import.meta directly is unsupported") — but
-  //     that's not benign after all: webpack replaces import.meta with an
-  //     empty object at runtime, so the call itself throws
-  //     ("{}.resolve is not a function").
-  // So: a literal dynamic import satisfies the file tracer (side effect
-  // only — this loads the module but we still need a URL string for
-  // workerSrc itself, which this doesn't provide), and a *separate*,
-  // runtime-built specifier through createRequire gets that URL — this one
-  // webpack only warns about too ("the request of a dependency is an
-  // expression"), but unlike import.meta.resolve it isn't rewritten, so it
-  // actually resolves correctly at runtime, now that the import above
-  // guarantees the file is really present to resolve to.
-  // @ts-expect-error — side-effect import only, no type declarations for this entry point
-  await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
-  const require = createRequire(import.meta.url);
-  const workerSpecifier = ["pdfjs-dist", "legacy", "build", "pdf.worker.mjs"].join("/");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(require.resolve(workerSpecifier)).href;
-  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-  const pages: string[] = [];
-  for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pageText = (content.items as any[]).map((item) => item.str ?? "").join(" ");
-    pages.push(pageText);
-  }
-  return pages.join("\n");
+  const { getDocumentProxy, extractText } = await import("unpdf");
+  const pdf = await getDocumentProxy(pdfBytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return text;
 }
 
 // ── Strategy 1: Groq (free tier) ─────────────────────────────────────────────
