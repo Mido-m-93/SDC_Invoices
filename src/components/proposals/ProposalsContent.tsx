@@ -456,7 +456,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700 text-xl">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <FieldRow>
                 <Field label={t("proposals_field_project_name")}>
                   <input className={input} value={form.projectName} onChange={e => set("projectName", e.target.value)} placeholder={t("proposals_field_project_name_placeholder")} />
                 </Field>
@@ -470,8 +470,8 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     className={input}
                   />
                 </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              </FieldRow>
+              <FieldRow>
                 <Field label={t("proposals_field_lead")}>
                   <select
                     className={input}
@@ -494,7 +494,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     ))}
                   </select>
                 </Field>
-              </div>
+              </FieldRow>
               <div className="grid grid-cols-3 gap-4">
                 <Field label={t("proposals_field_date")}>
                   <input type="date" className={input} value={form.proposalDate} onChange={e => set("proposalDate", e.target.value)} />
@@ -513,7 +513,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               <Field label={t("proposals_field_description")}>
                 <textarea className={`${input} h-20 resize-none`} value={form.description} onChange={e => set("description", e.target.value)} placeholder={t("proposals_field_description_placeholder")} />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <FieldRow>
                 <Field label={t("proposals_field_quote_sheet_url")}>
                   <input className={input} value={form.quoteSheetUrl ?? ""} onChange={e => set("quoteSheetUrl", e.target.value)} placeholder="https://..." />
                 </Field>
@@ -526,7 +526,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
                     placeholder="0"
                   />
                 </Field>
-              </div>
+              </FieldRow>
               <div className="grid grid-cols-3 gap-4">
                 <Field label={t("proposals_field_quote_sheet_date")}>
                   <input
@@ -555,14 +555,14 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               </div>
               <div className="border-t border-stone-100 pt-4 space-y-4">
                 <p className="text-xs text-stone-400">{t("proposals_field_pipeline_links")}</p>
-                <div className="grid grid-cols-2 gap-4">
+                <FieldRow>
                   <Field label={t("proposals_field_contract_id")}>
                     <input className={input} value={form.contractId ?? ""} onChange={e => set("contractId", e.target.value)} placeholder={t("proposals_field_contract_id_placeholder")} />
                   </Field>
                   <Field label={t("proposals_field_folder_url")}>
                     <input className={input} value={form.folderUrl ?? ""} onChange={e => set("folderUrl", e.target.value)} placeholder="https://drive.google.com/..." />
                   </Field>
-                </div>
+                </FieldRow>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3">
@@ -617,6 +617,10 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
       )}
     </div>
   );
+}
+
+function FieldRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-4">{children}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
