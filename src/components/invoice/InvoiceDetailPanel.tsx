@@ -88,7 +88,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
               <Field label={t("field_attachment")} span>
                 {s.invoiceAttachment ? (
                   <a
-                    href={s.invoiceAttachment}
+                    href={`/api/files/sharepoint-download?url=${encodeURIComponent(s.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${s.payerName || s.id}.pdf`)}&inline=1`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#235c43]"

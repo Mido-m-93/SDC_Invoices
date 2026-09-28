@@ -443,7 +443,7 @@ export default function ExpensesPage() {
                     <Badge tone={STATUS_TONES[c.status]}>{statusLabel(c.status)}</Badge>
                     <div className="flex gap-1 mt-1">
                       {c.receiptUrl && (
-                        <a href={c.receiptUrl} target="_blank" rel="noopener noreferrer"
+                        <a href={`/api/files/sharepoint-download?url=${encodeURIComponent(c.receiptUrl)}&filename=${encodeURIComponent(c.receiptFilename || `receipt_${c.submittedBy}`)}&inline=1`} target="_blank" rel="noopener noreferrer"
                           className="text-xs text-blue-500 hover:underline" title={t("expenses_view_receipt")}>📎</a>
                       )}
                       {c.bankAccount && (

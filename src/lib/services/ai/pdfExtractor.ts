@@ -202,20 +202,34 @@ Rules:
     : { total: null, subtotal: null, taxAmount: null };
 
   // The prompt tells the model identifiers (phone/UPI/bank/reference numbers)
-  // are never amounts, but it doesn't reliably follow that — check its total
-  // against numbers actually tagged with a currency unit in the text instead
-  // of just trusting it.
-  let total = groqTotal ?? regexAmounts.total;
-  const taggedAmounts = extractCurrencyTaggedAmounts(rawText);
-  if (taggedAmounts.length > 0 && (total === null || !taggedAmounts.includes(total))) {
-    console.warn(`[pdfExtractor] Groq total ${total} isn't currency-tagged in the text, overriding with ${taggedAmounts[0]}`);
-    total = taggedAmounts[0];
+  // are never amounts, but it doesn't reliably follow that — check every
+  // amount against numbers actually tagged with a currency unit in the text
+  // instead of just trusting it. Frequency-sorted (most-repeated first) for
+  // total (a real total tends to recur — unit price, then a totals row);
+  // value-sorted (largest first) for subtotal, mirroring fallbackAmounts'
+  // existing "largest = total, second-largest = subtotal" heuristic.
+  const taggedAmounts    = extractCurrencyTaggedAmounts(rawText);
+  const taggedByValue    = [...taggedAmounts].sort((a, b) => b - a);
+
+  function verified(claimed: number | null, fallback: number | null, field: string): number | null {
+    if (taggedAmounts.length === 0 || (claimed !== null && taggedAmounts.includes(claimed))) return claimed;
+    console.warn(`[pdfExtractor] Groq ${field} ${claimed} isn't currency-tagged in the text, overriding with ${fallback}`);
+    return fallback;
   }
 
+  const total = verified(groqTotal ?? regexAmounts.total, taggedAmounts[0] ?? null, "total");
+  // Second-largest tagged amount if there are at least two distinct ones;
+  // otherwise there's only one real amount in the document at all, so no tax
+  // breakdown exists — subtotal is just the total.
+  const subtotal = verified(groqSubtotal ?? regexAmounts.subtotal, taggedByValue[1] ?? total, "subtotal");
+  // Unlike total/subtotal, a wrong tax guess has no good fallback number —
+  // null (not found) is safer than a wildly wrong one.
+  const taxAmount = verified(groqTax ?? regexAmounts.taxAmount, null, "taxAmount");
+
   return {
-    invoiceDate:    groqDate,
-    subtotal:       groqSubtotal ?? regexAmounts.subtotal,
-    taxAmount:      groqTax     ?? regexAmounts.taxAmount,
+    invoiceDate: groqDate,
+    subtotal,
+    taxAmount,
     total,
     taxRate:        parseNumericField(parsed.taxRate),
     memberName:     typeof parsed.memberName === "string" ? parsed.memberName : null,
