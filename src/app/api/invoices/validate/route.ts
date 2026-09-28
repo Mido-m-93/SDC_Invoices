@@ -185,41 +185,76 @@ export async function POST(req: NextRequest) {
             // {payerName}_{originalFilename} which has no month component).
             const parsedMonth = parseSnapshotMonth(sub.closingMonth); // "YYYY-MM" or "unknown"
 
-            // Resolve month subfolder under the root (try Japanese "YYYY年MM月" format first,
-            // then ISO "YYYY-MM" as a fallback).
+            // Resolve month subfolder under the root. Match by *contains* rather
+            // than exact name — real folders carry suffixes like "支払い分" or
+            // "分" (e.g. "2026年4月支払い分", "2025年12月分"), and single-digit
+            // months aren't zero-padded ("4月", not "04月"), so an exact match
+            // on "YYYY年MM月" never hit. Year folders (e.g. "2025年度") nest
+            // older months one level deeper, so search year folders too.
             let monthFolderId: string | null = null;
             if (parsedMonth !== "unknown") {
               const [yearStr, monthStr] = parsedMonth.split("-");
-              const folderCandidates = [`${yearStr}年${monthStr}月`, `${yearStr}-${monthStr}`];
-              for (const folderName of folderCandidates) {
-                const folderRes = await drive.files.list({
-                  q: `name = '${folderName}' and mimeType = '${FOLDER_MIME}' and '${rootFolderId}' in parents and trashed=false`,
+              const monthNoPad = String(Number(monthStr));
+              const folderCandidates = [`${yearStr}年${monthNoPad}月`, `${yearStr}年${monthStr}月`, `${yearStr}-${monthStr}`];
+
+              const findMonthFolder = async (parentId: string): Promise<string | null> => {
+                for (const folderName of folderCandidates) {
+                  const folderRes = await drive.files.list({
+                    q: `name contains '${folderName}' and mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed=false`,
+                    fields: "files(id,name)",
+                    supportsAllDrives: true,
+                    includeItemsFromAllDrives: true,
+                    pageSize: 1,
+                  });
+                  const mf = folderRes.data.files?.[0];
+                  if (mf?.id) return mf.id;
+                }
+                return null;
+              };
+
+              monthFolderId = await findMonthFolder(rootFolderId);
+              if (!monthFolderId) {
+                // Not directly under root — check inside each "YYYY年度" year folder.
+                const yearFoldersRes = await drive.files.list({
+                  q: `name contains '年度' and mimeType = '${FOLDER_MIME}' and '${rootFolderId}' in parents and trashed=false`,
                   fields: "files(id,name)",
                   supportsAllDrives: true,
                   includeItemsFromAllDrives: true,
-                  pageSize: 1,
+                  pageSize: 20,
                 });
-                const mf = folderRes.data.files?.[0];
-                if (mf?.id) {
-                  monthFolderId = mf.id;
-                  console.log(`[Drive check] Month folder "${folderName}" found (id=${monthFolderId})`);
-                  break;
+                for (const yf of yearFoldersRes.data.files ?? []) {
+                  if (!yf.id) continue;
+                  monthFolderId = await findMonthFolder(yf.id);
+                  if (monthFolderId) break;
                 }
               }
-              if (!monthFolderId) {
-                console.log(`[Drive check] Month folder for ${parsedMonth} not found — will search entire root`);
-              }
+              console.log(monthFolderId
+                ? `[Drive check] Month folder for ${parsedMonth} found (id=${monthFolderId})`
+                : `[Drive check] Month folder for ${parsedMonth} not found — will search the whole shared drive`);
             }
 
             // Build name search from first 2 meaningful tokens of the resolved name
             const tokens = searchName.trim().split(/\s+/).filter(t => t.length > 2).slice(0, 2);
             if (!tokens.length) return null;
             const nameQ = tokens.map(t => `name contains '${t.replace(/'/g, "\\'")}'`).join(" and ");
-            // Search within the month folder if found; otherwise scan the whole root hierarchy.
-            const scopeQ = monthFolderId
-              ? `'${monthFolderId}' in parents`
-              : `'${rootFolderId}' in ancestors`;
-            const q = `${nameQ} and ${scopeQ} and mimeType != '${FOLDER_MIME}' and trashed=false`;
+
+            // Search within the month folder if found. Otherwise, Drive API v3
+            // has no "in ancestors" operator (that was a v2-only feature) — the
+            // old code used it and every such search failed with a 400. Instead,
+            // scope by the whole shared drive the root folder lives on.
+            let listParams: Record<string, unknown> = {};
+            let scopeQ = "";
+            if (monthFolderId) {
+              scopeQ = `'${monthFolderId}' in parents`;
+            } else {
+              try {
+                const rootMeta = await drive.files.get({ fileId: rootFolderId, fields: "driveId", supportsAllDrives: true });
+                if (rootMeta.data.driveId) listParams = { corpora: "drive", driveId: rootMeta.data.driveId };
+              } catch (err) {
+                console.warn("[Drive check] Could not resolve shared drive id for whole-drive search:", err);
+              }
+            }
+            const q = [nameQ, scopeQ, `mimeType != '${FOLDER_MIME}'`, "trashed=false"].filter(Boolean).join(" and ");
 
             console.log(`[Drive check] searching "${searchName}" month=${parsedMonth}${isEmail ? ` (from PDF, original="${sub.payerName}")` : ""} q="${q}"`);
             const res = await drive.files.list({
@@ -228,6 +263,7 @@ export async function POST(req: NextRequest) {
               supportsAllDrives: true,
               includeItemsFromAllDrives: true,
               pageSize: 20,
+              ...listParams,
             });
 
             const found = (res.data.files ?? []).find(f => normName(f.name!).includes(payerNorm));
