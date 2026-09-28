@@ -1,16 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // lib/services/ai/pdfExtractor.ts — PDF field extraction
 //
-// Strategies (tried in order):
-//   1. Google Document AI  — if GOOGLE_DOCUMENT_AI_PROJECT_ID +
-//                            GOOGLE_DOCUMENT_AI_PROCESSOR_ID are set.
-//   2. Groq               — primary: free tier, open-weight Llama 3.3 70B;
-//                            requires GROQ_API_KEY. Text extracted with
-//                            pdfjs-dist (no native deps) — text-only, can't
-//                            read scanned/image-only PDFs.
-//   3. OpenAI GPT-4o       — fallback: paid, but has a vision path for
-//                            scanned PDFs Groq can't read; requires
-//                            OPENAI_API_KEY.
+// Active strategy: Groq only (free tier LLM; requires GROQ_API_KEY). Text is
+// extracted locally with pdfjs-dist, then parsed by Groq's LLM — no vision/
+// OCR fallback, so a scanned (image-only) PDF yields no fields.
+//
+// Google Document AI and OpenAI GPT-4o extractors are also defined below but
+// not called from extractFromPdf right now — see the comment there.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { ExtractedInvoiceFields } from "@/types";
@@ -105,7 +101,13 @@ function fallbackAmounts(text: string): { total: number | null; subtotal: number
 
 async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
+  // exercises canvas-dependent code and throws "DOMMatrix is not defined" in
+  // this serverless runtime (no DOM, no native canvas). Pointing workerSrc at
+  // the real worker module — resolved via import.meta.resolve so it finds the
+  // installed package regardless of how this file itself got bundled —
+  // avoids that path entirely.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
@@ -419,36 +421,14 @@ async function extractWithGoogleDocumentAI(pdfBytes: Uint8Array): Promise<Extrac
 // extractTextFromPdf) can crash on pdfjs-dist's module-load-time
 // "DOMMatrix is not defined" failure in this serverless runtime.
 
-// ── Main entry point ──────────────────────────────────────────────────────────
-// Priority: Google Document AI → Groq (primary, free, open-weight) → OpenAI
-// GPT-4o (fallback — only needed for scanned/image-only PDFs Groq can't read)
+// Groq only, by request — Google Document AI and OpenAI are still defined
+// above (OpenAI ran out of credits; Google Document AI's key had its own
+// unrelated issue) but deliberately not called here. Re-enable either by
+// adding its branch back if/when that provider is usable again.
 
 export async function extractFromPdf(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFields> {
-  const hasGoogleDocAI =
-    !!process.env.GOOGLE_DOCUMENT_AI_PROJECT_ID &&
-    !!process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID;
-
-  if (hasGoogleDocAI) {
-    try {
-      return await extractWithGoogleDocumentAI(pdfBytes);
-    } catch (err) {
-      console.warn("[pdfExtractor] Google Document AI failed, trying Groq:", err);
-    }
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set — required, since it's the only extraction strategy in use.");
   }
-
-  if (process.env.GROQ_API_KEY) {
-    try {
-      return await extractWithGroq(pdfBytes);
-    } catch (err) {
-      console.warn("[pdfExtractor] Groq extraction failed, trying OpenAI:", err);
-    }
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return await extractWithOpenAI(pdfBytes);
-  }
-
-  throw new Error(
-    "No extraction strategy configured. Set GROQ_API_KEY (or OPENAI_API_KEY) in .env.local."
-  );
+  return await extractWithGroq(pdfBytes);
 }
