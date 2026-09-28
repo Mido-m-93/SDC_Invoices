@@ -96,6 +96,27 @@ function fallbackAmounts(text: string): { total: number | null; subtotal: number
   return { total, subtotal, taxAmount };
 }
 
+// Numbers with an explicit currency unit right next to them (¥1,000 / 216 USD
+// / 500円) are unambiguous — unlike phone numbers, UPI IDs, or bank account
+// numbers, nothing else in an invoice gets tagged this way. Used as a
+// deterministic check against the LLM's claimed total: telling it not to
+// confuse identifiers with amounts (in the prompt) doesn't reliably stop it
+// from doing so anyway, but a plain untagged 10-digit phone number will never
+// show up here, so this catches it regardless of what the LLM says. Returned
+// most-repeated-first, since a real total/line-item amount typically recurs
+// (unit price, then again in a totals row) while a misread identifier won't.
+function extractCurrencyTaggedAmounts(text: string): number[] {
+  if (!text) return [];
+  const re = /(?:[¥￥$]\s*([\d,，]+(?:\.\d+)?)|([\d,，]+(?:\.\d+)?)\s*(?:円|USD|JPY|EUR))/gi;
+  const counts = new Map<number, number>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const n = parseFloat((m[1] ?? m[2]).replace(/[,，]/g, ""));
+    if (!isNaN(n)) counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+}
+
 // ── Text extraction helper (used by Groq path) ───────────────────────────────
 // unpdf bundles its own pdfjs-dist build specifically configured for
 // serverless/edge runtimes — no worker, no canvas/DOMMatrix polyfill needed.
@@ -180,11 +201,22 @@ Rules:
     ? fallbackAmounts(rawText)
     : { total: null, subtotal: null, taxAmount: null };
 
+  // The prompt tells the model identifiers (phone/UPI/bank/reference numbers)
+  // are never amounts, but it doesn't reliably follow that — check its total
+  // against numbers actually tagged with a currency unit in the text instead
+  // of just trusting it.
+  let total = groqTotal ?? regexAmounts.total;
+  const taggedAmounts = extractCurrencyTaggedAmounts(rawText);
+  if (taggedAmounts.length > 0 && (total === null || !taggedAmounts.includes(total))) {
+    console.warn(`[pdfExtractor] Groq total ${total} isn't currency-tagged in the text, overriding with ${taggedAmounts[0]}`);
+    total = taggedAmounts[0];
+  }
+
   return {
     invoiceDate:    groqDate,
     subtotal:       groqSubtotal ?? regexAmounts.subtotal,
     taxAmount:      groqTax     ?? regexAmounts.taxAmount,
-    total:          groqTotal   ?? regexAmounts.total,
+    total,
     taxRate:        parseNumericField(parsed.taxRate),
     memberName:     typeof parsed.memberName === "string" ? parsed.memberName : null,
     payerNameOnDoc: typeof parsed.payerNameOnDoc === "string" ? parsed.payerNameOnDoc : null,
