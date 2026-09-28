@@ -684,7 +684,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
             className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
             onClick={() => setValidationPanel(null)}
           />
-          <div className="fixed inset-y-0 right-0 z-50 flex w-[420px] flex-col bg-white shadow-2xl">
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-white shadow-2xl">
             {/* Panel header */}
             <div className="flex items-start justify-between border-b border-stone-100 px-6 py-5">
               <div>
