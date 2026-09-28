@@ -444,15 +444,17 @@ export async function POST(req: NextRequest) {
       // Prefer contract fields already cached on the member record (populated by
       // /api/members/sync) over a live SharePoint fetch — avoids a PDF download +
       // AI extraction on every single invoice validation for members we already know.
+      const usingLocalContractInfo =
+        !!localMember && (!!localMember.contractStart || !!localMember.contractedAmount || !!localMember.contractScope);
       const info =
-        localMember && (localMember.contractStart || localMember.contractedAmount || localMember.contractScope)
+        usingLocalContractInfo
           ? {
               memberName:       null,
               paymentTerms:     null,
-              contractStart:    localMember.contractStart ?? null,
-              contractEnd:      localMember.contractEnd ?? null,
-              contractedAmount: localMember.contractedAmount ?? null,
-              scope:            localMember.contractScope ?? null,
+              contractStart:    localMember!.contractStart ?? null,
+              contractEnd:      localMember!.contractEnd ?? null,
+              contractedAmount: localMember!.contractedAmount ?? null,
+              scope:            localMember!.contractScope ?? null,
             }
           : spMatch?.contractInfo;
       let contractorFields: Record<string, unknown> = {};
@@ -468,9 +470,10 @@ export async function POST(req: NextRequest) {
           riskLevel:              "OK",
           reviewerRecommendation: parts.join(" | "),
           contractEndDate:        info?.contractEnd ?? null,
-          // Only the live SharePoint fallback resolves an actual file URL —
-          // a local-store match has no persisted contract file link to give.
-          contractFileUrl:        matchSource === "sharepoint" ? spMatch?.contractFileUrl ?? null : null,
+          // A local-store match carries its own persisted contract file link
+          // (backfilled by /api/members/sync); otherwise fall back to whatever
+          // the live SharePoint lookup resolved.
+          contractFileUrl:        usingLocalContractInfo ? localMember!.contractFileUrl ?? null : spMatch?.contractFileUrl ?? null,
         };
 
         // AI checkpoint: Invoice ↔ Contract — does this invoice actually match the
