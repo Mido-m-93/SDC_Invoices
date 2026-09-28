@@ -618,7 +618,7 @@ export default function ExpensesPage() {
       {validationPanel && (
         <div className="fixed inset-0 z-50 flex items-start justify-end" style={{ marginLeft: "var(--sidebar-w)" }}>
           <div className="absolute inset-0 bg-stone-900/20 backdrop-blur-[1px]" onClick={() => setValidationPanel(null)} />
-          <div className="relative bg-white h-full w-full max-w-2xl shadow-2xl overflow-y-auto flex flex-col">
+          <div className="relative bg-white h-full w-full max-w-4xl shadow-2xl overflow-y-auto flex flex-col">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-6 py-4 flex items-center justify-between">
               <div>
