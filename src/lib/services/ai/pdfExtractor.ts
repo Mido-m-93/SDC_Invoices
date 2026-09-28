@@ -9,6 +9,8 @@
 // not called from extractFromPdf right now — see the comment there.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import type { ExtractedInvoiceFields } from "@/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -118,23 +120,34 @@ async function extractTextFromPdf(pdfBytes: Uint8Array): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   // An empty workerSrc makes pdfjs-dist fall back to a "fake worker" path that
   // needs a real, loadable module to fall back to ("No workerSrc specified").
-  //
-  // The worker path must be a literal string, not built at runtime — Vercel's
-  // deployment file tracer (@vercel/nft) only detects and bundles files it can
-  // see referenced as literal specifiers, the same way it already does for
-  // the pdf.mjs import right above. A runtime-constructed specifier (tried
-  // previously, to dodge a *different* problem — see below) is invisible to
-  // it, so the worker file silently never made it into the deployed function
-  // ("Cannot find module 'pdfjs-dist/legacy/build/pdf.worker.mjs'").
-  //
-  // import.meta.resolve (not require.resolve) despite webpack's build-time
-  // "Critical dependency: Accessing import.meta directly is unsupported"
-  // warning: it's only a warning (build still succeeds) because webpack
-  // can't optimize the call, but Node still runs it natively at runtime.
-  // require.resolve with this same literal specifier is a hard build
-  // *error* instead, since webpack additionally tries to validate literal
-  // require targets against the target package's declared ESM type.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  // Getting a working workerSrc here took three attempts, each failing a
+  // different way, because two separate static analyzers each need to see
+  // this differently:
+  //   - Vercel's deployment file tracer (@vercel/nft) only bundles files it
+  //     can see referenced as a literal specifier — a runtime-built one is
+  //     invisible to it, so the worker file silently never made it into the
+  //     deployed function ("Cannot find module '...pdf.worker.mjs'").
+  //   - webpack, if it instead sees that literal specifier passed to
+  //     require.resolve, tries to validate it against the target package's
+  //     declared ESM type and fails the build outright. Passed to
+  //     import.meta.resolve it only warns at build time ("Critical
+  //     dependency: Accessing import.meta directly is unsupported") — but
+  //     that's not benign after all: webpack replaces import.meta with an
+  //     empty object at runtime, so the call itself throws
+  //     ("{}.resolve is not a function").
+  // So: a literal dynamic import satisfies the file tracer (side effect
+  // only — this loads the module but we still need a URL string for
+  // workerSrc itself, which this doesn't provide), and a *separate*,
+  // runtime-built specifier through createRequire gets that URL — this one
+  // webpack only warns about too ("the request of a dependency is an
+  // expression"), but unlike import.meta.resolve it isn't rewritten, so it
+  // actually resolves correctly at runtime, now that the import above
+  // guarantees the file is really present to resolve to.
+  // @ts-expect-error — side-effect import only, no type declarations for this entry point
+  await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  const require = createRequire(import.meta.url);
+  const workerSpecifier = ["pdfjs-dist", "legacy", "build", "pdf.worker.mjs"].join("/");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(require.resolve(workerSpecifier)).href;
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
