@@ -226,6 +226,19 @@ export interface Vendor {
   createdAt: string;
 }
 
+// ── Member feedback ───────────────────────────────────────────────────────────
+export type FeedbackCategory = "bug" | "suggestion" | "question" | "other";
+
+export interface Feedback {
+  id: string;
+  userId: string;
+  userEmail: string;
+  rating: number; // 1–5
+  category: FeedbackCategory;
+  message: string;
+  createdAt: string;
+}
+
 // ── AI consistency verification ───────────────────────────────────────────────
 export interface ConsistencyVerdict {
   consistent: boolean;

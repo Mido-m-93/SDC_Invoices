@@ -64,6 +64,8 @@ const SYSTEM_ITEMS = [
 
 const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon }];
 
+const FEEDBACK_ITEM = { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon };
+
 export default function AppShell({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
@@ -153,6 +155,27 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
+
+            {/* Feedback — visible to every member, not grouped/gated */}
+            {(() => {
+              const { key, href, icon: Icon } = FEEDBACK_ITEM;
+              const active = pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                    active
+                      ? "bg-white/10 text-white"
+                      : "text-white/60 hover:bg-white/5 hover:text-white",
+                  )}
+                >
+                  <Icon size={15} />
+                  <span>{t(key)}</span>
+                </Link>
+              );
+            })()}
 
             {/* Sales group */}
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white">
@@ -342,6 +365,21 @@ function GridIcon({ size = 18 }: { size?: number }) {
       <rect x="14" y="3" width="7" height="7" />
       <rect x="3" y="14" width="7" height="7" />
       <rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
+function FeedbackIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

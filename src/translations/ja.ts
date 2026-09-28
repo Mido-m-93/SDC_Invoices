@@ -8,6 +8,7 @@ const ja = {
   app_name_short: "請求書ツール",
   language_toggle: "EN",
   nav_dashboard: "ダッシュボード",
+  nav_feedback: "フィードバック",
   nav_proposals: "提案",
   nav_budget: "予算",
   nav_invoices: "請求書一覧",
@@ -1360,6 +1361,29 @@ const ja = {
   action_send_to_mf: "Money Forwardへ送信",
   mf_sent: "Money Forwardに送信済み",
   action_view_in_mf: "Money Forwardで確認",
+
+  // ── Feedback ────────────────────────────────────────────────────────────────
+  feedback_title: "フィードバック",
+  feedback_subtitle: "うまくいっていること、改善してほしいこと、要望などをお聞かせください。",
+  feedback_field_rating: "これまでの使い心地は？（1〜5）",
+  feedback_field_category: "カテゴリ",
+  feedback_field_message: "メッセージ",
+  feedback_field_message_placeholder: "ご意見・ご要望などをご自由にご記入ください",
+  feedback_category_bug: "不具合",
+  feedback_category_suggestion: "改善提案",
+  feedback_category_question: "質問",
+  feedback_category_other: "その他",
+  feedback_submit: "フィードバックを送信",
+  feedback_thank_you: "フィードバックありがとうございます！",
+  feedback_error_rating_required: "評価を選択してください",
+  feedback_error_submit: "フィードバックの送信に失敗しました",
+  feedback_admin_list_title: "送信一覧",
+  feedback_admin_list_empty: "まだフィードバックはありません。",
+  feedback_col_submitted_by: "送信者",
+  feedback_col_rating: "評価",
+  feedback_col_category: "カテゴリ",
+  feedback_col_message: "メッセージ",
+  feedback_col_submitted_at: "送信日時",
 } as const;
 
 export default ja;

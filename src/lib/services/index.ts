@@ -41,6 +41,7 @@ import type {
   IMemberService,
   IAccountingService,
   IReportingService,
+  IFeedbackService,
 } from "./types";
 
 import {
@@ -59,6 +60,7 @@ import {
   MockMemberService,
   MockAccountingService,
   MockReportingService,
+  MockFeedbackService,
 } from "./mock";
 import { MockNotificationService } from "./mock/notificationService";
 import { MockReminderService } from "./mock/reminderService";
@@ -86,6 +88,7 @@ import { SupabaseReportingService } from "./real/SupabaseReportingService";
 import { SupabaseProposalService } from "./real/SupabaseProposalService";
 import { SupabaseBudgetService } from "./real/SupabaseBudgetService";
 import { SupabasePaymentRecordService } from "./real/SupabasePaymentRecordService";
+import { SupabaseFeedbackService } from "./real/SupabaseFeedbackService";
 
 // ── Per-service mock flag helper ─────────────────────────────────────────────
 // Returns true (use mock) unless the flag is EXACTLY the string "false".
@@ -101,6 +104,7 @@ let _validation: IValidationService | undefined;
 let _storage: IStorageService | undefined;
 let _dashboard: IDashboardService | undefined;
 let _vendor: IVendorService | undefined;
+let _feedback: IFeedbackService | undefined;
 let _contract: IContractService | undefined;
 let _proposal: IProposalService | undefined;
 let _budget: IBudgetService | undefined;
@@ -182,6 +186,16 @@ export function getVendorService(): IVendorService {
       : new SupabaseVendorService();
   }
   return _vendor;
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+export function getFeedbackService(): IFeedbackService {
+  if (!_feedback) {
+    _feedback = isMock("USE_MOCK_STORAGE")
+      ? new MockFeedbackService()
+      : new SupabaseFeedbackService();
+  }
+  return _feedback;
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
