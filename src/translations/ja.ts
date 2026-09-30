@@ -636,7 +636,7 @@ const ja = {
   expenses_amount_extract_failed: "金額：領収書から抽出できませんでした",
   expenses_receipt_date: "領収書の日付",
   expenses_date_not_found: "日付：領収書に見つかりませんでした",
-  expenses_vendor: "取引先",
+  expenses_vendor: "メンバー",
   expenses_purpose: "目的",
   expenses_error_label: "エラー",
   expenses_delete_confirm: "この経費申請を削除しますか？",
