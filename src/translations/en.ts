@@ -1396,7 +1396,7 @@ const en = {
   archives_module_expenses: "Expense",
   archives_module_outbound_invoices: "Outbound Invoice",
   archives_module_invoices: "Invoice",
-  archives_module_logs: "Processing Log",
+  archives_module_logs: "Logs",
   archives_module_users: "User",
   archives_loading: "Loading…",
   archives_empty: "Nothing here — deleted items from any module will show up in this list.",
