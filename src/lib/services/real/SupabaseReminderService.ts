@@ -282,7 +282,7 @@ export class SupabaseReminderService implements IReminderService {
         this.detectGaps(month),
         this.detectStaleReviews(3),
         this.detectDueDateIssues(5),
-        db2.from("expense_claims").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]).lte("submitted_at", cutoff.toISOString()),
+        db2.from("expense_claims").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]).lte("submitted_at", cutoff.toISOString()).is("deleted_at", null),
         this.detectExpiredContracts(),
       ]);
       const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
@@ -315,7 +315,8 @@ export class SupabaseReminderService implements IReminderService {
         .from("expense_claims")
         .select("id, submitted_by, amount, currency, expense_date")
         .in("status", ["submitted", "under_review"])
-        .eq("receipt_url", "");
+        .eq("receipt_url", "")
+        .is("deleted_at", null);
       payload = { missing: data ?? [] };
     } else if (type === "stale_expense_review") {
       const cutoff = new Date();
@@ -325,7 +326,8 @@ export class SupabaseReminderService implements IReminderService {
         .from("expense_claims")
         .select("id, submitted_by, amount, currency, submitted_at")
         .in("status", ["submitted", "under_review"])
-        .lte("submitted_at", cutoff.toISOString());
+        .lte("submitted_at", cutoff.toISOString())
+        .is("deleted_at", null);
       payload = { stale: data ?? [] };
     } else if (type === "contract_expired") {
       const items = await this.detectExpiredContracts();
@@ -383,7 +385,7 @@ export class SupabaseReminderService implements IReminderService {
       this.detectStaleReviews(3),
       this.detectDueDateIssues(5),
       this.getLogs(month),
-      db.from("expense_claims").select("id", { count: "exact", head: true }).eq("status", "submitted"),
+      db.from("expense_claims").select("id", { count: "exact", head: true }).eq("status", "submitted").is("deleted_at", null),
       this.detectExpiredContracts(),
     ]);
 
