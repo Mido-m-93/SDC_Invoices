@@ -1414,6 +1414,10 @@ const en = {
   archives_unknown_submitter: "(unknown submitter)",
   archives_unknown_user: "(unknown user)",
   archives_run_label: "Run {id}",
+
+  logs_run_status_RUNNING: "Running",
+  logs_run_status_COMPLETE: "Complete",
+  logs_run_status_FAILED: "Failed",
 } as const;
 
 export default en;
