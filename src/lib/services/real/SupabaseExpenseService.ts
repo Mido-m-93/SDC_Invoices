@@ -178,7 +178,7 @@ function checkPolicyViolations(claim: ExpenseClaim): string[] {
     claim.category === "transport" && TRANSPORT_NO_RECEIPT.test(claim.description ?? "");
 
   if (!claim.receiptUrl && !isNoReceiptTransport) violations.push("MISSING_RECEIPT");
-  if (!claim.description) violations.push("MISSING_PURPOSE");
+  if (!submittedPurpose(claim)) violations.push("MISSING_PURPOSE");
   // Project/department not collected by the RC経費精算 form — skip this check.
   if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
     violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
