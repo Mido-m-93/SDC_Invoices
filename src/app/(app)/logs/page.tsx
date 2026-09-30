@@ -7,7 +7,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import TrashIcon from "@/components/ui/TrashIcon";
-import { useLanguage } from "@/translations";
+import { useLanguage, type TranslationKey } from "@/translations";
 import { fetchRuns, fetchLogs, clearAllRuns } from "@/lib/api/client";
 import { formatTimestamp, logResultColor } from "@/lib/utils";
 import type { ProcessingRun, ProcessingLog } from "@/types";
@@ -191,7 +191,7 @@ export default function LogsPage() {
                           <td className="px-4 py-2.5 text-stone-400 whitespace-nowrap">{log.submissionId}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap">
                             <span className={clsx("font-semibold", logResultColor(log.result))}>
-                              {log.result}
+                              {t(`log_result_${log.result}` as TranslationKey)}
                             </span>
                           </td>
                           <td className="px-4 py-2.5 text-stone-600 max-w-xs">{log.message}</td>
@@ -252,6 +252,7 @@ function RunMeta({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 function RunStatusPill({ status }: { status: ProcessingRun["status"] }) {
+  const { t } = useLanguage();
   const tones: Record<ProcessingRun["status"], BadgeTone> = {
     RUNNING:  "info",
     COMPLETE: "success",
@@ -259,7 +260,7 @@ function RunStatusPill({ status }: { status: ProcessingRun["status"] }) {
   };
   return (
     <Badge tone={tones[status]} className="font-mono">
-      {status}
+      {t(`logs_run_status_${status}` as TranslationKey)}
     </Badge>
   );
 }

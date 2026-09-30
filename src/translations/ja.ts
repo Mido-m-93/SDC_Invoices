@@ -1414,6 +1414,10 @@ const ja = {
   archives_unknown_submitter: "（提出者不明）",
   archives_unknown_user: "（不明なユーザー）",
   archives_run_label: "実行 {id}",
+
+  logs_run_status_RUNNING: "実行中",
+  logs_run_status_COMPLETE: "完了",
+  logs_run_status_FAILED: "失敗",
 } as const;
 
 export default ja;
