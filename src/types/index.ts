@@ -466,6 +466,7 @@ export interface ExpenseClaim {
   submittedAt: string;
   category: ExpenseCategory;
   description: string;
+  expenseReason: string;
   amount: number;
   currency: string;
   paymentMethod: ExpensePaymentMethod;
@@ -702,6 +703,10 @@ export interface Member {
   contractedAmount?: number | null;
   contractScope?: string | null;
   contractFileUrl?: string | null;
+  // True when contract fields came from the vision (scanned-image) extraction
+  // path rather than the text path — less reliable, so a human should confirm
+  // them before they're trusted the way text-extracted fields are.
+  contractNeedsReview?: boolean | null;
   // Set whenever a contract-extraction attempt is made (success or failure) so a
   // member whose PDF can't be read doesn't get retried on every single sync run.
   contractSyncAttemptedAt?: string | null;

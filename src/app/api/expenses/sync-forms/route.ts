@@ -31,7 +31,7 @@ function stableId(submittedAt: string, submittedBy: string, amount: string): str
 type ExpenseField =
   | "submittedAt" | "submittedBy" | "submittedByEmail"
   | "amount" | "expenseDate" | "receiptUrl"
-  | "description" | "bankAccount";
+  | "description" | "expenseReason" | "bankAccount";
 
 const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
   { keywords: ["Start time", "開始時刻"],                                                           field: "submittedAt" },
@@ -39,10 +39,11 @@ const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
   { keywords: ["金額", "Amount", "費用", "請求金額", "経費金額", "経費額", "合計"],                 field: "amount" },
   { keywords: ["日付", "Date", "支出日", "購入日", "経費発生日"],                                    field: "expenseDate" },
   { keywords: ["領収書", "Receipt", "添付", "ファイル", "upload", "attachment", "file", "請求書"], field: "receiptUrl" },
+  { keywords: ["Expense Reason", "経費理由", "reason"],                                            field: "expenseReason" },
   {
     keywords: [
       "備考", "Notes", "Route", "目的", "用途", "内容", "支出内容", "経費内容", "経費の目的",
-      "使途", "詳細", "Detail", "reason", "purpose", "description", "memo", "メモ", "コメント",
+      "使途", "詳細", "Detail", "purpose", "description", "memo", "メモ", "コメント",
     ],
     field: "description",
   },
@@ -138,6 +139,7 @@ function mapRow(
   if (!submittedBy) return null;
 
   const description  = get("description");
+  const expenseReason = get("expenseReason");
   const receiptRaw   = get("receiptUrl");
   const rawAt        = get("submittedAt");
   const rawAmount    = get("amount");
@@ -156,6 +158,7 @@ function mapRow(
     submittedAt,
     category,
     description,
+    expenseReason,
     amount:             parseAmount(rawAmount),
     currency:           "JPY",
     paymentMethod:      "personal_reimbursement",

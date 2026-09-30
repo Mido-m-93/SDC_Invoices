@@ -9,6 +9,7 @@
 //   日付( Date)            → expenseDate
 //   領収書の添付(...)       → receiptUrl
 //   備考交通費を申請...     → description (route / notes)
+//   Expense Reason          → expenseReason
 //   振込先銀行口座(...)     → bankAccount
 
 import { NextRequest, NextResponse } from "next/server";
@@ -78,7 +79,7 @@ function parseCSVText(text: string): Record<string, string>[] {
 type ExpenseField =
   | "submittedAt" | "submittedBy" | "submittedByEmail"
   | "amount" | "expenseDate" | "receiptUrl"
-  | "description" | "bankAccount";
+  | "description" | "expenseReason" | "bankAccount";
 
 const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
   { keywords: ["Start time", "開始時刻"],           field: "submittedAt" },
@@ -87,6 +88,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; field: ExpenseField }> = [
   { keywords: ["日付", "Date"],                     field: "expenseDate" },
   { keywords: ["領収書", "Receipt"],                 field: "receiptUrl" },
   { keywords: ["備考", "Notes", "Route"],            field: "description" },
+  { keywords: ["Expense Reason", "経費理由", "Reason"], field: "expenseReason" },
   { keywords: ["銀行口座", "Bank Account", "振込先"], field: "bankAccount" },
   // Most generic — must come last so it doesn't steal Email / Amount matches
   { keywords: ["お名前", "名前", "氏名", "Name"],   field: "submittedBy" },
@@ -178,6 +180,7 @@ function mapRow(
   if (!submittedBy) return null; // skip empty / header-only rows
 
   const description = get("description");
+  const expenseReason = get("expenseReason");
   const receiptRaw  = get("receiptUrl");
   const now         = new Date().toISOString();
 
@@ -195,6 +198,7 @@ function mapRow(
     submittedAt:        serialToISO(get("submittedAt")) || now,
     category,
     description,
+    expenseReason,
     amount:             parseAmount(get("amount")),
     currency:           "JPY",
     paymentMethod:      "personal_reimbursement",
