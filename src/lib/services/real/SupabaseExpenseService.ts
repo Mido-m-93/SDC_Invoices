@@ -23,6 +23,29 @@ Rules:
 
 This receipt may be in Japanese. Read all text carefully including headers, footers, and stamps.`;
 
+interface ParsedReceiptFields {
+  amount: number | null;
+  date: string | null;
+  vendor: string | null;
+  purpose: string | null;
+}
+
+function parseReceiptExtractionJson(content: string): ParsedReceiptFields {
+  const cleaned = content.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) return { amount: null, date: null, vendor: null, purpose: null };
+  const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+  const rawAmt = result.amount;
+  let amount: number | null = null;
+  if (typeof rawAmt === "number") {
+    amount = rawAmt;
+  } else if (typeof rawAmt === "string") {
+    const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
+    amount = isNaN(n) ? null : n;
+  }
+  return { amount, date: result.date ?? null, vendor: result.vendor ?? null, purpose: result.purpose ?? null };
+}
+
 function sniffMimeFromUrl(url: string): string {
   if (/\.pdf$/i.test(url))  return "application/pdf";
   if (/\.png$/i.test(url))  return "image/png";
@@ -267,11 +290,10 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: extract text locally (PDF only — Groq has no image/vision
-      // input, unlike the OpenAI vision path this replaced), then parse with
-      // Groq. A photographed/scanned receipt (image, no embedded text) is
-      // left with all fields null rather than extracted — same tradeoff as
-      // invoice/proposal/contract extraction elsewhere in this codebase.
+      // Phase 2: PDF receipts — extract text locally, then parse with Groq's
+      // text model. Image receipts (.jpg/.png/...) have no embedded text to
+      // extract, so they go through Groq's vision model instead, below —
+      // same split as contract extraction elsewhere in this codebase.
       if (fileBuffer && mimeType === "application/pdf") {
         try {
           const { getDocumentProxy, extractText } = await import("unpdf");
@@ -288,27 +310,52 @@ export class SupabaseExpenseService implements IExpenseService {
               messages: [{ role: "user", content: `${EXPENSE_EXTRACT_PROMPT}\n\nRECEIPT TEXT:\n${rawText.slice(0, 8000)}` }],
             });
 
-            const cleaned = (response.choices[0]?.message?.content ?? "").replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-            const m = cleaned.match(/\{[\s\S]*\}/);
-            if (m) {
-              const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
-              const rawAmt = result.amount;
-              if (typeof rawAmt === "number") {
-                extractedAmount = rawAmt;
-              } else if (typeof rawAmt === "string") {
-                const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
-                extractedAmount = isNaN(n) ? null : n;
-              }
-              extractedDate    = result.date    ?? null;
-              extractedVendor  = result.vendor  ?? null;
-              extractedPurpose = result.purpose ?? null;
-              if (extractedAmount !== null) {
-                amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
-              }
+            const parsed = parseReceiptExtractionJson(response.choices[0]?.message?.content ?? "");
+            extractedAmount  = parsed.amount;
+            extractedDate    = parsed.date;
+            extractedVendor  = parsed.vendor;
+            extractedPurpose = parsed.purpose;
+            if (extractedAmount !== null) {
+              amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
           }
         } catch (err) {
           console.error("[validateClaim] extraction failed:", err);
+          receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
+        }
+      } else if (fileBuffer) {
+        // Photographed/scanned receipt image — read directly via Groq's
+        // vision model (same model used for scanned contract images).
+        // Flagged nowhere as needing review here since amount/date mismatch
+        // detection below already surfaces a low-confidence read to the
+        // reviewer the same way a text-extraction failure would.
+        try {
+          if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+          const Groq = (await import("groq-sdk")).default;
+          const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+          const base64 = fileBuffer.toString("base64");
+          const response = await client.chat.completions.create({
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            max_tokens: 512,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: EXPENSE_EXTRACT_PROMPT },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+              ],
+            }],
+          });
+
+          const parsed = parseReceiptExtractionJson(response.choices[0]?.message?.content ?? "");
+          extractedAmount  = parsed.amount;
+          extractedDate    = parsed.date;
+          extractedVendor  = parsed.vendor;
+          extractedPurpose = parsed.purpose;
+          if (extractedAmount !== null) {
+            amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
+          }
+        } catch (err) {
+          console.error("[validateClaim] vision extraction failed:", err);
           receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
         }
       }
