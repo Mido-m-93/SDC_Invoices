@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
+import { useLanguage, type TranslationKey } from "@/translations";
 import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun, Contract } from "@/types";
 
 interface ArchivedAppUser {
@@ -15,16 +16,16 @@ interface ArchivedAppUser {
 
 type ModuleKey = "proposals" | "budgets" | "contracts" | "pipeline_sync" | "expenses" | "outbound_invoices" | "invoices" | "logs" | "users";
 
-const MODULE_LABEL: Record<ModuleKey, string> = {
-  proposals: "Proposal",
-  budgets: "Budget",
-  contracts: "Contract",
-  pipeline_sync: "Pipeline Sync",
-  expenses: "Expense",
-  outbound_invoices: "Outbound Invoice",
-  invoices: "Invoice",
-  logs: "Processing Log",
-  users: "User",
+const MODULE_LABEL_KEY: Record<ModuleKey, TranslationKey> = {
+  proposals: "archives_module_proposals",
+  budgets: "archives_module_budgets",
+  contracts: "archives_module_contracts",
+  pipeline_sync: "archives_module_pipeline_sync",
+  expenses: "archives_module_expenses",
+  outbound_invoices: "archives_module_outbound_invoices",
+  invoices: "archives_module_invoices",
+  logs: "archives_module_logs",
+  users: "archives_module_users",
 };
 
 // One shape all five modules' deleted items get normalized into, so the page
@@ -39,36 +40,38 @@ interface ArchivedItem {
   deletedBy: string | null;
 }
 
-function toArchivedProposal(p: Proposal): ArchivedItem {
+type Translate = (key: TranslationKey) => string;
+
+function toArchivedProposal(p: Proposal, t: Translate): ArchivedItem {
   return {
     key: `proposals:${p.id}`,
     module: "proposals",
     id: p.id,
-    title: p.projectName || "(untitled proposal)",
+    title: p.projectName || t("archives_untitled_proposal"),
     subtitle: p.clientName ?? "",
     deletedAt: p.deletedAt ?? null,
     deletedBy: p.deletedBy ?? null,
   };
 }
 
-function toArchivedBudget(b: Budget): ArchivedItem {
+function toArchivedBudget(b: Budget, t: Translate): ArchivedItem {
   return {
     key: `budgets:${b.id}`,
     module: "budgets",
     id: b.id,
-    title: b.projectName || "(untitled budget)",
+    title: b.projectName || t("archives_untitled_budget"),
     subtitle: b.clientName ?? "",
     deletedAt: b.deletedAt ?? null,
     deletedBy: b.deletedBy ?? null,
   };
 }
 
-function toArchivedContract(c: Contract): ArchivedItem {
+function toArchivedContract(c: Contract, t: Translate): ArchivedItem {
   return {
     key: `contracts:${c.id}`,
     module: "contracts",
     id: c.id,
-    title: c.clientName || c.projectName || "(untitled contract)",
+    title: c.clientName || c.projectName || t("archives_untitled_contract"),
     subtitle: c.projectName && c.clientName ? c.projectName : "",
     deletedAt: c.deletedAt ?? null,
     deletedBy: c.deletedBy ?? null,
@@ -87,60 +90,60 @@ function toArchivedPipeline(r: StagedPipelineRecord): ArchivedItem {
   };
 }
 
-function toArchivedExpense(c: ExpenseClaim): ArchivedItem {
+function toArchivedExpense(c: ExpenseClaim, t: Translate): ArchivedItem {
   return {
     key: `expenses:${c.id}`,
     module: "expenses",
     id: c.id,
-    title: c.description || "(no description)",
+    title: c.description || t("archives_no_description"),
     subtitle: `${c.submittedBy} · ${c.currency} ${c.amount.toLocaleString()}`,
     deletedAt: c.deletedAt ?? null,
     deletedBy: c.deletedBy ?? null,
   };
 }
 
-function toArchivedOutboundInvoice(inv: OutboundInvoice): ArchivedItem {
+function toArchivedOutboundInvoice(inv: OutboundInvoice, t: Translate): ArchivedItem {
   return {
     key: `outbound_invoices:${inv.id}`,
     module: "outbound_invoices",
     id: inv.id,
-    title: inv.invoiceNumber || inv.projectName || "(untitled invoice)",
+    title: inv.invoiceNumber || inv.projectName || t("archives_untitled_invoice"),
     subtitle: `${inv.clientName} · ${inv.currency} ${inv.total.toLocaleString()}`,
     deletedAt: inv.deletedAt ?? null,
     deletedBy: inv.deletedBy ?? null,
   };
 }
 
-function toArchivedInvoiceSubmission(s: InvoiceSubmission): ArchivedItem {
+function toArchivedInvoiceSubmission(s: InvoiceSubmission, t: Translate): ArchivedItem {
   return {
     key: `invoices:${s.id}`,
     module: "invoices",
     id: s.id,
-    title: s.payerName || "(unknown submitter)",
+    title: s.payerName || t("archives_unknown_submitter"),
     subtitle: `${s.closingMonth} · ${s.currency ?? "JPY"} ${s.claimedAmountTaxIncluded}`,
     deletedAt: s.deletedAt ?? null,
     deletedBy: s.deletedBy ?? null,
   };
 }
 
-function toArchivedRun(r: ProcessingRun): ArchivedItem {
+function toArchivedRun(r: ProcessingRun, t: Translate): ArchivedItem {
   return {
     key: `logs:${r.id}`,
     module: "logs",
     id: r.id,
-    title: `Run ${r.id}`,
+    title: t("archives_run_label").replace("{id}", r.id),
     subtitle: `${r.month} · ${r.status} · ${r.totalRows} row${r.totalRows === 1 ? "" : "s"}`,
     deletedAt: r.deletedAt ?? null,
     deletedBy: r.deletedBy ?? null,
   };
 }
 
-function toArchivedUser(u: ArchivedAppUser): ArchivedItem {
+function toArchivedUser(u: ArchivedAppUser, t: Translate): ArchivedItem {
   return {
     key: `users:${u.id}`,
     module: "users",
     id: u.id,
-    title: u.email || "(unknown user)",
+    title: u.email || t("archives_unknown_user"),
     subtitle: "",
     deletedAt: u.archivedAt,
     deletedBy: u.archivedBy,
@@ -160,6 +163,7 @@ const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
 };
 
 export default function ArchivesPage() {
+  const { t } = useLanguage();
   const { notify } = useNotifications();
   const [items, setItems] = useState<ArchivedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -195,24 +199,24 @@ export default function ArchivesPage() {
       ]);
 
       const all: ArchivedItem[] = [
-        ...(proposalsData.proposals ?? []).map(toArchivedProposal),
-        ...(budgetsData.budgets ?? []).map(toArchivedBudget),
-        ...(contractsData.contracts ?? []).map(toArchivedContract),
+        ...(proposalsData.proposals ?? []).map((p) => toArchivedProposal(p, t)),
+        ...(budgetsData.budgets ?? []).map((b) => toArchivedBudget(b, t)),
+        ...(contractsData.contracts ?? []).map((c) => toArchivedContract(c, t)),
         ...(pipelineData.records ?? []).map(toArchivedPipeline),
-        ...(expensesData.claims ?? []).map(toArchivedExpense),
-        ...(outboundData.invoices ?? []).map(toArchivedOutboundInvoice),
-        ...(invoicesData.submissions ?? []).map(toArchivedInvoiceSubmission),
-        ...(logsData.runs ?? []).map(toArchivedRun),
-        ...(usersData.users ?? []).map(toArchivedUser),
+        ...(expensesData.claims ?? []).map((c) => toArchivedExpense(c, t)),
+        ...(outboundData.invoices ?? []).map((inv) => toArchivedOutboundInvoice(inv, t)),
+        ...(invoicesData.submissions ?? []).map((s) => toArchivedInvoiceSubmission(s, t)),
+        ...(logsData.runs ?? []).map((r) => toArchivedRun(r, t)),
+        ...(usersData.users ?? []).map((u) => toArchivedUser(u, t)),
       ].sort((a, b) => (a.deletedAt ?? "") < (b.deletedAt ?? "") ? 1 : -1);
 
       setItems(all);
     } catch {
-      setError("Failed to load archived items");
+      setError(t("archives_error_load"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -223,16 +227,16 @@ export default function ArchivesPage() {
       const res = await fetch(RESTORE_ENDPOINT[item.module](item.id), { method: "POST" });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        const message = data.error ?? "Failed to restore item";
+        const message = data.error ?? t("archives_error_restore");
         setError(message);
         notify("error", message, "/archives");
         return;
       }
       setItems((prev) => prev.filter((i) => i.key !== item.key));
-      notify("success", `Restored "${item.title}"`, "/archives");
+      notify("success", t("archives_restored_toast").replace("{title}", item.title), "/archives");
     } catch {
-      setError("Failed to restore item");
-      notify("error", "Failed to restore item", "/archives");
+      setError(t("archives_error_restore"));
+      notify("error", t("archives_error_restore"), "/archives");
     } finally {
       setRestoringKey(null);
     }
@@ -255,8 +259,8 @@ export default function ArchivesPage() {
   return (
     <>
       <PageHeader
-        title="Archives"
-        subtitle="Deleted items from Proposals, Budget, Contracts, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users — restore anything moved here by mistake."
+        title={t("archives_title")}
+        subtitle={t("archives_subtitle")}
       />
 
       {error && (
@@ -275,17 +279,17 @@ export default function ArchivesPage() {
               filter === f ? "border-[#1a3d2b] bg-[#1a3d2b] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-stone-400"
             }`}
           >
-            {f === "all" ? "All" : MODULE_LABEL[f]}
+            {f === "all" ? t("archives_filter_all") : t(MODULE_LABEL_KEY[f])}
             <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filter === f ? "bg-white/20" : "bg-stone-100"}`}>{counts[f]}</span>
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-stone-400">Loading…</p>
+        <p className="text-sm text-stone-400">{t("archives_loading")}</p>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white px-6 py-12 text-center">
-          <p className="text-sm text-stone-400">Nothing here — deleted items from any module will show up in this list.</p>
+          <p className="text-sm text-stone-400">{t("archives_empty")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -294,18 +298,18 @@ export default function ArchivesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">
-                    {MODULE_LABEL[item.module]}
+                    {t(MODULE_LABEL_KEY[item.module])}
                   </span>
                 </div>
                 <p className="mt-1 truncate font-medium text-stone-900">{item.title}</p>
                 {item.subtitle && <p className="truncate text-sm text-stone-500">{item.subtitle}</p>}
                 <p className="mt-0.5 text-xs text-stone-400">
-                  Deleted {item.deletedAt ? new Date(item.deletedAt).toLocaleString() : "—"}
-                  {item.deletedBy ? ` by ${item.deletedBy}` : ""}
+                  {t("archives_deleted_at").replace("{date}", item.deletedAt ? new Date(item.deletedAt).toLocaleString() : "—")}
+                  {item.deletedBy ? t("archives_deleted_by").replace("{user}", item.deletedBy) : ""}
                 </p>
               </div>
               <Button variant="primary" size="sm" loading={restoringKey === item.key} onClick={() => restore(item)}>
-                Restore
+                {t("archives_restore_button")}
               </Button>
             </div>
           ))}
