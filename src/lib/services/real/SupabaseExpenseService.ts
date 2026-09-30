@@ -341,7 +341,7 @@ export class SupabaseExpenseService implements IExpenseService {
           const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
           const base64 = fileBuffer.toString("base64");
           const response = await client.chat.completions.create({
-            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            model: "qwen/qwen3.8-27b",
             max_tokens: 512,
             messages: [{
               role: "user",

@@ -120,7 +120,7 @@ export async function extractContractFieldsFromImage(
     const client = await getClient();
     const base64 = Buffer.from(imageBytes).toString("base64");
     const response = await client.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "qwen/qwen3.8-27b",
       max_tokens: 512,
       messages: [
         {
