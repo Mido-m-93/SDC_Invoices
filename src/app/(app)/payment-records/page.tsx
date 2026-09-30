@@ -28,21 +28,10 @@ const EMPTY: Omit<PaymentRecord, "id" | "createdAt"> = {
   notes: "",
 };
 
-// Records with a vendorId are money going out (a cash payment); records
-// without one are tied to a client invoice/contract, i.e. money coming in
-// (a cash collection). The underlying data and API are shared with
-// /payment-records — this is just a direction-filtered view onto the same table.
-interface PaymentDirectionPageProps {
-  direction: "collection" | "payment";
-  title: string;
-  subtitle: string;
-}
-
-export default function PaymentDirectionPage({ direction, title, subtitle }: PaymentDirectionPageProps) {
+export default function PaymentRecordsPage() {
   const { t } = useLanguage();
   const { notify } = useNotifications();
   const statusLabel = (s: PaymentRecordStatus) => t(`payment_records_status_${s}` as TranslationKey);
-  const isCollection = direction === "collection";
 
   const [records, setRecords] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,14 +46,13 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
     try {
       const res = await fetch("/api/payment-records");
       const data = await res.json() as { records: PaymentRecord[] };
-      const filtered = (data.records ?? []).filter((r) => (isCollection ? !r.vendorId : !!r.vendorId));
-      setRecords(filtered);
+      setRecords(data.records ?? []);
     } catch {
       setError(t("payment_records_load_failed"));
     } finally {
       setLoading(false);
     }
-  }, [t, isCollection]);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -90,11 +78,11 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
         : { ...form, id: generateId("pay"), createdAt: new Date().toISOString() };
       await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       setShowForm(false);
-      notify("success", editing ? `Updated payment record for ${form.vendorId || form.invoiceId}` : `Created payment record for ${form.vendorId || form.invoiceId}`, isCollection ? "/cash-collection" : "/cash-payment");
+      notify("success", editing ? `Updated payment record for ${form.vendorId || form.invoiceId}` : `Created payment record for ${form.vendorId || form.invoiceId}`, "/payment-records");
       load();
     } catch (err) {
       setError(t("payment_records_save_failed"));
-      notify("error", `Failed to save payment record: ${String(err)}`, isCollection ? "/cash-collection" : "/cash-payment");
+      notify("error", `Failed to save payment record: ${String(err)}`, "/payment-records");
     } finally {
       setSaving(false);
     }
@@ -104,11 +92,11 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
     if (!confirm(t("payment_records_delete_confirm"))) return;
     try {
       await fetch(`/api/payment-records/${id}`, { method: "DELETE" });
-      notify("success", `Deleted payment record ${id}`, isCollection ? "/cash-collection" : "/cash-payment");
+      notify("success", `Deleted payment record ${id}`, "/payment-records");
       load();
     } catch (err) {
       setError(t("payment_records_save_failed"));
-      notify("error", `Failed to delete payment record ${id}: ${String(err)}`, isCollection ? "/cash-collection" : "/cash-payment");
+      notify("error", `Failed to delete payment record ${id}: ${String(err)}`, "/payment-records");
     }
   }
 
@@ -120,8 +108,8 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
       <div className="p-6 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900">{title}</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{subtitle}</p>
+            <h1 className="text-xl font-semibold text-stone-900">{t("payment_records_title")}</h1>
+            <p className="text-sm text-stone-500 mt-0.5">{t("payment_records_subtitle")}</p>
           </div>
           <button onClick={openNew} className="px-4 py-2 rounded-lg bg-[#1a3d2b] text-white text-sm font-medium hover:bg-[#14301f] transition">
             {t("payment_records_add_button")}
@@ -147,14 +135,9 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
             <table className="w-full text-sm">
               <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                 <tr>
-                  {isCollection ? (
-                    <>
-                      <th className="px-4 py-3 text-left">{t("payment_records_field_invoice_id")}</th>
-                      <th className="px-4 py-3 text-left">{t("payment_records_field_contract_id")}</th>
-                    </>
-                  ) : (
-                    <th className="px-4 py-3 text-left">{t("payment_records_col_vendor")}</th>
-                  )}
+                  <th className="px-4 py-3 text-left">{t("payment_records_field_invoice_id")}</th>
+                  <th className="px-4 py-3 text-left">{t("payment_records_field_contract_id")}</th>
+                  <th className="px-4 py-3 text-left">{t("payment_records_col_vendor")}</th>
                   <th className="px-4 py-3 text-right">{t("payment_records_field_amount")}</th>
                   <th className="px-4 py-3 text-left">{t("payment_records_col_date")}</th>
                   <th className="px-4 py-3 text-left">{t("payment_records_col_method")}</th>
@@ -166,20 +149,17 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
               <tbody className="divide-y divide-stone-100">
                 {records.map((r) => (
                   <tr key={r.id} className="hover:bg-stone-50">
-                    {isCollection ? (
-                      <>
-                        <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.invoiceId}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.contractId}</td>
-                      </>
-                    ) : (
-                      <td className="px-4 py-3 text-stone-600">{r.vendorId}</td>
-                    )}
+                    <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.invoiceId}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.contractId}</td>
+                    <td className="px-4 py-3 text-stone-600">{r.vendorId}</td>
                     <td className="px-4 py-3 text-right text-stone-700">{r.currency} {r.amount.toLocaleString()}</td>
                     <td className="px-4 py-3 text-stone-500">{r.paymentDate}</td>
                     <td className="px-4 py-3 text-stone-600">{r.paymentMethod}</td>
                     <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.referenceNumber || "—"}</td>
                     <td className="px-4 py-3">
-                      <Badge tone={STATUS_TONES[r.status]}>{statusLabel(r.status)}</Badge>
+                      <Badge tone={STATUS_TONES[r.status]}>
+                        {statusLabel(r.status)}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">
@@ -202,14 +182,9 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
                 <button onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-700 text-xl">×</button>
               </div>
               <div className="px-6 py-5 space-y-4">
-                {isCollection ? (
-                  <>
-                    <Field label={t("payment_records_field_invoice_id")}><input className={inp} value={form.invoiceId} onChange={e => set("invoiceId", e.target.value)} /></Field>
-                    <Field label={t("payment_records_field_contract_id")}><input className={inp} value={form.contractId} onChange={e => set("contractId", e.target.value)} /></Field>
-                  </>
-                ) : (
-                  <Field label={t("payment_records_field_vendor_id")}><input className={inp} value={form.vendorId} onChange={e => set("vendorId", e.target.value)} /></Field>
-                )}
+                <Field label={t("payment_records_field_invoice_id")}><input className={inp} value={form.invoiceId} onChange={e => set("invoiceId", e.target.value)} /></Field>
+                <Field label={t("payment_records_field_contract_id")}><input className={inp} value={form.contractId} onChange={e => set("contractId", e.target.value)} /></Field>
+                <Field label={t("payment_records_field_vendor_id")}><input className={inp} value={form.vendorId} onChange={e => set("vendorId", e.target.value)} /></Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label={t("payment_records_field_amount")}><input type="number" className={inp} value={form.amount} onChange={e => set("amount", Number(e.target.value))} /></Field>
                   <Field label={t("payment_records_field_currency")}><select className={inp} value={form.currency} onChange={e => set("currency", e.target.value)}><option>JPY</option><option>USD</option><option>EUR</option></select></Field>
