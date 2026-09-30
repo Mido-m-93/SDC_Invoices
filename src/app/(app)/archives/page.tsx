@@ -271,7 +271,7 @@ export default function ArchivesPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(["all", "proposals", "budgets", "contracts", "pipeline_sync", "expenses", "outbound_invoices", "invoices", "logs", "users"] as const).map((f) => (
+        {(["all", "proposals", "budgets", "contracts", "expenses", "invoices", "logs", "users"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
