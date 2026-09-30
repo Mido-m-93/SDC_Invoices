@@ -165,6 +165,12 @@ function purposeOverlaps(submitted: string, extracted: string): boolean {
   return shared / Math.min(a.size, b.size) >= 0.3;
 }
 
+// Transportation Fee Reason (description) only makes sense for transport
+// expenses; every other category states its purpose in Expense Reason.
+function submittedPurpose(claim: ExpenseClaim): string {
+  return claim.category === "transport" ? claim.description ?? "" : claim.expenseReason ?? "";
+}
+
 function checkPolicyViolations(claim: ExpenseClaim): string[] {
   const violations: string[] = [];
 
@@ -370,7 +376,7 @@ export class SupabaseExpenseService implements IExpenseService {
     const dateMatchesReceipt =
       extractedDate !== null && normalizeDate(extractedDate) === normalizeDate(claim.expenseDate);
     const purposeMatchesReceipt =
-      extractedPurpose !== null && purposeOverlaps(claim.description ?? "", extractedPurpose);
+      extractedPurpose !== null && purposeOverlaps(submittedPurpose(claim), extractedPurpose);
 
     return {
       claimId: claim.id,

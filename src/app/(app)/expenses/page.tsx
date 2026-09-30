@@ -716,7 +716,7 @@ export default function ExpensesPage() {
                     ? `${t("expenses_vendor")}: ${validationPanel.result.extractedVendor}`
                     : "",
                   validationPanel.result.extractedPurpose
-                    ? `${t("expenses_purpose")}: ${validationPanel.result.extractedPurpose} ${validationPanel.result.purposeMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} "${validationPanel.claim.description}"`}`
+                    ? `${t("expenses_purpose")}: ${validationPanel.result.extractedPurpose} ${validationPanel.result.purposeMatchesReceipt ? t("expenses_matches_submitted") : `${t("expenses_mismatch_submitted")} "${validationPanel.claim.category === "transport" ? validationPanel.claim.description : validationPanel.claim.expenseReason}"`}`
                     : "",
                   (validationPanel.result as {receiptFetchError?: string}).receiptFetchError
                     ? `${t("expenses_error_label")}: ${(validationPanel.result as {receiptFetchError?: string}).receiptFetchError}`
