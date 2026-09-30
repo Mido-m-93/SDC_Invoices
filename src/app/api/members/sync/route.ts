@@ -123,6 +123,7 @@ interface FetchContractFieldsResult {
     contractEnd: string | null;
     contractedAmount: number | null;
     contractScope: string | null;
+    contractNeedsReview: boolean;
   } | null;
   // Resolved independently of contractInfo — the file's webUrl is known as
   // soon as a candidate is matched, before its content is ever downloaded/read.
@@ -141,10 +142,11 @@ async function fetchContractFields(displayName: string): Promise<FetchContractFi
     ]);
     return {
       fields: contractInfo ? {
-        contractStart:    contractInfo.contractStart,
-        contractEnd:      contractInfo.contractEnd,
-        contractedAmount: contractInfo.contractedAmount,
-        contractScope:    contractInfo.scope,
+        contractStart:       contractInfo.contractStart,
+        contractEnd:         contractInfo.contractEnd,
+        contractedAmount:    contractInfo.contractedAmount,
+        contractScope:       contractInfo.scope,
+        contractNeedsReview: contractInfo.needsReview,
       } : null,
       contractFileUrl: contractFileUrl ?? null,
     };

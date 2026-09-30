@@ -46,6 +46,7 @@ const EMPTY_FORM: Omit<ExpenseClaim, "id" | "createdAt" | "updatedAt" | "status"
   submittedByEmail: "",
   category: "other",
   description: "",
+  expenseReason: "",
   amount: 0,
   currency: "JPY",
   paymentMethod: "personal_reimbursement",
@@ -140,6 +141,7 @@ export default function ExpensesPage() {
       submittedByEmail: c.submittedByEmail,
       category: c.category,
       description: c.description,
+      expenseReason: c.expenseReason,
       amount: c.amount,
       currency: c.currency,
       paymentMethod: c.paymentMethod,
@@ -413,6 +415,7 @@ export default function ExpensesPage() {
                 <th className="px-4 py-3 text-left">{t("expenses_col_submitted_by")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_category")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_description")}</th>
+                <th className="px-4 py-3 text-left">{t("expenses_col_expense_reason")}</th>
                 <th className="px-4 py-3 text-right">{t("expenses_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_submitted")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_expense_date")}</th>
@@ -427,6 +430,7 @@ export default function ExpensesPage() {
                   <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{categoryLabel(c.category)}</td>
                   <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.description || "—"}</td>
+                  <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.expenseReason || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-800">
                     {c.currency} {c.amount.toLocaleString()}
                     {c.extractedAmount !== null && Math.abs(c.extractedAmount - c.amount) > 1 && (
@@ -529,6 +533,9 @@ export default function ExpensesPage() {
               </Field>
               <Field label={t("expenses_field_description")}>
                 <textarea className={`${inp} h-16`} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder={t("expenses_field_description_placeholder")} />
+              </Field>
+              <Field label={t("expenses_field_expense_reason")}>
+                <textarea className={`${inp} h-16`} value={form.expenseReason} onChange={(e) => set("expenseReason", e.target.value)} placeholder={t("expenses_field_expense_reason_placeholder")} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label={t("expenses_field_amount")}>

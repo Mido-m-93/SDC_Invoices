@@ -254,7 +254,7 @@ async function extractFromCandidates(
       return {
         fileName: candidate.name,
         fileUrl: candidate.webUrl,
-        contractInfo: { memberName: null, contractedAmount: null, contractStart: filenameDate, contractEnd: null, paymentTerms: null, scope: null },
+        contractInfo: { memberName: null, contractedAmount: null, contractStart: filenameDate, contractEnd: null, paymentTerms: null, scope: null, needsReview: true },
         extractionError: null,
       };
     }

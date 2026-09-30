@@ -2,9 +2,12 @@
 // lib/services/ai/contractExtractor.ts — member contract PDF field extraction
 //
 // Groq only (no OpenAI): text is extracted locally via unpdf, then parsed by
-// Groq's LLM — same pattern as invoice extraction in pdfExtractor.ts. No
-// vision fallback, so a scanned (image-only) contract yields no fields; see
-// extractContractFieldsFromImage.
+// Groq's LLM — same pattern as invoice extraction in pdfExtractor.ts. Scanned
+// (image-only) contracts go through a vision model instead — see
+// extractContractFieldsFromImage — and come back flagged `needsReview: true`
+// since a vision model reading a scanned document is materially less
+// reliable on exact dates/amounts than the text path, and can hallucinate a
+// value rather than fail cleanly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ExtractedContractFields {
@@ -14,6 +17,10 @@ export interface ExtractedContractFields {
   contractEnd: string | null;
   paymentTerms: string | null;
   scope: string | null;
+  // True only for fields read off a scanned image via the vision model —
+  // callers should surface these for a human to confirm rather than trusting
+  // them the way text-extracted fields are trusted.
+  needsReview: boolean;
 }
 
 function parseCurrencyStr(str: string | null | undefined): number | null {
@@ -47,13 +54,13 @@ Rules:
 - Dates must be YYYY-MM-DD
 - Return null for any field you cannot find with confidence`;
 
-function parseContractResponse(text: string): ExtractedContractFields {
+function parseContractResponse(text: string, needsReview = false): ExtractedContractFields {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: Record<string, unknown> = {};
   try {
     parsed = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
   } catch {
-    return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null };
+    return { memberName: null, contractedAmount: null, contractStart: null, contractEnd: null, paymentTerms: null, scope: null, needsReview };
   }
   return {
     memberName:       typeof parsed.memberName === "string" ? parsed.memberName : null,
@@ -62,6 +69,7 @@ function parseContractResponse(text: string): ExtractedContractFields {
     contractEnd:      typeof parsed.contractEnd === "string" ? parsed.contractEnd : null,
     paymentTerms:     typeof parsed.paymentTerms === "string" ? parsed.paymentTerms : null,
     scope:            typeof parsed.scope === "string" ? parsed.scope : null,
+    needsReview,
   };
 }
 
@@ -98,16 +106,37 @@ export async function extractContractFields(pdfBytes: Uint8Array): Promise<Extra
   return extractViaGroq(text);
 }
 
-// Scanned contract images (.jpg/.png) — Groq has no vision/image input, and
-// unpdf only reads PDFs, so there's no text to extract here at all. Returning
-// an empty result (rather than throwing) lets the caller's candidate loop
-// move on to try another file for this member instead of failing outright.
+// Scanned contract images (.jpg/.png) — read via a Groq vision model instead
+// of the text pipeline above. Flagged `needsReview: true` unconditionally:
+// a vision model reading a scanned legal document is meaningfully less
+// reliable on exact dates/amounts than the text path, so the caller should
+// treat these fields as a draft for a human to confirm, not a fact.
 export async function extractContractFieldsFromImage(
-  _imageBytes: Uint8Array,
-  _mimeType: string,
+  imageBytes: Uint8Array,
+  mimeType: string,
   _filename: string,
 ): Promise<ExtractedContractFields> {
-  return parseContractResponse("{}");
+  try {
+    const client = await getClient();
+    const base64 = Buffer.from(imageBytes).toString("base64");
+    const response = await client.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      max_tokens: 512,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: CONTRACT_EXTRACT_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+          ],
+        },
+      ],
+    });
+    return parseContractResponse(response.choices[0]?.message?.content ?? "{}", true);
+  } catch (err) {
+    console.warn("[contractExtractor] vision extraction failed:", err);
+    return parseContractResponse("{}", true);
+  }
 }
 
 // Word contracts (.doc/.docx) — extract plain text locally (mammoth, pure JS,

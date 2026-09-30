@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     submittedAt: body.submittedAt ?? now,
     category: body.category ?? "other",
     description: body.description ?? "",
+    expenseReason: body.expenseReason ?? "",
     amount: body.amount ?? 0,
     currency: body.currency ?? "JPY",
     paymentMethod: body.paymentMethod ?? "personal_reimbursement",
