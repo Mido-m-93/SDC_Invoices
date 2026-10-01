@@ -1,5 +1,4 @@
 import "server-only";
-import OpenAI, { toFile } from "openai";
 import { getSupabaseClient } from "@/lib/supabase";
 import { downloadSharePointFile } from "./SharePointContractService";
 import type { IExpenseService } from "../types";
@@ -9,7 +8,7 @@ import type {
   ExpenseValidationResult,
 } from "@/types";
 
-const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the attached receipt or invoice carefully and extract the following fields.
+const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the receipt/invoice text below carefully and extract the following fields.
 
 Return ONLY a JSON object — no markdown, no explanation, no code fences:
 {"amount":5000,"date":"2026-07-03","vendor":"ヤマダ電機","currency":"JPY","purpose":"USB cable for office laptop"}
@@ -23,6 +22,29 @@ Rules:
 - If a field is truly not present, use null.
 
 This receipt may be in Japanese. Read all text carefully including headers, footers, and stamps.`;
+
+interface ParsedReceiptFields {
+  amount: number | null;
+  date: string | null;
+  vendor: string | null;
+  purpose: string | null;
+}
+
+function parseReceiptExtractionJson(content: string): ParsedReceiptFields {
+  const cleaned = content.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) return { amount: null, date: null, vendor: null, purpose: null };
+  const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
+  const rawAmt = result.amount;
+  let amount: number | null = null;
+  if (typeof rawAmt === "number") {
+    amount = rawAmt;
+  } else if (typeof rawAmt === "string") {
+    const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
+    amount = isNaN(n) ? null : n;
+  }
+  return { amount, date: result.date ?? null, vendor: result.vendor ?? null, purpose: result.purpose ?? null };
+}
 
 function sniffMimeFromUrl(url: string): string {
   if (/\.pdf$/i.test(url))  return "application/pdf";
@@ -40,6 +62,7 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     submitted_at: c.submittedAt ? new Date(c.submittedAt).toISOString() : new Date().toISOString(),
     category: c.category,
     description: c.description,
+    expense_reason: c.expenseReason,
     amount: c.amount,
     currency: c.currency,
     payment_method: c.paymentMethod,
@@ -82,6 +105,7 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     submittedAt: row.submitted_at as string,
     category: row.category as ExpenseClaim["category"],
     description: row.description as string,
+    expenseReason: (row.expense_reason as string) ?? "",
     amount: row.amount as number,
     currency: (row.currency as string) ?? "JPY",
     paymentMethod: row.payment_method as ExpenseClaim["paymentMethod"],
@@ -141,6 +165,12 @@ function purposeOverlaps(submitted: string, extracted: string): boolean {
   return shared / Math.min(a.size, b.size) >= 0.3;
 }
 
+// Transportation Fee Reason (description) only makes sense for transport
+// expenses; every other category states its purpose in Expense Reason.
+function submittedPurpose(claim: ExpenseClaim): string {
+  return claim.category === "transport" ? claim.description ?? "" : claim.expenseReason ?? "";
+}
+
 function checkPolicyViolations(claim: ExpenseClaim): string[] {
   const violations: string[] = [];
 
@@ -148,7 +178,7 @@ function checkPolicyViolations(claim: ExpenseClaim): string[] {
     claim.category === "transport" && TRANSPORT_NO_RECEIPT.test(claim.description ?? "");
 
   if (!claim.receiptUrl && !isNoReceiptTransport) violations.push("MISSING_RECEIPT");
-  if (!claim.description) violations.push("MISSING_PURPOSE");
+  if (!submittedPurpose(claim)) violations.push("MISSING_PURPOSE");
   // Project/department not collected by the RC経費精算 form — skip this check.
   if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
     violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
@@ -266,73 +296,73 @@ export class SupabaseExpenseService implements IExpenseService {
         receiptFetchError = String(err);
       }
 
-      // Phase 2: upload receipt to OpenAI then extract with GPT-4o via Responses API
-      if (fileBuffer) {
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const isImage = mimeType.startsWith("image/");
-        const extension = mimeType.split("/")[1] ?? "pdf";
-        let uploadedId: string | null = null;
+      // Phase 2: PDF receipts — extract text locally, then parse with Groq's
+      // text model. Image receipts (.jpg/.png/...) have no embedded text to
+      // extract, so they go through Groq's vision model instead, below —
+      // same split as contract extraction elsewhere in this codebase.
+      if (fileBuffer && mimeType === "application/pdf") {
         try {
-          // Upload the file — filename extension must match the actual mime type
-          const uploaded = await client.files.create({
-            file:    await toFile(fileBuffer, `receipt.${extension}`, { type: mimeType }),
-            purpose: "user_data",
-          });
-          uploadedId = uploaded.id;
+          const { getDocumentProxy, extractText } = await import("unpdf");
+          const pdf = await getDocumentProxy(new Uint8Array(fileBuffer));
+          const { text: rawText } = await extractText(pdf, { mergePages: true });
 
-          // Call Responses API with the uploaded file
-          // Images require "input_image"; documents (PDFs) require "input_file"
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const resp: any = await (client.responses.create as any)({
-            model: "gpt-4o",
-            input: [{
-              role: "user",
-              content: [
-                isImage
-                  ? { type: "input_image", file_id: uploadedId }
-                  : { type: "input_file", file_id: uploadedId },
-                { type: "input_text", text: EXPENSE_EXTRACT_PROMPT },
-              ],
-            }],
-          });
+          if (rawText.trim()) {
+            if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+            const Groq = (await import("groq-sdk")).default;
+            const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+            const response = await client.chat.completions.create({
+              model: "openai/gpt-oss-120b",
+              max_tokens: 512,
+              messages: [{ role: "user", content: `${EXPENSE_EXTRACT_PROMPT}\n\nRECEIPT TEXT:\n${rawText.slice(0, 8000)}` }],
+            });
 
-          // Extract text — check output_text first, then walk output array
-          let rawText = "";
-          if (typeof resp.output_text === "string" && resp.output_text) {
-            rawText = resp.output_text;
-          } else if (Array.isArray(resp.output)) {
-            for (const item of resp.output) {
-              for (const part of (item.content ?? [])) {
-                if (typeof part.text === "string") rawText += part.text;
-              }
-            }
-          }
-
-          const cleaned = rawText.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-          const m = cleaned.match(/\{[\s\S]*\}/);
-          if (m) {
-            const result = JSON.parse(m[0]) as { amount?: number | string; date?: string; vendor?: string; purpose?: string };
-            const rawAmt = result.amount;
-            if (typeof rawAmt === "number") {
-              extractedAmount = rawAmt;
-            } else if (typeof rawAmt === "string") {
-              const n = parseFloat(rawAmt.replace(/[¥,￥\s]/g, ""));
-              extractedAmount = isNaN(n) ? null : n;
-            }
-            extractedDate    = result.date    ?? null;
-            extractedVendor  = result.vendor  ?? null;
-            extractedPurpose = result.purpose ?? null;
+            const parsed = parseReceiptExtractionJson(response.choices[0]?.message?.content ?? "");
+            extractedAmount  = parsed.amount;
+            extractedDate    = parsed.date;
+            extractedVendor  = parsed.vendor;
+            extractedPurpose = parsed.purpose;
             if (extractedAmount !== null) {
               amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
             }
           }
         } catch (err) {
-          console.error("[validateClaim] GPT extraction failed:", err);
+          console.error("[validateClaim] extraction failed:", err);
           receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
-        } finally {
-          if (uploadedId) {
-            client.files.delete(uploadedId).catch(() => { /* cleanup */ });
+        }
+      } else if (fileBuffer) {
+        // Photographed/scanned receipt image — read directly via Groq's
+        // vision model (same model used for scanned contract images).
+        // Flagged nowhere as needing review here since amount/date mismatch
+        // detection below already surfaces a low-confidence read to the
+        // reviewer the same way a text-extraction failure would.
+        try {
+          if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+          const Groq = (await import("groq-sdk")).default;
+          const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+          const base64 = fileBuffer.toString("base64");
+          const response = await client.chat.completions.create({
+            model: "qwen/qwen3.8-27b",
+            max_tokens: 512,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: EXPENSE_EXTRACT_PROMPT },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+              ],
+            }],
+          });
+
+          const parsed = parseReceiptExtractionJson(response.choices[0]?.message?.content ?? "");
+          extractedAmount  = parsed.amount;
+          extractedDate    = parsed.date;
+          extractedVendor  = parsed.vendor;
+          extractedPurpose = parsed.purpose;
+          if (extractedAmount !== null) {
+            amountMatchesReceipt = Math.abs(extractedAmount - claim.amount) <= 1;
           }
+        } catch (err) {
+          console.error("[validateClaim] vision extraction failed:", err);
+          receiptFetchError = `Extraction failed: ${String(err).slice(0, 200)}`;
         }
       }
     }
@@ -346,7 +376,7 @@ export class SupabaseExpenseService implements IExpenseService {
     const dateMatchesReceipt =
       extractedDate !== null && normalizeDate(extractedDate) === normalizeDate(claim.expenseDate);
     const purposeMatchesReceipt =
-      extractedPurpose !== null && purposeOverlaps(claim.description ?? "", extractedPurpose);
+      extractedPurpose !== null && purposeOverlaps(submittedPurpose(claim), extractedPurpose);
 
     return {
       claimId: claim.id,

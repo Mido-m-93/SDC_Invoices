@@ -23,7 +23,10 @@ interface Props {
 export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF, onPayeeCreated }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
-  const currency = s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
+  // Prefer the currency detected from the PDF's own text over the
+  // submission's own currency field or a guess from the form string — the
+  // document itself is the most reliable source for what it's actually in.
+  const currency = v?.extractedFields?.currency ?? s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
 
   // ── Derived / optimistic state ────────────────────────────────────────────
   const effectiveVendorMatched = v?.vendorMatched ?? false;
@@ -49,7 +52,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
       />
 
       {/* Panel */}
-      <div className="relative bg-white h-full w-full max-w-2xl shadow-2xl overflow-y-auto flex flex-col">
+      <div className="relative bg-white h-full w-full max-w-4xl shadow-2xl overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-6 py-4 flex items-center justify-between">
           <div>
@@ -88,7 +91,7 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
               <Field label={t("field_attachment")} span>
                 {s.invoiceAttachment ? (
                   <a
-                    href={s.invoiceAttachment}
+                    href={`/api/files/sharepoint-download?url=${encodeURIComponent(s.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${s.payerName || s.id}.pdf`)}&inline=1`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#235c43]"
@@ -281,7 +284,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function FieldGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3">{children}</div>;
+  return <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{children}</div>;
 }
 
 function Field({

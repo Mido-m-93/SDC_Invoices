@@ -9,12 +9,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "server-only";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import type { ConsistencyVerdict } from "@/types";
 
-let _client: OpenAI | undefined;
-function getClient(): OpenAI {
-  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _client: Groq | undefined;
+function getClient(): Groq {
+  if (!_client) _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
   return _client;
 }
 
@@ -32,12 +32,12 @@ export async function verifyConsistency(
 ): Promise<ConsistencyVerdict> {
   const checkedAt = new Date().toISOString();
 
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set — required for consistency verification");
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set — required for consistency verification");
   }
 
   const response = await getClient().chat.completions.create({
-    model: "gpt-4o",
+    model: "openai/gpt-oss-120b",
     max_tokens: 1024,
     messages: [
       {

@@ -71,6 +71,10 @@ export interface ExtractedInvoiceFields {
   memberName: string | null;       // invoice issuer = the member/contractor (receives payment)
   payerNameOnDoc: string | null;  // company being billed = SDC
   rawText: string;                     // full extracted text for audit
+  // Detected from the PDF's own text (¥/$/USD/円 etc.), not guessed from the
+  // form submission — the document itself is the source of truth for what
+  // currency its amounts are actually in. Defaults to "JPY" (see detectCurrency).
+  currency: string;
 }
 
 // ── Validation result for a single invoice ───────────────────────────────────
@@ -219,6 +223,19 @@ export interface Vendor {
   defaultReviewer: string;
   defaultProject: string;
   status: "active" | "inactive";
+  createdAt: string;
+}
+
+// ── Member feedback ───────────────────────────────────────────────────────────
+export type FeedbackCategory = "bug" | "suggestion" | "question" | "other";
+
+export interface Feedback {
+  id: string;
+  userId: string;
+  userEmail: string;
+  rating: number; // 1–5
+  category: FeedbackCategory;
+  message: string;
   createdAt: string;
 }
 
@@ -449,6 +466,7 @@ export interface ExpenseClaim {
   submittedAt: string;
   category: ExpenseCategory;
   description: string;
+  expenseReason: string;
   amount: number;
   currency: string;
   paymentMethod: ExpensePaymentMethod;
@@ -684,6 +702,11 @@ export interface Member {
   contractEnd?: string | null;
   contractedAmount?: number | null;
   contractScope?: string | null;
+  contractFileUrl?: string | null;
+  // True when contract fields came from the vision (scanned-image) extraction
+  // path rather than the text path — less reliable, so a human should confirm
+  // them before they're trusted the way text-extracted fields are.
+  contractNeedsReview?: boolean | null;
   // Set whenever a contract-extraction attempt is made (success or failure) so a
   // member whose PDF can't be read doesn't get retried on every single sync run.
   contractSyncAttemptedAt?: string | null;

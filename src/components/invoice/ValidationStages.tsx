@@ -181,7 +181,11 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
   // Always show the AI-extracted member name for Drive search label; fall back to form name
   const driveSearchLabel = pdfPayeeName ?? rawPayerName ?? "this member";
 
-  const currency = detectCurrency(submission?.claimedAmountTaxIncluded ?? "");
+  // Prefer the currency detected from the PDF's own text — the document
+  // itself is the source of truth for what its amounts are in, more so than
+  // guessing from the form submission (which may not mention a currency at
+  // all, or may not match what's actually printed on the invoice).
+  const currency = v.extractedFields?.currency ?? detectCurrency(submission?.claimedAmountTaxIncluded ?? "");
   const pdfAmountStr = pdfTotal !== null ? formatAmount(pdfTotal, currency) : null;
 
   const stage3Detail = (() => {
@@ -231,7 +235,9 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
         status={stage1Status}
         statusLabel={statusLabel(stage1Status)}
         detail={stage1Detail}
-        link={submission?.invoiceAttachment || null}
+        link={submission?.invoiceAttachment
+          ? `/api/files/sharepoint-download?url=${encodeURIComponent(submission.invoiceAttachment)}&filename=${encodeURIComponent(`invoice_${submission.payerName || submission.id}.pdf`)}&inline=1`
+          : null}
         linkLabel={t("validate_view_invoice")}
       />
       <StageCard

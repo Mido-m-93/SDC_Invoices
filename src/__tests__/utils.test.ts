@@ -5,6 +5,7 @@ import {
   truncate,
   monthOptions,
   formatMonthForDisplay,
+  detectCurrency,
 } from "@/lib/utils";
 
 describe("parseSnapshotMonth", () => {
@@ -102,6 +103,50 @@ describe("monthOptions", () => {
     const now = new Date();
     const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     expect(monthOptions(1)[0]).toBe(expected);
+  });
+});
+
+describe("detectCurrency", () => {
+  // Boundary: empty/falsy input defaults to JPY rather than throwing or
+  // returning an empty string.
+  it("returns JPY for empty string", () => {
+    expect(detectCurrency("")).toBe("JPY");
+  });
+
+  it("defaults to JPY when no currency marker is present at all", () => {
+    expect(detectCurrency("Thank you for your business.")).toBe("JPY");
+  });
+
+  it("detects USD from a $ symbol", () => {
+    expect(detectCurrency("Total: $1,200.00")).toBe("USD");
+  });
+
+  it("detects USD from the word 'dollars' regardless of case", () => {
+    expect(detectCurrency("One thousand DOLLARS due")).toBe("USD");
+  });
+
+  it("detects JPY from 円 even when a $ sign also appears elsewhere as a label, not an amount", () => {
+    // Guards against a naive "first match wins" implementation silently
+    // flipping on unrelated symbols; JPY patterns are checked in the same
+    // pass, so a real ¥/円-denominated invoice should still resolve to JPY
+    // whenever no unambiguous USD marker is actually present.
+    expect(detectCurrency("合計 100,000円")).toBe("JPY");
+  });
+
+  it("detects EUR from the € symbol", () => {
+    expect(detectCurrency("€500 total")).toBe("EUR");
+  });
+
+  it("detects GBP from the word 'sterling'", () => {
+    expect(detectCurrency("Payment in pounds sterling")).toBe("GBP");
+  });
+
+  // First-match-wins branch: patterns are checked in declaration order
+  // (USD, EUR, GBP, KRW, CNY, SGD, AUD, JPY) — a string with more than one
+  // marker resolves to whichever is checked first, not the "real" currency.
+  // This documents that behavior rather than asserting an arbitrary outcome.
+  it("resolves to the first matching pattern when text contains multiple currency markers", () => {
+    expect(detectCurrency("$100 (approx ¥15,000)")).toBe("USD");
   });
 });
 

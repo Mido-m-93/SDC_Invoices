@@ -55,7 +55,8 @@ export class MockExpenseService implements IExpenseService {
     if (!claim.receiptUrl && !claim.receiptFilename && !isNoReceiptTransport) {
       violations.push("MISSING_RECEIPT");
     }
-    if (!claim.description) violations.push("MISSING_PURPOSE");
+    const submittedPurpose = claim.category === "transport" ? claim.description : claim.expenseReason;
+    if (!submittedPurpose) violations.push("MISSING_PURPOSE");
     if (claim.amount > 100000 && claim.paymentMethod === "personal_reimbursement") {
       violations.push("HIGH_AMOUNT_PERSONAL_REIMBURSEMENT");
     }

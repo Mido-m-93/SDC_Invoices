@@ -106,7 +106,7 @@ const CONTRACT_EXTRACTION_TIMEOUT_MS = 12_000;
 // SharePoint periodically — a renewed contract (new file, or the same file
 // edited in place) should get picked up without anyone having to notice the
 // alert and manually re-trigger it. Cooldown keeps this from re-hitting the
-// same still-genuinely-expired member (and burning an OpenAI call) every
+// same still-genuinely-expired member (and burning a Groq call) every
 // single day once nothing about their folder has changed.
 const EXPIRED_RECHECK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -123,29 +123,36 @@ interface FetchContractFieldsResult {
     contractEnd: string | null;
     contractedAmount: number | null;
     contractScope: string | null;
+    contractNeedsReview: boolean;
   } | null;
+  // Resolved independently of contractInfo — the file's webUrl is known as
+  // soon as a candidate is matched, before its content is ever downloaded/read.
+  // So a candidate whose AI text extraction fails (bad scan, rate limit, etc.)
+  // can still yield a usable link even though `fields` comes back null.
+  contractFileUrl: string | null;
 }
 
 async function fetchContractFields(displayName: string): Promise<FetchContractFieldsResult> {
   try {
-    const { contractInfo } = await Promise.race([
+    const { contractInfo, contractFileUrl } = await Promise.race([
       checkMemberBySharePointContracts(displayName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`contract extraction timed out after ${CONTRACT_EXTRACTION_TIMEOUT_MS}ms`)), CONTRACT_EXTRACTION_TIMEOUT_MS)
       ),
     ]);
-    if (!contractInfo) return { fields: null };
     return {
-      fields: {
-        contractStart:    contractInfo.contractStart,
-        contractEnd:      contractInfo.contractEnd,
-        contractedAmount: contractInfo.contractedAmount,
-        contractScope:    contractInfo.scope,
-      },
+      fields: contractInfo ? {
+        contractStart:       contractInfo.contractStart,
+        contractEnd:         contractInfo.contractEnd,
+        contractedAmount:    contractInfo.contractedAmount,
+        contractScope:       contractInfo.scope,
+        contractNeedsReview: contractInfo.needsReview,
+      } : null,
+      contractFileUrl: contractFileUrl ?? null,
     };
   } catch (err) {
     console.warn(`[members/sync] contract field extraction failed/timed out for "${displayName}":`, err);
-    return { fields: null };
+    return { fields: null, contractFileUrl: null };
   }
 }
 
@@ -216,12 +223,20 @@ async function runSync(retryFailed = false): Promise<{
       const needsExpiredRecheck = isMemberContractExpired(existingMember, new Date())
         && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
 
-      if ((needsInitialExtraction || needsExpiredRecheck) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
+      // A member synced before contractFileUrl was tracked has contract fields
+      // but no file link — same cooldown as the expiry recheck so a contract
+      // whose file genuinely can't be resolved isn't re-fetched every run.
+      const needsFileUrlBackfill = existingMember.contractStart != null
+        && existingMember.contractFileUrl == null
+        && Date.now() - lastAttempt > EXPIRED_RECHECK_COOLDOWN_MS;
+
+      if ((needsInitialExtraction || needsExpiredRecheck || needsFileUrlBackfill) && contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
         contractsBackfilled++;
         const result = await fetchContractFields(displayName);
         await service.saveMember({
           ...existingMember,
           ...(result.fields ?? {}),
+          contractFileUrl: result.contractFileUrl ?? existingMember.contractFileUrl ?? null,
           ...(isAutoSynced && result.fields?.contractStart ? { joinDate: result.fields.contractStart } : {}),
           contractSyncAttemptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -232,12 +247,14 @@ async function runSync(retryFailed = false): Promise<{
 
     const now: string = new Date().toISOString();
     let fields: FetchContractFieldsResult["fields"] = null;
+    let contractFileUrl: string | null = null;
     let attemptedExtraction = false;
     if (contractsBackfilled < MAX_CONTRACT_EXTRACTIONS_PER_RUN) {
       contractsBackfilled++;
       attemptedExtraction = true;
       const result = await fetchContractFields(displayName);
       fields = result.fields;
+      contractFileUrl = result.contractFileUrl;
     }
     const newMember: Member = {
       id:           generateId("mbr"),
@@ -257,6 +274,7 @@ async function runSync(retryFailed = false): Promise<{
       createdAt:    now,
       updatedAt:    now,
       ...fields,
+      contractFileUrl,
       ...(attemptedExtraction ? { contractSyncAttemptedAt: now } : {}),
     };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AppShell from "@/components/layout/AppShell";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
@@ -117,7 +116,7 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
     setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <AppShell>
+    <>
       <div className="p-6 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -236,7 +235,7 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }
 

@@ -35,10 +35,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     };
     await storageSvc.saveRun(run);
 
-    // Run receipt validation and SharePoint member check in parallel
+    // Run receipt validation and SharePoint member check in parallel. Only
+    // matched/contractFileUrl are read below — skipExtraction avoids an
+    // entirely unused contract-field Groq call on every single validation.
     const [result, spResult] = await Promise.all([
       svc.validateClaim(claim),
-      checkMemberBySharePointContracts(claim.submittedBy).catch(() => ({
+      checkMemberBySharePointContracts(claim.submittedBy, { skipExtraction: true }).catch(() => ({
         matched: false,
         contractFileName: null,
         contractFileUrl: null,
@@ -53,7 +55,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       contractFileUrl:  spResult.contractFileUrl ?? null,
     };
 
-    // Persist extracted fields back to claim
+    // Persist extracted fields back to claim. expenseReason is only ever
+    // filled by the submitter or an import, so suggest the AI's receipt
+    // read for it here rather than overwrite anything the submitter typed.
     if (
       fullResult.extractedAmount !== null ||
       fullResult.extractedDate ||
@@ -65,6 +69,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         extractedDate:    fullResult.extractedDate,
         extractedVendor:  fullResult.extractedVendor,
         policyViolations: fullResult.policyViolations,
+        expenseReason:    claim.expenseReason || fullResult.extractedPurpose || claim.expenseReason,
         updatedAt:        new Date().toISOString(),
       });
     }

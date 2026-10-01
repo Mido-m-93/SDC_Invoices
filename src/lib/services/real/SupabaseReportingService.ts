@@ -13,7 +13,7 @@ export class SupabaseReportingService implements IReportingService {
       db.from("proposals").select("status"),
       db.from("outbound_invoices").select("status, total, currency"),
       db.from("accounting_entries").select("type, amount_jpy, status").eq("month", month),
-      db.from("expense_claims").select("status"),
+      db.from("expense_claims").select("status").is("deleted_at", null),
       db.from("contracts").select("status"),
       db.from("vendors").select("status"),
     ]);

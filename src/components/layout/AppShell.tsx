@@ -53,13 +53,14 @@ const FINANCE_ITEMS = [
 // nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
 const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
-const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/feedback"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
   { key: "nav_users" as const, href: "/users", icon: UsersIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
+  { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon },
 ];
 
 const NAV_ITEMS = [{ key: "nav_dashboard" as const, href: "/dashboard", icon: GridIcon }];
@@ -342,6 +343,21 @@ function GridIcon({ size = 18 }: { size?: number }) {
       <rect x="14" y="3" width="7" height="7" />
       <rect x="3" y="14" width="7" height="7" />
       <rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
+function FeedbackIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

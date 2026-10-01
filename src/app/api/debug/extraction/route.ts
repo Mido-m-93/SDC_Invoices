@@ -16,29 +16,7 @@ export async function GET(req: NextRequest) {
     process.env.AZURE_CLIENT_ID &&
     process.env.AZURE_CLIENT_SECRET
   );
-  const hasGoogleDocAI = !!(
-    process.env.GOOGLE_DOCUMENT_AI_PROJECT_ID &&
-    process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID
-  );
   const groqKey = process.env.GROQ_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-
-  // Test OpenAI API
-  let openaiPing: { ok: boolean; error?: string } = { ok: false };
-  if (openaiKey) {
-    try {
-      const { default: OpenAI } = await import("openai");
-      const client = new OpenAI({ apiKey: openaiKey });
-      const res = await client.responses.create({
-        model: "gpt-4o-mini",
-        input: "Hi",
-        max_output_tokens: 5,
-      });
-      openaiPing = { ok: !!res.output_text };
-    } catch (err) {
-      openaiPing = { ok: false, error: String(err) };
-    }
-  }
 
   // Test Groq API
   let groqPing: { ok: boolean; error?: string } = { ok: false };
@@ -47,7 +25,7 @@ export async function GET(req: NextRequest) {
       const Groq = (await import("groq-sdk")).default;
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });
@@ -57,30 +35,23 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Test pdfjs-dist import
-  let pdfjsImport: { ok: boolean; error?: string } = { ok: false };
+  // Test unpdf import (local PDF text extraction — no Groq call needed)
+  let unpdfImport: { ok: boolean; error?: string } = { ok: false };
   try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    pdfjsImport = { ok: typeof pdfjsLib.getDocument === "function" };
+    const { getDocumentProxy } = await import("unpdf");
+    unpdfImport = { ok: typeof getDocumentProxy === "function" };
   } catch (err) {
-    pdfjsImport = { ok: false, error: String(err) };
+    unpdfImport = { ok: false, error: String(err) };
   }
-
-  const extractionPriority = hasGoogleDocAI ? "google_doc_ai" : openaiKey ? "openai" : groqKey ? "groq" : "none";
 
   if (!url) {
     return NextResponse.json({
       status: "config_only",
-      extractionPriority,
-      openaiKeySet: !!openaiKey,
-      openaiKeyPrefix: openaiKey ? openaiKey.slice(0, 8) + "..." : null,
-      openaiApiReachable: openaiPing,
       groqKeySet: !!groqKey,
       groqKeyPrefix: groqKey ? groqKey.slice(0, 8) + "..." : null,
       groqApiReachable: groqPing,
-      pdfjsImportOk: pdfjsImport,
+      unpdfImportOk: unpdfImport,
       azureCredsSet: hasAzure,
-      googleDocAISet: hasGoogleDocAI,
     });
   }
 

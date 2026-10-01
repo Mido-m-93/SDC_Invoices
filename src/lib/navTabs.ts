@@ -22,6 +22,7 @@ export const MANAGEABLE_TABS: ManageableTab[] = [
   { href: "/logs",            labelKey: "nav_logs" },
   { href: "/archives",        labelKey: "nav_archives" },
   { href: "/config",          labelKey: "nav_config" },
+  { href: "/feedback",        labelKey: "nav_feedback" },
 ];
 
 /** `null` allowedTabs means unrestricted — every tab is visible. */
