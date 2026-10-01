@@ -75,6 +75,28 @@ export async function GET(req: Request) {
       folderMeta = { error: String(e) };
     }
 
+    // Step 2.5: actually attempt a write — the only way to get a definitive
+    // answer on write permission, rather than guessing from the Drive UI
+    // (which role was actually granted, and whether it propagated yet).
+    let writeTest: Record<string, unknown> = {};
+    try {
+      const created = await drive.files.create({
+        requestBody: {
+          name: `__permission_test_${Date.now()}`,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [rootFolderId],
+        },
+        fields: "id",
+        supportsAllDrives: true,
+      });
+      writeTest = { ok: true, createdId: created.data.id };
+      if (created.data.id) {
+        await drive.files.delete({ fileId: created.data.id, supportsAllDrives: true }).catch(() => {});
+      }
+    } catch (e) {
+      writeTest = { ok: false, error: String(e) };
+    }
+
     // Step 3: list everything directly in root (subfolders + files)
     const rootRes = await drive.files.list({
       q: `'${rootFolderId}' in parents and trashed=false`,
@@ -181,6 +203,7 @@ export async function GET(req: Request) {
       rootFolderId,
       keyDiag,
       folderMeta,
+      writeTest,
       itemsInRoot: rootItems,
       subfolderContents,
       ...(searchResult !== null ? { searchResult } : {}),
