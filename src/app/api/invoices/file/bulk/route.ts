@@ -5,7 +5,17 @@ import { getDriveService, getStorageService } from "@/lib/services";
 import { DEFAULT_CONFIG, buildMonthFolderName } from "@/config/defaults";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
-import type { InvoiceValidationResult, FiledDocument } from "@/types";
+import { fetchPdfBytes } from "@/lib/services/real/RealValidationService";
+import type { InvoiceValidationResult, InvoiceSubmission, FiledDocument } from "@/types";
+
+function guessOriginalFilename(url: string, fallback: string): string {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return last && last.includes(".") ? last : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +40,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { validations } = body as { validations?: InvoiceValidationResult[] };
+  const { validations, submissions } = body as {
+    validations?: InvoiceValidationResult[];
+    submissions?: InvoiceSubmission[];
+  };
 
   if (!Array.isArray(validations) || validations.length === 0) {
     return NextResponse.json(
@@ -38,6 +51,13 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (!Array.isArray(submissions) || submissions.length === 0) {
+    return NextResponse.json(
+      { error: "Provide a non-empty 'submissions' array in body" },
+      { status: 400 }
+    );
+  }
+  const submissionById = new Map(submissions.map((s) => [s.id, s]));
 
   // Rule 10: only process READY or human-approved
   const eligible = validations.filter(
@@ -56,6 +76,15 @@ export async function POST(req: NextRequest) {
 
   for (const validation of eligible) {
     try {
+      const submission = submissionById.get(validation.submissionId);
+      if (!submission?.invoiceAttachment) {
+        errors.push({
+          submissionId: validation.submissionId,
+          error: "No matching submission (with invoiceAttachment) provided",
+        });
+        continue;
+      }
+
       const folderName =
         validation.targetFolderPath || buildMonthFolderName("", config);
       const folderId = await driveSvc.ensureMonthFolder({
@@ -76,8 +105,11 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const attachment = await driveSvc.fetchAttachment("mock-url");
-      if (!attachment) {
+      // Fetch the real source attachment (SharePoint-hosted) — same
+      // downloader RealValidationService uses, not driveSvc's
+      // Google-Drive-only fetchAttachment().
+      const attachment = await fetchPdfBytes(submission.invoiceAttachment);
+      if (!attachment.ok) {
         errors.push({
           submissionId: validation.submissionId,
           error: "Could not fetch attachment",
@@ -93,7 +125,7 @@ export async function POST(req: NextRequest) {
 
       const filedDoc: FiledDocument = {
         submissionId: validation.submissionId,
-        originalFilename: attachment.filename,
+        originalFilename: guessOriginalFilename(submission.invoiceAttachment, validation.proposedFilename),
         newFilename: validation.proposedFilename,
         driveFolderId: folderId,
         driveFileId: fileId,

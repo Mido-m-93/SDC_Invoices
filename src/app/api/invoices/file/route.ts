@@ -8,7 +8,19 @@ import {
 import { DEFAULT_CONFIG, buildMonthFolderName } from "@/config/defaults";
 import { generateId } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth-guard";
-import type { InvoiceValidationResult, FiledDocument } from "@/types";
+import { fetchPdfBytes } from "@/lib/services/real/RealValidationService";
+import type { InvoiceValidationResult, InvoiceSubmission, FiledDocument } from "@/types";
+
+// Best-effort original filename from the source URL — falls back to the
+// proposed filename when the URL has no usable name segment.
+function guessOriginalFilename(url: string, fallback: string): string {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return last && last.includes(".") ? last : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +44,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { validation } = body as { validation?: InvoiceValidationResult };
+  const { validation, submission } = body as {
+    validation?: InvoiceValidationResult;
+    submission?: InvoiceSubmission;
+  };
 
   if (!validation) {
     return NextResponse.json(
       { error: "Provide 'validation' in body" },
+      { status: 400 }
+    );
+  }
+  if (!submission?.invoiceAttachment) {
+    return NextResponse.json(
+      { error: "Provide 'submission' (with invoiceAttachment) in body" },
       { status: 400 }
     );
   }
@@ -78,9 +99,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch attachment (mock returns dummy bytes)
-    const attachment = await driveSvc.fetchAttachment("mock-url");
-    if (!attachment) {
+    // Fetch the real source attachment (SharePoint-hosted) — not a Google
+    // Drive file, so this uses the same downloader RealValidationService
+    // uses, not driveSvc's Google-Drive-only fetchAttachment().
+    const attachment = await fetchPdfBytes(submission.invoiceAttachment!);
+    if (!attachment.ok) {
       return NextResponse.json(
         { error: "Could not fetch attachment" },
         { status: 502 }
@@ -96,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     const filedDoc: FiledDocument = {
       submissionId: validation.submissionId,
-      originalFilename: attachment.filename,
+      originalFilename: guessOriginalFilename(submission.invoiceAttachment!, validation.proposedFilename),
       newFilename: validation.proposedFilename,
       driveFolderId: folderId,
       driveFileId: fileId,

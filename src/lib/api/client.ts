@@ -143,20 +143,22 @@ export async function patchSubmissionCurrency(
 }
 
 export async function fileInvoice(
-  validation: InvoiceValidationResult
+  validation: InvoiceValidationResult,
+  submission: InvoiceSubmission
 ): Promise<FiledDocument> {
   const data = await apiFetch<{ filedDocument: FiledDocument }>(
     "/api/invoices/file",
     {
       method: "POST",
-      body: JSON.stringify({ validation }),
+      body: JSON.stringify({ validation, submission }),
     }
   );
   return data.filedDocument;
 }
 
 export async function fileInvoiceBulk(
-  validations: InvoiceValidationResult[]
+  validations: InvoiceValidationResult[],
+  submissions: InvoiceSubmission[]
 ): Promise<{
   filed: FiledDocument[];
   skipped: { submissionId: string; reason: string }[];
@@ -165,7 +167,7 @@ export async function fileInvoiceBulk(
 }> {
   return apiFetch("/api/invoices/file/bulk", {
     method: "POST",
-    body: JSON.stringify({ validations }),
+    body: JSON.stringify({ validations, submissions }),
   });
 }
 

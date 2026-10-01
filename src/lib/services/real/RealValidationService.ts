@@ -14,7 +14,11 @@ function isPdf(bytes: Uint8Array): boolean {
     bytes[2] === 0x44 && bytes[3] === 0x46;
 }
 
-async function fetchPdfBytes(url: string): Promise<{ data: Uint8Array; ok: boolean }> {
+// Exported for reuse by the filing routes, which need to re-download the
+// same source PDF (SharePoint-hosted) to upload it to Drive — the filing
+// routes previously called a Google-Drive-only fetchAttachment() with a
+// hardcoded "mock-url" placeholder that never worked against real data.
+export async function fetchPdfBytes(url: string): Promise<{ data: Uint8Array; ok: boolean }> {
   // SharePoint URLs (from Microsoft Forms attachments) require Graph API auth.
   // A plain fetch() follows the auth redirect and returns an HTML login page —
   // isPdf() below guards against feeding that HTML to Claude.

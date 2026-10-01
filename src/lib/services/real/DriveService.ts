@@ -63,6 +63,8 @@ export class RealDriveService implements IDriveService {
     const existing = await drive.files.list({
       q: `'${rootFolderId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: "files(id,name)",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
     if (existing.data.files?.length) {
       return existing.data.files[0].id!;
@@ -74,6 +76,7 @@ export class RealDriveService implements IDriveService {
         parents: [rootFolderId],
       },
       fields: "id",
+      supportsAllDrives: true,
     });
     return folder.data.id!;
   }
@@ -94,6 +97,7 @@ export class RealDriveService implements IDriveService {
       requestBody: { name: filename, parents: [folderId] },
       media: { mimeType: "application/pdf", body: stream },
       fields: "id,webViewLink",
+      supportsAllDrives: true,
     });
     return {
       fileId: res.data.id!,

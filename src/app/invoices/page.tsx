@@ -192,7 +192,7 @@ export default function InvoicesPage() {
     setError(null);
     setSavedMsg(null);
     try {
-      const fd = await fileInvoice(item.validation);
+      const fd = await fileInvoice(item.validation, item.submission);
       const updated = { ...item, filedDocument: fd };
       setItems((prev) =>
         prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
