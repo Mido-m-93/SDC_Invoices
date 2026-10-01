@@ -274,7 +274,9 @@ describe("buildValidationResult", () => {
     const result = buildValidationResult(
       baseSubmission, goodExtracted, true, false, DEFAULT_CONFIG
     );
-    expect(result.targetFolderPath).toContain("請求書");
+    // Files directly in the month folder — no "請求書" wrapper folder
+    // exists in the real Drive structure.
+    expect(result.targetFolderPath).not.toContain("請求書");
     expect(result.targetFolderPath).toContain("2026");
   });
 });

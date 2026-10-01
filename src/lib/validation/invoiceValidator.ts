@@ -134,7 +134,9 @@ export function safeValidationResult(
         originalFilename: "invoice.pdf",
         closingMonth: submission.closingMonth,
       }),
-      targetFolderPath: `請求書/${buildMonthFolderName(submission.closingMonth, config)}`,
+      // Files directly in the month folder — matches how invoices actually
+      // sit in Drive (no "請求書" wrapper folder exists there).
+      targetFolderPath: buildMonthFolderName(submission.closingMonth, config),
     };
   }
 }
@@ -322,6 +324,7 @@ function buildTargetPath(
   submission: InvoiceSubmission,
   config: AppConfig
 ): string {
-  const folderName = buildMonthFolderName(submission.closingMonth, config);
-  return `請求書/${folderName}`;
+  // Files directly in the month folder — matches how invoices actually sit
+  // in Drive (no "請求書" wrapper folder exists there).
+  return buildMonthFolderName(submission.closingMonth, config);
 }

@@ -60,8 +60,77 @@ export class RealDriveService implements IDriveService {
     folderName: string;
   }) {
     const drive = await this.getDrive();
+    const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+    // folderName arrives pre-built (e.g. "2026年07月" or "2026-07"), but real
+    // folders in this Drive carry extra suffixes ("支払い分", "分") and aren't
+    // zero-padded ("4月", not "04月") — an exact-name match never hits, which
+    // used to silently create a disconnected new folder every time instead of
+    // filing into the month folder that already has everything else. Parse
+    // year/month back out and search tolerantly, same as the duplicate-check
+    // in /api/invoices/validate, before ever creating something new.
+    const parsed =
+      folderName.match(/^(\d{4})-(\d{1,2})$/) ??
+      folderName.match(/^(\d{4})年(\d{1,2})月/);
+    const yearStr = parsed?.[1];
+    const monthStr = parsed?.[2]?.padStart(2, "0");
+
+    if (yearStr && monthStr) {
+      const monthNoPad = String(Number(monthStr));
+      const candidates = [`${yearStr}年${monthNoPad}月`, `${yearStr}年${monthStr}月`, `${yearStr}-${monthStr}`];
+
+      const findIn = async (parentId: string): Promise<string | null> => {
+        const results = await Promise.all(candidates.map((name) =>
+          drive.files.list({
+            q: `name contains '${name}' and mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed=false`,
+            fields: "files(id,name)",
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
+            pageSize: 1,
+          })
+        ));
+        for (const r of results) {
+          const mf = r.data.files?.[0];
+          if (mf?.id) return mf.id;
+        }
+        return null;
+      };
+
+      let found = await findIn(rootFolderId);
+      if (!found) {
+        // Older months may nest one level deeper, under a "YYYY年度" year folder.
+        const yearFolders = await drive.files.list({
+          q: `name contains '年度' and mimeType = '${FOLDER_MIME}' and '${rootFolderId}' in parents and trashed=false`,
+          fields: "files(id,name)",
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+          pageSize: 20,
+        });
+        const matches = await Promise.all(
+          (yearFolders.data.files ?? []).filter((f) => !!f.id).map((f) => findIn(f.id!))
+        );
+        found = matches.find((id) => id !== null) ?? null;
+      }
+      if (found) return found;
+
+      // Genuinely nothing existing anywhere — create one directly under root,
+      // using the non-zero-padded naming that matches real folders here.
+      const created = await drive.files.create({
+        requestBody: {
+          name: `${yearStr}年${monthNoPad}月`,
+          mimeType: FOLDER_MIME,
+          parents: [rootFolderId],
+        },
+        fields: "id",
+        supportsAllDrives: true,
+      });
+      return created.data.id!;
+    }
+
+    // Couldn't parse a year/month out of folderName at all — fall back to the
+    // old literal exact-name behavior.
     const existing = await drive.files.list({
-      q: `'${rootFolderId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      q: `'${rootFolderId}' in parents and name='${folderName}' and mimeType='${FOLDER_MIME}' and trashed=false`,
       fields: "files(id,name)",
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
@@ -72,7 +141,7 @@ export class RealDriveService implements IDriveService {
     const folder = await drive.files.create({
       requestBody: {
         name: folderName,
-        mimeType: "application/vnd.google-apps.folder",
+        mimeType: FOLDER_MIME,
         parents: [rootFolderId],
       },
       fields: "id",
