@@ -13,6 +13,7 @@ export async function GET(req: Request) {
   const searchName  = searchParams.get("name")   ?? "";
   const searchMonth = searchParams.get("month")  ?? "";
   const folderId    = searchParams.get("folder") ?? ""; // directly list a folder by ID
+  const writeTestFolderId = searchParams.get("writeTestFolder") ?? ""; // run the write test against a different parent than root
   const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "";
   const clientEmail   = process.env.GOOGLE_CLIENT_EMAIL ?? "";
   const hasPrivateKey = !!(process.env.GOOGLE_PRIVATE_KEY);
@@ -78,13 +79,14 @@ export async function GET(req: Request) {
     // Step 2.5: actually attempt a write — the only way to get a definitive
     // answer on write permission, rather than guessing from the Drive UI
     // (which role was actually granted, and whether it propagated yet).
+    const writeTestParent = writeTestFolderId || rootFolderId;
     let writeTest: Record<string, unknown> = {};
     try {
       const created = await drive.files.create({
         requestBody: {
           name: `__permission_test_${Date.now()}`,
           mimeType: "application/vnd.google-apps.folder",
-          parents: [rootFolderId],
+          parents: [writeTestParent],
         },
         fields: "id",
         supportsAllDrives: true,
@@ -203,6 +205,7 @@ export async function GET(req: Request) {
       rootFolderId,
       keyDiag,
       folderMeta,
+      writeTestParent,
       writeTest,
       itemsInRoot: rootItems,
       subfolderContents,
