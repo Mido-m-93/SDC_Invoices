@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractFromPdf } from "@/lib/services/ai/pdfExtractor";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   const url = req.nextUrl.searchParams.get("url");
@@ -18,8 +18,13 @@ export async function GET(req: NextRequest) {
   );
   const groqKey = process.env.GROQ_API_KEY;
 
-  // Test Groq API
+  // Test Groq's text model (used for PDF/text receipt & contract extraction)
   let groqPing: { ok: boolean; error?: string } = { ok: false };
+  // Test Groq's vision model (used for photographed/scanned receipts &
+  // contracts) — a plain reachability ping, same model id as production use,
+  // so a future deprecation like the one that broke invoice filing shows up
+  // here instead of in a user-facing 500.
+  let groqVisionPing: { ok: boolean; error?: string } = { ok: false };
   if (groqKey) {
     try {
       const Groq = (await import("groq-sdk")).default;
@@ -32,6 +37,18 @@ export async function GET(req: NextRequest) {
       groqPing = { ok: !!res.choices[0]?.message?.content };
     } catch (err) {
       groqPing = { ok: false, error: String(err) };
+    }
+    try {
+      const Groq = (await import("groq-sdk")).default;
+      const client = new Groq({ apiKey: groqKey });
+      const res = await client.chat.completions.create({
+        model: "qwen/qwen3.8-27b",
+        max_tokens: 10,
+        messages: [{ role: "user", content: "Hi" }],
+      });
+      groqVisionPing = { ok: !!res.choices[0]?.message?.content };
+    } catch (err) {
+      groqVisionPing = { ok: false, error: String(err) };
     }
   }
 
@@ -49,7 +66,9 @@ export async function GET(req: NextRequest) {
       status: "config_only",
       groqKeySet: !!groqKey,
       groqKeyPrefix: groqKey ? groqKey.slice(0, 8) + "..." : null,
-      groqApiReachable: groqPing,
+      groqTextModelReachable: groqPing,
+      groqVisionModelReachable: groqVisionPing,
+      anthropicKeySet: !!process.env.ANTHROPIC_API_KEY,
       unpdfImportOk: unpdfImport,
       azureCredsSet: hasAzure,
     });
