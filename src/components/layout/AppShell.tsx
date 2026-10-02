@@ -53,12 +53,13 @@ const FINANCE_ITEMS = [
 // nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
 const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
-const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/feedback"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/admin", "/feedback"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
   { key: "nav_users" as const, href: "/users", icon: UsersIcon },
+  { key: "nav_admin" as const, href: "/admin", icon: ShieldIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
   { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon },
 ];
@@ -270,7 +271,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="ml-3 border-l border-white/10 pl-2">
-              {SYSTEM_ITEMS.filter(({ href }) => (href !== "/users" || isAdmin) && (href === "/users" || canSeeTab(href, allowedTabs, isAdmin))).map(({ key, href, icon: Icon }) => {
+              {SYSTEM_ITEMS.filter(({ href }) => {
+                const adminOnly = href === "/users" || href === "/admin";
+                if (adminOnly) return isAdmin;
+                return canSeeTab(href, allowedTabs, isAdmin);
+              }).map(({ key, href, icon: Icon }) => {
                 const active = pathname.startsWith(href);
                 return (
                   <Link
@@ -429,6 +434,14 @@ function CogIcon({ size = 18 }: { size?: number }) {
     >
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function ShieldIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
     </svg>
   );
 }
