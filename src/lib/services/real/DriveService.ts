@@ -1,6 +1,7 @@
 import "server-only";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
+import { Readable } from "stream";
 import type { IDriveService } from "../types";
 
 function parsePrivateKey(raw: string | undefined): string {
@@ -160,7 +161,6 @@ export class RealDriveService implements IDriveService {
     data: Uint8Array;
   }) {
     const drive = await this.getDrive();
-    const { Readable } = await import("stream");
     const stream = Readable.from(Buffer.from(data));
     const res = await drive.files.create({
       requestBody: { name: filename, parents: [folderId] },
