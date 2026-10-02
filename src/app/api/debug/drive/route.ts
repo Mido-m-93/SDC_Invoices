@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const { user, response } = await requireAuth();
+  const { user, response } = await requireAdmin();
   if (!user) return response!;
 
   const { searchParams } = new URL(req.url);
