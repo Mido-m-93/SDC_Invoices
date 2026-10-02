@@ -74,6 +74,13 @@ export default function AdminPage() {
       run: () => callJson("/api/debug/drive"),
     },
     {
+      key: "ai_health",
+      titleKey: "admin_tool_ai_health_title",
+      descKey: "admin_tool_ai_health_desc",
+      buttonKey: "admin_tool_ai_health_button",
+      run: () => callJson("/api/debug/extraction"),
+    },
+    {
       key: "sharepoint_pipeline",
       titleKey: "admin_tool_sharepoint_pipeline_title",
       descKey: "admin_tool_sharepoint_desc",
