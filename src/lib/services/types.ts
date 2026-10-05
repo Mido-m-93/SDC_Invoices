@@ -145,6 +145,9 @@ export interface IStorageService {
   /** Save a filed document record */
   saveFiledDocument(doc: FiledDocument): Promise<void>;
 
+  /** Mark a previously-filed document as paid */
+  markFiledDocumentPaid(submissionId: string): Promise<void>;
+
   /** Load validation results for a run */
   loadValidationResults(
     submissionIds: string[]

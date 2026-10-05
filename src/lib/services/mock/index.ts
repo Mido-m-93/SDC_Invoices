@@ -63,6 +63,7 @@ import {
   loadValidationResults,
   saveFiledDocument,
   loadFiledDocuments,
+  markFiledDocumentPaid,
   saveRun,
   loadRuns,
   clearAllRuns,
@@ -314,6 +315,10 @@ export class MockStorageService implements IStorageService {
 
   async saveFiledDocument(doc: FiledDocument): Promise<void> {
     saveFiledDocument(doc);
+  }
+
+  async markFiledDocumentPaid(submissionId: string): Promise<void> {
+    markFiledDocumentPaid(submissionId);
   }
 
   async loadValidationResults(submissionIds: string[]): Promise<InvoiceValidationResult[]> {

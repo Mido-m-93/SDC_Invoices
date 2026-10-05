@@ -18,6 +18,7 @@ import {
   fetchFiledDocuments,
   validateInvoice,
   fileInvoice,
+  markInvoicePaid,
   uploadInvoiceExcel,
   fetchAvailableMonths,
   clearAllInvoices,
@@ -29,8 +30,8 @@ import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 
-const STATUS_FILTERS: Array<"ALL" | "REJECTED" | InvoiceStatusCode> = [
-  "ALL", "READY", "REVIEW_REQUIRED", "MISSING_ATTACHMENT", "SAVED", "ALREADY_PROCESSED", "REJECTED",
+const STATUS_FILTERS: Array<"ALL" | "REJECTED" | "PAID" | InvoiceStatusCode> = [
+  "ALL", "READY", "REVIEW_REQUIRED", "MISSING_ATTACHMENT", "SAVED", "PAID", "REJECTED",
 ];
 
 export default function InvoicesPage() {
@@ -43,6 +44,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
@@ -209,6 +211,28 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleMarkPaid = async (item: InvoiceListItem) => {
+    if (!item.filedDocument) return;
+    setMarkingPaidId(item.submission.id);
+    setError(null);
+    try {
+      const { paidAt } = await markInvoicePaid(item.submission.id);
+      const updated = { ...item, filedDocument: { ...item.filedDocument, paidAt } };
+      setItems((prev) =>
+        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
+      );
+      setSelectedItem((prev) =>
+        prev?.submission.id === item.submission.id ? updated : prev
+      );
+      notify("success", `Marked invoice for ${item.submission.payerName} as paid`, "/invoices");
+    } catch (err) {
+      setError(String(err));
+      notify("error", `Failed to mark invoice for ${item.submission.payerName} as paid: ${String(err)}`, "/invoices");
+    } finally {
+      setMarkingPaidId(null);
+    }
+  };
+
   // Rule 10: human reviewer explicitly approves a REVIEW_REQUIRED invoice
   const handleApprove = (item: InvoiceListItem) => {
     if (!item.validation) return;
@@ -359,6 +383,8 @@ export default function InvoicesPage() {
       ? items
       : filterStatus === "SAVED"
       ? items.filter((i) => i.filedDocument != null)
+      : filterStatus === "PAID"
+      ? items.filter((i) => i.filedDocument?.paidAt != null)
       : filterStatus === "REJECTED"
       ? items.filter((i) => i.validation?.humanRejected)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
@@ -376,9 +402,7 @@ export default function InvoicesPage() {
     if (f === "MISSING_ATTACHMENT") return items.filter((i) =>
       i.validation?.statusCode === "MISSING_ATTACHMENT" || (!i.validation && !i.submission.invoiceAttachment)
     ).length;
-    if (f === "ALREADY_PROCESSED") return items.filter((i) =>
-      ["ALREADY_PROCESSED", "DUPLICATE_FILE"].includes(i.validation?.statusCode ?? "")
-    ).length;
+    if (f === "PAID") return items.filter((i) => i.filedDocument?.paidAt != null).length;
     if (f === "REJECTED") return items.filter((i) => i.validation?.humanRejected).length;
     return items.filter((i) => i.validation?.statusCode === f).length;
   };
@@ -708,8 +732,21 @@ export default function InvoicesPage() {
                                 {t("action_save")}
                               </Button>
                             )}
-                            {item.filedDocument && (
+                            {item.filedDocument && !item.filedDocument.paidAt && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                loading={markingPaidId === s.id}
+                                onClick={() => handleMarkPaid(item)}
+                              >
+                                {t("status_PAID")}
+                              </Button>
+                            )}
+                            {item.filedDocument && !item.filedDocument.paidAt && (
                               <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
+                            )}
+                            {item.filedDocument?.paidAt && (
+                              <span className="text-xs text-emerald-600 font-medium">✓ {t("status_PAID")}</span>
                             )}
                             <Button
                               variant="ghost"

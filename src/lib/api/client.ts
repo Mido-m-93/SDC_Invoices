@@ -156,6 +156,13 @@ export async function fileInvoice(
   return data.filedDocument;
 }
 
+export async function markInvoicePaid(submissionId: string): Promise<{ ok: true; paidAt: string }> {
+  return apiFetch("/api/invoices/mark-paid", {
+    method: "POST",
+    body: JSON.stringify({ submissionId }),
+  });
+}
+
 export async function fileInvoiceBulk(
   validations: InvoiceValidationResult[],
   submissions: InvoiceSubmission[]

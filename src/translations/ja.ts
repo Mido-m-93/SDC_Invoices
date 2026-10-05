@@ -352,6 +352,7 @@ const ja = {
   status_SAVED: "保存済み",
   status_SAVE_ERROR: "保存エラー",
   status_REJECTED: "却下",
+  status_PAID: "支払済み",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "保留中",

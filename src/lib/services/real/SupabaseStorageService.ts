@@ -172,6 +172,7 @@ function toFiledRow(doc: FiledDocument): Record<string, unknown> {
     drive_file_id: doc.driveFileId,
     drive_web_view_link: doc.driveWebViewLink,
     saved_at: doc.savedAt,
+    paid_at: doc.paidAt ?? null,
   };
 }
 
@@ -184,6 +185,7 @@ function fromFiledRow(row: Record<string, unknown>): FiledDocument {
     driveFileId: row.drive_file_id as string,
     driveWebViewLink: row.drive_web_view_link as string,
     savedAt: row.saved_at as string,
+    paidAt: (row.paid_at as string | null) ?? null,
   };
 }
 
@@ -388,6 +390,14 @@ export class SupabaseStorageService implements IStorageService {
       .from("filed_documents")
       .upsert(toFiledRow(doc), { onConflict: "submission_id" });
     if (error) throw new Error(`saveFiledDocument: ${error.message}`);
+  }
+
+  async markFiledDocumentPaid(submissionId: string): Promise<void> {
+    const { error } = await this.db
+      .from("filed_documents")
+      .update({ paid_at: new Date().toISOString() })
+      .eq("submission_id", submissionId);
+    if (error) throw new Error(`markFiledDocumentPaid: ${error.message}`);
   }
 
   async loadValidationResults(submissionIds: string[]): Promise<InvoiceValidationResult[]> {

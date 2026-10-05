@@ -244,6 +244,15 @@ export function loadFiledDocuments(submissionIds: string[]): FiledDocument[] {
   return submissionIds.map((id) => map[id]).filter(Boolean) as FiledDocument[];
 }
 
+export function markFiledDocumentPaid(submissionId: string): void {
+  const store = readStore();
+  const doc = store.filedDocuments[submissionId];
+  if (doc) {
+    store.filedDocuments[submissionId] = { ...doc, paidAt: new Date().toISOString() };
+    writeStore(store);
+  }
+}
+
 // ── Processing runs ───────────────────────────────────────────────────────────
 
 export function saveRun(run: ProcessingRun): void {

@@ -352,6 +352,7 @@ const en = {
   status_SAVED: "Saved",
   status_SAVE_ERROR: "Save Error",
   status_REJECTED: "Rejected",
+  status_PAID: "Paid",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",

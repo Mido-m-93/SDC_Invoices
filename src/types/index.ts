@@ -136,6 +136,7 @@ export interface FiledDocument {
   driveFileId: string;
   driveWebViewLink: string;
   savedAt: string;                     // ISO timestamp
+  paidAt?: string | null;
 }
 
 // ── Processing log entry ─────────────────────────────────────────────────────
