@@ -348,6 +348,23 @@ export async function POST(req: NextRequest) {
       })
     );
 
+    // Pass 2b: a local match synced before contractFileUrl was tracked has no
+    // contract link yet (the sync backfill is cooldown-gated) — resolve just the
+    // file link live, without re-extracting the contract, so Stage 4 can link to it.
+    const localFileLinks = await Promise.all(
+      targets.map(async (_, i) => {
+        const m = localMatches[i];
+        if (!m || m.contractFileUrl || !hasAzureCreds) return null;
+        try {
+          const sp = await checkMemberBySharePointContracts(effectiveNames[i], { skipExtraction: true });
+          return sp.contractFileUrl;
+        } catch (err) {
+          console.warn(`[SP link] failed for "${effectiveNames[i]}":`, err);
+          return null;
+        }
+      })
+    );
+
     // Auto-save newly discovered members to the local store so next validation is instant
     const memberSvc = getMemberService();
     await Promise.all(
@@ -473,7 +490,9 @@ export async function POST(req: NextRequest) {
           // A local-store match carries its own persisted contract file link
           // (backfilled by /api/members/sync); otherwise fall back to whatever
           // the live SharePoint lookup resolved.
-          contractFileUrl:        usingLocalContractInfo ? localMember!.contractFileUrl ?? null : spMatch?.contractFileUrl ?? null,
+          contractFileUrl:        usingLocalContractInfo
+            ? localMember!.contractFileUrl ?? localFileLinks[i]
+            : spMatch?.contractFileUrl ?? localFileLinks[i],
         };
 
         // AI checkpoint: Invoice ↔ Contract — does this invoice actually match the
