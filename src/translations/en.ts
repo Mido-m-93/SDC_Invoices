@@ -553,6 +553,7 @@ const en = {
   expenses_status_rejected: "Rejected",
   expenses_status_paid: "Paid",
   expenses_status_archived: "Archived",
+  expenses_status_missing_attachment: "Missing Attachment",
   expenses_violation_MISSING_RECEIPT: "Missing receipt",
   expenses_violation_MISSING_PURPOSE: "Missing purpose",
   expenses_violation_HIGH_AMOUNT_PERSONAL_REIMBURSEMENT: "High-amount personal reimbursement",

@@ -553,6 +553,7 @@ const ja = {
   expenses_status_rejected: "却下",
   expenses_status_paid: "支払済み",
   expenses_status_archived: "アーカイブ",
+  expenses_status_missing_attachment: "添付なし",
   expenses_violation_MISSING_RECEIPT: "領収書なし",
   expenses_violation_MISSING_PURPOSE: "目的未記入",
   expenses_violation_HIGH_AMOUNT_PERSONAL_REIMBURSEMENT: "高額個人立替",

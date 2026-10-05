@@ -17,7 +17,8 @@ import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
-const STATUS_FILTER_VALUES: (ExpenseStatus | "all")[] = ["all", "submitted", "under_review", "approved", "rejected", "paid"];
+type ExpenseFilter = ExpenseStatus | "all" | "missing_attachment";
+const STATUS_FILTER_VALUES: ExpenseFilter[] = ["all", "submitted", "under_review", "approved", "rejected", "paid", "missing_attachment"];
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -67,7 +68,7 @@ export default function ExpensesPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<ExpenseFilter>("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ExpenseClaim | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -84,7 +85,7 @@ export default function ExpensesPage() {
   const [confirmCleanAll, setConfirmCleanAll] = useState(false);
   const [cleaningAll, setCleaningAll] = useState(false);
 
-  const statusLabel = (s: ExpenseStatus | "all") => t(`expenses_status_${s}` as TranslationKey);
+  const statusLabel = (s: ExpenseFilter) => t(`expenses_status_${s}` as TranslationKey);
   const categoryLabel = (c: ExpenseCategory) => t(`expenses_category_${c}` as TranslationKey);
   const paymentMethodLabel = (m: ExpensePaymentMethod) => t(`expenses_payment_${m}` as TranslationKey);
   const violationLabel = (v: string) => t(`expenses_violation_${v}` as TranslationKey) || v;
@@ -92,7 +93,7 @@ export default function ExpensesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const url = statusFilter === "all" ? "/api/expenses" : `/api/expenses?status=${statusFilter}`;
+      const url = statusFilter === "all" || statusFilter === "missing_attachment" ? "/api/expenses" : `/api/expenses?status=${statusFilter}`;
       const res = await fetch(url);
       const data = await res.json() as { claims: ExpenseClaim[] };
       setClaims(data.claims ?? []);
@@ -364,7 +365,9 @@ export default function ExpensesPage() {
   }
 
   const availableMonths = Array.from(new Set(claims.map((c) => c.expenseDate?.slice(0, 7)).filter(Boolean))) as string[];
-  const visibleClaims = claims.filter((c) => c.expenseDate?.slice(0, 7) === month);
+  const monthClaims = claims.filter((c) => c.expenseDate?.slice(0, 7) === month);
+  const visibleClaims = statusFilter === "missing_attachment" ? monthClaims.filter((c) => !c.receiptUrl) : monthClaims;
+  const missingAttachmentCount = monthClaims.filter((c) => !c.receiptUrl).length;
 
   return (
     <>
@@ -422,6 +425,11 @@ export default function ExpensesPage() {
             className={`rounded-full px-3 py-1 text-xs font-medium border transition ${statusFilter === s ? "bg-[#1a3d2b] text-white border-[#1a3d2b]" : "text-stone-500 border-stone-200 hover:border-stone-400"}`}
           >
             {statusLabel(s)}
+            {s === "missing_attachment" && (
+              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${statusFilter === s ? "bg-white/20 text-white" : "bg-stone-100 text-stone-500"}`}>
+                {missingAttachmentCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -455,6 +463,7 @@ export default function ExpensesPage() {
                 <th className="px-4 py-3 text-right">{t("expenses_col_amount")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_submitted")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_expense_date")}</th>
+                <th className="px-4 py-3 text-left">{t("col_attachment")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_status")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_violations")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_actions")}</th>
@@ -478,17 +487,23 @@ export default function ExpensesPage() {
                     {fmtTime(c.submittedAt) && <span className="text-stone-400"> {fmtTime(c.submittedAt)}</span>}
                   </td>
                   <td className="px-4 py-3 text-stone-500">{c.expenseDate || "—"}</td>
+                  <td className="px-4 py-3 max-w-[160px]">
+                    {c.receiptUrl ? (
+                      <a href={`/api/files/sharepoint-download?url=${encodeURIComponent(c.receiptUrl)}&filename=${encodeURIComponent(c.receiptFilename || `receipt_${c.submittedBy}`)}&inline=1`} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-[#2d6a4f] hover:underline truncate block" title={t("expenses_view_receipt")}>
+                        {t("action_open_link")} ↗
+                      </a>
+                    ) : (
+                      <span className="text-xs text-red-400">✗ {t("no_file")}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONES[c.status]}>{statusLabel(c.status)}</Badge>
-                    <div className="flex gap-1 mt-1">
-                      {c.receiptUrl && (
-                        <a href={`/api/files/sharepoint-download?url=${encodeURIComponent(c.receiptUrl)}&filename=${encodeURIComponent(c.receiptFilename || `receipt_${c.submittedBy}`)}&inline=1`} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline" title={t("expenses_view_receipt")}>📎</a>
-                      )}
-                      {c.bankAccount && (
+                    {c.bankAccount && (
+                      <div className="flex gap-1 mt-1">
                         <span className="text-xs text-stone-400" title={c.bankAccount}>🏦</span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {c.policyViolations.length > 0 ? (
