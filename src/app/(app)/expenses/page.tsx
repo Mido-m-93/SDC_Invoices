@@ -9,7 +9,7 @@ import RefreshIcon from "@/components/ui/RefreshIcon";
 import TrashIcon from "@/components/ui/TrashIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import { sendExpenseToMoneyForward, createExpenseMfPayee } from "@/lib/api/client";
+import { sendExpenseToMoneyForward, createExpenseMfPayee, fileExpenseClaim, markExpensePaid } from "@/lib/api/client";
 import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
 import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
 import { monthOptions } from "@/lib/utils";
@@ -79,6 +79,8 @@ export default function ExpensesPage() {
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
   const [sendingToMF, setSendingToMF] = useState<string | null>(null);
+  const [filingId, setFilingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [confirmCleanAll, setConfirmCleanAll] = useState(false);
   const [cleaningAll, setCleaningAll] = useState(false);
 
@@ -273,6 +275,40 @@ export default function ExpensesPage() {
       notify("error", `Failed to send expense claim${claim ? ` for ${claim.submittedBy}` : ""} to MoneyForward: ${msg}`, "/expenses");
     } finally {
       setSendingToMF(null);
+    }
+  }
+
+  async function handleFile(id: string) {
+    setFilingId(id);
+    setError(null);
+    const claim = claims.find((c) => c.id === id) ?? null;
+    try {
+      await fileExpenseClaim(id);
+      notify("success", `Filed receipt${claim ? ` for ${claim.submittedBy}` : ""} to Drive`, "/expenses");
+      load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      notify("error", `Failed to file receipt${claim ? ` for ${claim.submittedBy}` : ""}: ${msg}`, "/expenses");
+    } finally {
+      setFilingId(null);
+    }
+  }
+
+  async function handleMarkPaid(id: string) {
+    setPayingId(id);
+    setError(null);
+    const claim = claims.find((c) => c.id === id) ?? null;
+    try {
+      await markExpensePaid(id);
+      notify("success", `Marked expense claim${claim ? ` for ${claim.submittedBy}` : ""} as paid`, "/expenses");
+      load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      notify("error", `Failed to mark expense claim${claim ? ` for ${claim.submittedBy}` : ""} as paid: ${msg}`, "/expenses");
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -473,6 +509,18 @@ export default function ExpensesPage() {
                     )}
                     {(c.status === "submitted" || c.status === "under_review") && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("approve"); }}>{t("expenses_action_approve")}</Button>
+                    )}
+                    {c.status === "approved" && c.receiptUrl && !c.filedStoragePath && (
+                      <Button variant="primary" size="sm" loading={filingId === c.id} onClick={() => handleFile(c.id)}>{t("expenses_action_save")}</Button>
+                    )}
+                    {c.status === "approved" && c.filedStoragePath && (
+                      <Button variant="primary" size="sm" loading={payingId === c.id} onClick={() => handleMarkPaid(c.id)}>{t("expenses_action_paid")}</Button>
+                    )}
+                    {c.filedStoragePath && (
+                      <a href={`/api/expenses/${c.id}/receipt-file`} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-emerald-600 hover:underline whitespace-nowrap self-center" title={t("expenses_filed_title")}>
+                        ✓ {t("expenses_filed_label")}
+                      </a>
                     )}
                     {c.status !== "rejected" && c.status !== "paid" && (
                       <Button variant="ghost" size="sm" onClick={() => { setApprovingId(c.id); setApproveAction("reject"); }}>{t("expenses_action_reject")}</Button>

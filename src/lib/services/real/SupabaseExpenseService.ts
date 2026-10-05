@@ -46,7 +46,7 @@ function parseReceiptExtractionJson(content: string): ParsedReceiptFields {
   return { amount, date: result.date ?? null, vendor: result.vendor ?? null, purpose: result.purpose ?? null };
 }
 
-function sniffMimeFromUrl(url: string): string {
+export function sniffMimeFromUrl(url: string): string {
   if (/\.pdf$/i.test(url))  return "application/pdf";
   if (/\.png$/i.test(url))  return "image/png";
   if (/\.gif$/i.test(url))  return "image/gif";
@@ -94,6 +94,8 @@ function toRow(c: ExpenseClaim): Record<string, unknown> {
     mf_payee_created_at: c.mfPayeeCreatedAt ?? null,
     deleted_at: c.deletedAt ?? null,
     deleted_by: c.deletedBy ?? null,
+    filed_storage_path: c.filedStoragePath ?? null,
+    filed_at: c.filedAt ?? null,
   };
 }
 
@@ -136,6 +138,8 @@ function fromRow(row: Record<string, unknown>): ExpenseClaim {
     mfPayeeCreatedAt: (row.mf_payee_created_at as string) || undefined,
     deletedAt: (row.deleted_at as string | null) ?? undefined,
     deletedBy: (row.deleted_by as string | null) ?? undefined,
+    filedStoragePath: (row.filed_storage_path as string | null) ?? null,
+    filedAt: (row.filed_at as string | null) ?? null,
   };
 }
 

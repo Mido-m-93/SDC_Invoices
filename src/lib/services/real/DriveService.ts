@@ -155,16 +155,18 @@ export class RealDriveService implements IDriveService {
     folderId,
     filename,
     data,
+    mimeType = "application/pdf",
   }: {
     folderId: string;
     filename: string;
     data: Uint8Array;
+    mimeType?: string;
   }) {
     const drive = await this.getDrive();
     const stream = Readable.from(Buffer.from(data));
     const res = await drive.files.create({
       requestBody: { name: filename, parents: [folderId] },
-      media: { mimeType: "application/pdf", body: stream },
+      media: { mimeType, body: stream },
       fields: "id,webViewLink",
       supportsAllDrives: true,
     });

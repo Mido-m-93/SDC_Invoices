@@ -134,6 +134,7 @@ export class MockDriveService implements IDriveService {
     folderId: string;
     filename: string;
     data: Uint8Array;
+    mimeType?: string;
   }): Promise<{ fileId: string; webViewLink: string }> {
     await delay(700);
     const fileId = `mock-file-${Date.now()}`;

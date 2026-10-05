@@ -21,6 +21,7 @@ export const MANAGEABLE_TABS: ManageableTab[] = [
   { href: "/cash-payment",    labelKey: "nav_cash_payment" },
   { href: "/logs",            labelKey: "nav_logs" },
   { href: "/archives",        labelKey: "nav_archives" },
+  { href: "/reports",         labelKey: "nav_reports" },
   { href: "/config",          labelKey: "nav_config" },
   { href: "/feedback",        labelKey: "nav_feedback" },
 ];

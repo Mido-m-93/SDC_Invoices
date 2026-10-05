@@ -74,6 +74,8 @@ export interface IDriveService {
     folderId: string;
     filename: string;
     data: Uint8Array;
+    /** Defaults to "application/pdf" — pass the real type for image receipts. */
+    mimeType?: string;
   }): Promise<{ fileId: string; webViewLink: string }>;
 
   ensureMonthFolder(params: {

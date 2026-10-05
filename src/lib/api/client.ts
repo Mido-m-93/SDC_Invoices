@@ -189,6 +189,20 @@ export async function sendExpenseToMoneyForward(
   });
 }
 
+export async function fileExpenseClaim(
+  claimId: string
+): Promise<{ filedStoragePath: string; filedAt: string }> {
+  return apiFetch(`/api/expenses/${claimId}/file`, {
+    method: "POST",
+  });
+}
+
+export async function markExpensePaid(claimId: string): Promise<{ ok: true }> {
+  return apiFetch(`/api/expenses/${claimId}/mark-paid`, {
+    method: "POST",
+  });
+}
+
 // ── Money Forward Payables — "Create Payee" flow ──────────────────────────────
 
 export interface MfBankDetailsInput {

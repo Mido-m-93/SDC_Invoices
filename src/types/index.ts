@@ -501,6 +501,9 @@ export interface ExpenseClaim {
   mfPayeeCreatedAt?: string;
   deletedAt?: string | null;   // soft-delete — set when moved to Archives, cleared on restore
   deletedBy?: string | null;
+  // Set once the receipt has been copied into the expense-receipts Storage bucket
+  filedStoragePath?: string | null;
+  filedAt?: string | null;
 }
 
 export interface ExpenseValidationResult {

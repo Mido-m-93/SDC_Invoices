@@ -53,13 +53,14 @@ const FINANCE_ITEMS = [
 // nav per the same pattern used for "nav_members" (see MEMBERS_ITEMS below).
 const FINANCE_HIDDEN_KEYS = ["nav_payment_records", "nav_accounting", "nav_close_checklist", "nav_reporting"];
 
-const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/admin", "/feedback"];
+const SYSTEM_HREFS = ["/logs", "/config", "/archives", "/users", "/admin", "/reports", "/feedback"];
 
 const SYSTEM_ITEMS = [
   { key: "nav_logs" as const, href: "/logs", icon: LogIcon },
   { key: "nav_archives" as const, href: "/archives", icon: ArchiveIcon },
   { key: "nav_users" as const, href: "/users", icon: UsersIcon },
   { key: "nav_admin" as const, href: "/admin", icon: ShieldIcon },
+  { key: "nav_reports" as const, href: "/reports", icon: ReceiptIcon },
   { key: "nav_config" as const, href: "/config", icon: CogIcon },
   { key: "nav_feedback" as const, href: "/feedback", icon: FeedbackIcon },
 ];
