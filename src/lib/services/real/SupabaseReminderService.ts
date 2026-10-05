@@ -215,7 +215,8 @@ export class SupabaseReminderService implements IReminderService {
         .select("id, client_name, project_name, end_date")
         .eq("status", "active")
         .not("end_date", "eq", "")
-        .lt("end_date", today),
+        .lt("end_date", today)
+        .is("deleted_at", null),
       db
         .from("members")
         .select("id, display_name, contract_end")
@@ -406,13 +407,20 @@ export class SupabaseReminderService implements IReminderService {
 
     const lastSent = logs.length > 0 ? logs[0].sentAt : null;
 
+    // detectExpiredContracts() merges two different record types (contract
+    // rows and member rows) into one list — keep each count under its own
+    // label instead of silently combining them under "Expired Contracts".
+    const expiredContractsOnly = expiredContracts.filter((a) => a.kind === "contract");
+    const expiredMembersOnly = expiredContracts.filter((a) => a.kind === "member");
+
     return {
       missingInvoice: { count: gaps.length, total: contractCount ?? gaps.length },
       staleReview: { count: stale.length, oldestDays },
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
       pendingExpenses: { count: pendingExpensesCount },
-      contractsExpired: { count: expiredContracts.length },
+      contractsExpired: { count: expiredContractsOnly.length },
+      membersExpired: { count: expiredMembersOnly.length },
       lastSent,
       recentLogs: logs.slice(0, 10),
     };

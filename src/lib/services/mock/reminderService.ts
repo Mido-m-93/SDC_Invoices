@@ -170,7 +170,8 @@ export class MockReminderService implements IReminderService {
       dueDateApproaching: { count: approaching.length },
       dueDateOverdue: { count: overdue.length },
       pendingExpenses: { count: 0 },
-      contractsExpired: { count: expiredContracts.length },
+      contractsExpired: { count: expiredContracts.filter((a) => a.kind === "contract").length },
+      membersExpired: { count: expiredContracts.filter((a) => a.kind === "member").length },
       lastSent,
       recentLogs: monthLogs.slice(0, 10),
     };

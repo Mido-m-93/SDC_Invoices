@@ -448,6 +448,13 @@ function ReminderStatusSection({
           type: "contract_expired" as ReminderType,
           href: "/contracts",
         },
+        {
+          label: t("reminder_member_contract_expired"),
+          value: String(summary.membersExpired.count),
+          color: summary.membersExpired.count > 0 ? "red" : "green",
+          type: "contract_expired" as ReminderType,
+          href: "/members",
+        },
       ]
     : [];
 

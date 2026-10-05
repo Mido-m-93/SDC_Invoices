@@ -1272,6 +1272,7 @@ const en = {
   reminder_due_approaching: "Due Soon",
   reminder_due_overdue: "Overdue",
   reminder_contract_expired: "Expired Contracts",
+  reminder_member_contract_expired: "Expired Member Contracts",
   reminder_of_total: "/ {total}",
   reminder_stale_days: "Oldest {days}d",
   reminder_no_issues: "No issues",

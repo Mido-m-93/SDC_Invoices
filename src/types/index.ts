@@ -427,6 +427,7 @@ export interface ReminderSummary {
   dueDateOverdue: { count: number };
   pendingExpenses: { count: number };
   contractsExpired: { count: number };
+  membersExpired: { count: number };
   lastSent: string | null;
   recentLogs: ReminderLog[];
 }
