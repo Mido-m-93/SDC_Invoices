@@ -1271,7 +1271,7 @@ const ja = {
   reminder_stale_review: "不備・承認待ち",
   reminder_due_approaching: "期日接近",
   reminder_due_overdue: "期日超過",
-  reminder_contract_expired: "契約期限切れ",
+  reminder_contract_expired: "クライアント契約期限切れ",
   reminder_member_contract_expired: "メンバー契約期限切れ",
   reminder_of_total: "/ {total}件",
   reminder_stale_days: "最長{days}日滞留",
