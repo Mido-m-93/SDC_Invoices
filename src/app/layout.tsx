@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { LanguageProvider } from "@/translations";
+import { LANGUAGE_COOKIE } from "@/translations/constants";
+import type { Language } from "@/types";
 import { NotificationsProvider } from "@/lib/notifications";
 import "./globals.css";
 
@@ -13,10 +16,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const stored = cookies().get(LANGUAGE_COOKIE)?.value;
+  const language: Language = stored === "en" ? "en" : "ja";
+
   return (
-    <html lang="ja" translate="no" className="notranslate">
+    <html lang={language} translate="no" className="notranslate">
       <body className="bg-white text-stone-900 antialiased">
-        <LanguageProvider defaultLanguage="ja">
+        <LanguageProvider defaultLanguage={language}>
           <NotificationsProvider>{children}</NotificationsProvider>
         </LanguageProvider>
       </body>

@@ -15,6 +15,7 @@ import {
 import ja, { TranslationKey } from "./ja";
 import en from "./en";
 import type { Language } from "@/types";
+import { LANGUAGE_COOKIE } from "./constants";
 
 // Use a looser type so both language objects satisfy the record
 type Translations = Record<TranslationKey, string>;
@@ -39,7 +40,12 @@ export function LanguageProvider({
   children: ReactNode;
   defaultLanguage?: Language;
 }) {
-  const [language, setLanguage] = useState<Language>(defaultLanguage);
+  const [language, setLanguageState] = useState<Language>(defaultLanguage);
+
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+    document.cookie = `${LANGUAGE_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = language;
