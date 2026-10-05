@@ -138,7 +138,11 @@ function extractCurrencyTaggedAmounts(text: string): number[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const n = parseFloat((m[1] ?? m[2]).replace(/[,，]/g, ""));
-    if (!isNaN(n)) counts.set(n, (counts.get(n) ?? 0) + 1);
+    // 0 is never a real total/line-item amount here — it's template filler
+    // (e.g. unused "¥0" rows in an itemized table) and, being the most
+    // repeated value in such documents, would otherwise win the
+    // most-frequent-first fallback below over the one real amount.
+    if (!isNaN(n) && n !== 0) counts.set(n, (counts.get(n) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
 }
@@ -203,7 +207,9 @@ Rules:
 - Amounts: plain numbers only, strip ¥ ￥ , 円
 - invoiceDate: YYYY-MM-DD; return null if no field explicitly labeled 請求日, 発行日, Issue Date, Invoice Date, or Date issued is found — do NOT guess from context dates. The label may use a full-width colon (：) or have extra whitespace around it.
 - taxRate: decimal (0.10 for 10%, 0.08 for 8%)
-- total: if only one amount exists, use it as the total
+- total: look for a field explicitly labeled 合計, 合計金額, 合計金額（税別）, 請求金額, 税込, Total, Total Amount, or Amount Due — prefer that labeled value over any other number in the document, and if only one amount exists, use it as the total
+- subtotal/taxAmount: look for 小計, 税抜, 消費税, Subtotal, Tax, or Tax Amount
+- An itemized table may have unused template rows showing "¥0" or "0" — these are never the total, subtotal, or tax amount; ignore them entirely
 - CRITICAL: phone numbers, UPI/payment IDs, bank account numbers, invoice/reference numbers, and postal codes are NEVER amounts — ignore them completely for subtotal/taxAmount/total, even if they appear right next to a "Total"/"Amount"/合計/請求金額 label. A real amount is the smallest number that plausibly prices the described goods/service (often repeated earlier in the document as a unit price or line-item amount) — long unformatted digit strings without any currency symbol, comma grouping, or explicit "○○円"/"$XXX"/"XXX USD" phrasing are identifiers, not amounts.
 - Return null only when a field is genuinely absent`,
       },
@@ -240,7 +246,9 @@ Rules:
   const taggedByValue    = [...taggedAmounts].sort((a, b) => b - a);
 
   function verified(claimed: number | null, fallback: number | null, field: string): number | null {
-    if (taggedAmounts.length === 0 || (claimed !== null && taggedAmounts.includes(claimed))) return claimed;
+    // A claimed amount of exactly 0 is never a real total/subtotal/tax — treat
+    // it the same as an unverified claim rather than trusting it outright.
+    if (claimed !== 0 && (taggedAmounts.length === 0 || (claimed !== null && taggedAmounts.includes(claimed)))) return claimed;
     console.warn(`[pdfExtractor] Groq ${field} ${claimed} isn't currency-tagged in the text, overriding with ${fallback}`);
     return fallback;
   }
