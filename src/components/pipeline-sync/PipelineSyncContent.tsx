@@ -8,6 +8,8 @@ import RefreshIcon from "@/components/ui/RefreshIcon";
 import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { similarity } from "@/lib/services/ai/pipelineMatching";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 import type { StagedPipelineRecord, PipelineRecordStatus, PipelineSourceType, Client, PipelineSyncAuditEntry, Proposal, Contract, Budget } from "@/types";
 
 const SOURCE_LABEL: Record<PipelineSourceType, string> = { notion: "Notion", sharepoint: "SharePoint" };
@@ -442,6 +444,8 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 
   const sharepointRecords = filtered.filter((r) => r.source === "sharepoint");
   const notionRecords = filtered.filter((r) => r.source === "notion");
+  const visibleRecords = sourceTab === "sharepoint" ? sharepointRecords : notionRecords;
+  const table = useTableControls(visibleRecords, byId, `${sourceTab}|${statusFilter}|${query}`);
 
   function renderRecordCard(r: StagedPipelineRecord) {
     const pending = r.status === "auto_linked" || r.status === "needs_review";
@@ -449,6 +453,9 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
     return (
       <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
         <div className="flex items-start justify-between gap-4">
+          <div className="pt-1">
+            <RowCheckbox checked={table.isSelected(r)} onChange={() => table.toggle(r)} />
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Badge tone={STATUS_TONES[r.status]}>{STATUS_LABELS[r.status]}</Badge>
@@ -669,12 +676,21 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
 
       {loading ? (
         <p className="text-sm text-stone-400">{t("loading")}</p>
-      ) : (sourceTab === "sharepoint" ? sharepointRecords : notionRecords).length === 0 ? (
+      ) : visibleRecords.length === 0 ? (
         <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 text-center">
           <p className="text-sm text-stone-400">{t("pipeline_sync_empty")}</p>
         </div>
       ) : (
-        <div className="space-y-3">{(sourceTab === "sharepoint" ? sharepointRecords : notionRecords).map(renderRecordCard)}</div>
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 px-4 py-1 text-xs text-stone-500">
+            <SelectAllCheckbox controls={table} />
+            {t("table_select_all")}
+          </label>
+          {table.rows.map(renderRecordCard)}
+          <div className="overflow-hidden rounded-xl border border-stone-200">
+            <TableFooter controls={table} />
+          </div>
+        </div>
       )}
 
       {/* ── Validation panel (right-side drawer) ── */}

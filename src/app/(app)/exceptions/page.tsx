@@ -7,8 +7,12 @@ import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage } from "@/translations";
 import { translateIssue } from "@/lib/utils";
 import type { InvoiceListItem } from "@/types";
+import { useTableControls } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 type FilterLevel = "ALL" | "BLOCKED" | "NEEDS_REVIEW";
+
+const exceptionRowId = (item: InvoiceListItem) => item.submission.id;
 
 export default function ExceptionsPage() {
   const { t, language } = useLanguage();
@@ -59,6 +63,8 @@ export default function ExceptionsPage() {
     if (filter === "ALL") return true;
     return item.validation?.riskLevel === filter;
   });
+
+  const table = useTableControls(filtered, exceptionRowId, `${filter}|${selectedMonth}`);
 
   function exportCsv() {
     const rows = [
@@ -155,6 +161,7 @@ export default function ExceptionsPage() {
             <table className="w-full text-sm">
               <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                 <tr>
+                  <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                   <th className="px-4 py-3 text-left">{t("exceptions_col_payer")}</th>
                   <th className="px-4 py-3 text-left">{t("exceptions_col_risk_level")}</th>
                   <th className="px-4 py-3 text-left">{t("col_status")}</th>
@@ -166,10 +173,13 @@ export default function ExceptionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filtered.map((item) => {
+                {table.rows.map((item) => {
                   const v = item.validation;
                   return (
                     <tr key={item.submission.id} className="hover:bg-stone-50">
+                      <td className="pl-4 py-3 w-8">
+                        <RowCheckbox checked={table.isSelected(item)} onChange={() => table.toggle(item)} />
+                      </td>
                       <td className="px-4 py-3 font-medium text-stone-800">{item.submission.payerName}</td>
                       <td className="px-4 py-3">
                         <RiskBadge level={v?.riskLevel} />
@@ -200,6 +210,7 @@ export default function ExceptionsPage() {
               </tbody>
             </table>
           </div>
+          <TableFooter controls={table} />
         </div>
       )}
     </>

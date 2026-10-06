@@ -12,6 +12,8 @@ import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { Lead, LeadStage, Client } from "@/types";
 import { generateId } from "@/lib/utils";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const STAGES: LeadStage[] = ["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "on_hold"];
 
@@ -204,6 +206,7 @@ export default function LeadsPage() {
     setForm((f) => ({ ...f, [k]: v }));
 
   const filtered = stageFilter === "all" ? leads : leads.filter((l) => l.stage === stageFilter);
+  const table = useTableControls(filtered, byId, stageFilter);
 
   const stageCount = (stage: LeadStage) => leads.filter((l) => l.stage === stage).length;
 
@@ -311,6 +314,7 @@ export default function LeadsPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("leads_col_title")}</th>
                 <th className="px-4 py-3 text-left">{t("leads_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("leads_col_stage")}</th>
@@ -323,8 +327,11 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filtered.map((l) => (
+              {table.rows.map((l) => (
                 <tr key={l.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(l)} onChange={() => table.toggle(l)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">{l.title}</td>
                   <td className="px-4 py-3 text-stone-600">{l.clientName || l.clientId || "—"}</td>
                   <td className="px-4 py-3">
@@ -359,6 +366,7 @@ export default function LeadsPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

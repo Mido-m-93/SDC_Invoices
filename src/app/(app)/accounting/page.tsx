@@ -13,6 +13,8 @@ import { useLanguage } from "@/translations";
 import type { TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,6 +91,8 @@ export default function AccountingPage() {
   const [plMonth, setPlMonth] = useState(currentMonth());
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [plLoading, setPlLoading] = useState(false);
+
+  const table = useTableControls(entries, byId, `${filterMonth}|${filterType}|${filterStatus}`);
 
   // ── Data loading ────────────────────────────────────────────────────────────
 
@@ -362,6 +366,7 @@ export default function AccountingPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
                     <tr>
+                      <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                       <th className="px-4 py-3 text-left">{t("accounting_col_date")}</th>
                       <th className="px-4 py-3 text-left">{t("accounting_col_type")}</th>
                       <th className="px-4 py-3 text-left">{t("accounting_col_category")}</th>
@@ -374,8 +379,11 @@ export default function AccountingPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {entries.map((entry) => (
+                    {table.rows.map((entry) => (
                       <tr key={entry.id} className="hover:bg-stone-50">
+                        <td className="pl-4 py-3 w-8">
+                          <RowCheckbox checked={table.isSelected(entry)} onChange={() => table.toggle(entry)} />
+                        </td>
                         <td className="px-4 py-3 text-stone-600">{entry.entryDate}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[entry.type]}`}>
@@ -417,6 +425,7 @@ export default function AccountingPage() {
                   </tbody>
                 </table>
               </div>
+              <TableFooter controls={table} />
             </div>
           )}
         </div>

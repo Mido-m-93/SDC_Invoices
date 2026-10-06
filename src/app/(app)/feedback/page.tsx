@@ -7,6 +7,8 @@ import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import type { Feedback, FeedbackCategory } from "@/types";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const CATEGORIES: FeedbackCategory[] = ["bug", "suggestion", "question", "other"];
 
@@ -38,6 +40,8 @@ export default function FeedbackPage() {
   }, [isAdmin]);
 
   useEffect(() => { loadSubmissions(); }, [loadSubmissions]);
+
+  const table = useTableControls(submissions, byId);
 
   async function handleSubmit() {
     if (rating < 1) {
@@ -140,6 +144,7 @@ export default function FeedbackPage() {
               <table className="w-full text-sm">
                 <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                   <tr>
+                    <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                     <th className="px-4 py-3 text-left">{t("feedback_col_submitted_by")}</th>
                     <th className="px-4 py-3 text-left">{t("feedback_col_rating")}</th>
                     <th className="px-4 py-3 text-left">{t("feedback_col_category")}</th>
@@ -148,8 +153,11 @@ export default function FeedbackPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {submissions.map((f) => (
+                  {table.rows.map((f) => (
                     <tr key={f.id} className="hover:bg-stone-50 align-top">
+                      <td className="pl-4 py-3 w-8">
+                        <RowCheckbox checked={table.isSelected(f)} onChange={() => table.toggle(f)} />
+                      </td>
                       <td className="px-4 py-3 text-stone-600">{f.userEmail || f.userId}</td>
                       <td className="px-4 py-3 font-semibold text-stone-800">{f.rating} / 5</td>
                       <td className="px-4 py-3">
@@ -165,6 +173,7 @@ export default function FeedbackPage() {
                   ))}
                 </tbody>
               </table>
+              <TableFooter controls={table} />
             </div>
           )}
         </div>

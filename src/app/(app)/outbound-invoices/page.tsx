@@ -9,6 +9,8 @@ import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { OutboundInvoice, OutboundInvoiceStatus, OutboundInvoiceSummary, Contract } from "@/types";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const STATUS_TONES: Record<OutboundInvoiceStatus, BadgeTone> = {
   draft: "neutral",
@@ -59,6 +61,8 @@ function OutboundInvoicesPageInner() {
   const [editing, setEditing] = useState<OutboundInvoice | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [error, setError] = useState<string | null>(null);
+
+  const table = useTableControls(invoices, byId, `${statusFilter}|${monthFilter}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -285,6 +289,7 @@ function OutboundInvoicesPageInner() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("outbound_invoices_col_invoice_number")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("outbound_col_project")}</th>
@@ -298,8 +303,11 @@ function OutboundInvoicesPageInner() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {invoices.map((inv) => (
+              {table.rows.map((inv) => (
                 <tr key={inv.id} className={`hover:bg-stone-50 ${inv.status === "overdue" ? "bg-red-50/40" : ""}`}>
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(inv)} onChange={() => table.toggle(inv)} />
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{inv.invoiceNumber || "—"}</td>
                   <td className="px-4 py-3 font-medium text-stone-800">{inv.clientName || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{inv.projectName || "—"}</td>
@@ -370,6 +378,7 @@ function OutboundInvoicesPageInner() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

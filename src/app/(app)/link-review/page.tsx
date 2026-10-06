@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
+import { useTableControls } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 interface ReviewRow {
   type: "contract" | "proposal" | "budget";
@@ -24,6 +26,9 @@ const TYPE_PAGE: Record<ReviewRow["type"], string> = {
   proposal: "/proposals",
   budget: "/budget",
 };
+
+const reviewRowKey = (r: ReviewRow) => `${r.type}:${r.id}`;
+const NO_ROWS: ReviewRow[] = [];
 
 export default function LinkReviewPage() {
   const { notify } = useNotifications();
@@ -51,6 +56,8 @@ export default function LinkReviewPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const table = useTableControls(rows ?? NO_ROWS, reviewRowKey);
 
   async function handleLink(row: ReviewRow) {
     if (!row.bestMatch?.webUrl) return;
@@ -98,6 +105,7 @@ export default function LinkReviewPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">Type</th>
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Client</th>
@@ -106,10 +114,13 @@ export default function LinkReviewPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {rows.map((r) => {
-                const key = `${r.type}:${r.id}`;
+              {table.rows.map((r) => {
+                const key = reviewRowKey(r);
                 return (
                   <tr key={key} className="hover:bg-stone-50">
+                    <td className="pl-4 py-3 w-8">
+                      <RowCheckbox checked={table.isSelected(r)} onChange={() => table.toggle(r)} />
+                    </td>
                     <td className="px-4 py-3 text-stone-500">{TYPE_LABEL[r.type]}</td>
                     <td className="px-4 py-3 font-medium text-stone-900">{r.name || "—"}</td>
                     <td className="px-4 py-3 text-stone-600">{r.clientName || "—"}</td>
@@ -143,6 +154,7 @@ export default function LinkReviewPage() {
               })}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       ) : null}
     </>

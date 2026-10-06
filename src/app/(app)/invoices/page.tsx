@@ -29,6 +29,10 @@ import type { InvoiceValidationResult } from "@/types";
 import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
+import { useTableControls } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
+
+const invoiceRowId = (item: InvoiceListItem) => item.submission.id;
 
 const STATUS_FILTERS: Array<"ALL" | "REJECTED" | "PAID" | InvoiceStatusCode> = [
   "ALL", "READY", "REVIEW_REQUIRED", "MISSING_ATTACHMENT", "SAVED", "PAID", "REJECTED",
@@ -59,8 +63,6 @@ export default function InvoicesPage() {
   const [rawPreview, setRawPreview] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -389,12 +391,7 @@ export default function InvoicesPage() {
       ? items.filter((i) => i.validation?.humanRejected)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  // Reset to page 1 whenever filter, month or page size changes
-  useEffect(() => { setPage(1); }, [filterStatus, month, pageSize]);
+  const table = useTableControls(filtered, invoiceRowId, `${filterStatus}|${month}`);
 
   const tabCount = (f: string): number => {
     if (f === "ALL") return items.length;
@@ -538,6 +535,7 @@ export default function InvoicesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-stone-50">
+                    <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                     <Th>{t("col_name")}</Th>
                     <Th>{t("col_submitted_at")}</Th>
                     <Th>{t("col_which_month")}</Th>
@@ -550,11 +548,14 @@ export default function InvoicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
-                  {paginated.map((item) => {
+                  {table.rows.map((item) => {
                     const { submission: s, validation: v } = item;
                     const isValidating = validating === s.id;
                     return (
                       <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
+                        <td className="pl-4 py-3 w-8">
+                          <RowCheckbox checked={table.isSelected(item)} onChange={() => table.toggle(item)} />
+                        </td>
                         {/* Name */}
                         <td className="px-4 py-3 font-medium text-stone-900 whitespace-nowrap">
                           {s.payerName}
@@ -765,56 +766,11 @@ export default function InvoicesPage() {
               </table>
             </div>
 
-            <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <p className="text-xs text-stone-400">
-                  {filtered.length} / {items.length} {t("items_shown")}
-                </p>
-                <label className="flex items-center gap-1.5 text-xs text-stone-500">
-                  {t("invoices_rows_per_page")}
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="rounded border border-stone-200 bg-white px-1.5 py-0.5 text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
-                    {[10, 25, 50, 100].map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage === 1}
-                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {t("invoices_prev")}
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setPage(n)}
-                      className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
-                        n === safePage
-                          ? "bg-emerald-500 text-white shadow-sm"
-                          : "text-stone-500 hover:bg-stone-200"
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage === totalPages}
-                    className="px-2 py-1 rounded text-xs font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {t("invoices_next")}
-                  </button>
-                </div>
-              )}
-            </div>
+            <TableFooter controls={table}>
+              <p className="text-xs text-stone-400">
+                {filtered.length} / {items.length} {t("items_shown")}
+              </p>
+            </TableFooter>
           </div>
         )}
       </div>

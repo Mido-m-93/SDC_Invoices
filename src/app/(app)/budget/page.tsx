@@ -11,6 +11,8 @@ import type { Budget, Client, Proposal } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const STATUSES: Budget["status"][] = ["draft", "confirmed", "rejected"];
 
@@ -269,6 +271,8 @@ export default function BudgetPage() {
     );
   })();
 
+  const table = useTableControls(filteredBudgets, byId, search);
+
   return (
     <>
       <PageHeader
@@ -365,6 +369,7 @@ export default function BudgetPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("budget_col_project")}</th>
                 <th className="px-4 py-3 text-left">{t("budget_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("budget_col_proposal")}</th>
@@ -377,8 +382,11 @@ export default function BudgetPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredBudgets.map((b) => (
+              {table.rows.map((b) => (
                 <tr key={b.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(b)} onChange={() => table.toggle(b)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-900">{b.projectName}</td>
                   <td className="px-4 py-3 text-stone-600">
                     {b.clientName || (b.clientId ? clientName(b.clientId) : "—")}
@@ -421,6 +429,7 @@ export default function BudgetPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 
