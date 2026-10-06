@@ -77,6 +77,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
   // Auto-close the mobile sidebar whenever the route changes.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // Admins: count of sign-ups waiting for approval, shown next to "Users".
+  // Refreshed on every navigation so it clears after approving.
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/users/pending-count")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { count?: number } | null) => setPendingCount(data?.count ?? 0))
+      .catch(() => {});
+  }, [isAdmin, pathname]);
+
   // Block direct-URL access to a tab a Member has been restricted from —
   // the sidebar already hides these, but hiding the link alone doesn't stop
   // someone from typing/bookmarking the URL.
@@ -291,6 +302,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   >
                     <Icon size={14} />
                     <span>{t(key)}</span>
+                    {href === "/users" && pendingCount > 0 && (
+                      <span className="ml-auto min-w-5 rounded-full bg-red-500 px-1.5 text-center text-[11px] font-semibold leading-5 text-white">
+                        {pendingCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
