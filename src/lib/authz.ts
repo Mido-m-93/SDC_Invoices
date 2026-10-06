@@ -11,11 +11,24 @@ export interface Authz {
   isAdmin: boolean;
   /** `null` = unrestricted; an array names the only tab hrefs this user can see. */
   allowedTabs: string[] | null;
+  /** New sign-ups wait for admin approval. No flag = approved (pre-existing accounts). Admins are never pending. */
+  isPending: boolean;
 }
 
 export function readAuthz(user: AuthUserLike): Authz {
   const meta = user?.app_metadata ?? {};
   const role = typeof meta.role === "string" ? meta.role : undefined;
   const allowedTabs = Array.isArray(meta.allowedTabs) ? (meta.allowedTabs as string[]) : null;
-  return { role, isAdmin: role === "admin", allowedTabs };
+  const isAdmin = role === "admin";
+  return { role, isAdmin, allowedTabs, isPending: !isAdmin && meta.approval === "pending" };
+}
+
+export const PENDING_PATH = "/pending";
+
+/** Where middleware should send a signed-in user, or null to let the request through. */
+export function pendingRedirect(pathname: string, isPending: boolean): string | null {
+  if (isPending) {
+    return pathname === PENDING_PATH || pathname.startsWith("/auth/") ? null : PENDING_PATH;
+  }
+  return pathname === PENDING_PATH ? "/dashboard" : null;
 }

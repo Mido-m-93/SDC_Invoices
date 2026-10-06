@@ -137,3 +137,25 @@ describe("requireAdmin", () => {
     expect(result.user).toMatchObject({ id: "u1", role: "admin" });
   });
 });
+
+describe("requireAuth — account approval", () => {
+  const signedInAs = (user: Record<string, unknown>) =>
+    mockCreateServerClient.mockReturnValue(makeSupabaseStub({ data: { user } }) as never);
+
+  it("refuses a pending account with 403", async () => {
+    signedInAs({ id: "u2", email: "new@x.com", app_metadata: { approval: "pending" } });
+    const result = await requireAuth();
+    expect(result.user).toBeNull();
+    expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
+  });
+
+  it("lets through an account with no approval flag (existing users)", async () => {
+    signedInAs({ id: "u3", email: "old@x.com", app_metadata: {} });
+    expect((await requireAuth()).user).toMatchObject({ id: "u3" });
+  });
+
+  it("never treats an admin as pending", async () => {
+    signedInAs({ id: "u4", email: "boss@x.com", app_metadata: { role: "admin", approval: "pending" } });
+    expect((await requireAdmin()).user).toMatchObject({ id: "u4" });
+  });
+});

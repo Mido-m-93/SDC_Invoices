@@ -31,7 +31,13 @@ export async function requireAuth(): Promise<
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
-  const { role } = readAuthz(user);
+  const { role, isPending } = readAuthz(user);
+  if (isPending) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: "Account pending approval" }, { status: 403 }),
+    };
+  }
   return { user: { id: user.id, email: user.email ?? user.id, role }, response: null };
 }
 
