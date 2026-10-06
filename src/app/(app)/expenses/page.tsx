@@ -14,6 +14,8 @@ import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW
 import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
 import { monthOptions } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const CATEGORIES: ExpenseCategory[] = ["transport","accommodation","meals","software","hardware","office_supplies","communication","entertainment","training","other"];
 const PAYMENT_METHODS: ExpensePaymentMethod[] = ["company_card","invoice_payment","personal_reimbursement"];
@@ -368,6 +370,7 @@ export default function ExpensesPage() {
   const monthClaims = claims.filter((c) => c.expenseDate?.slice(0, 7) === month);
   const visibleClaims = statusFilter === "missing_attachment" ? monthClaims.filter((c) => !c.receiptUrl) : monthClaims;
   const missingAttachmentCount = monthClaims.filter((c) => !c.receiptUrl).length;
+  const table = useTableControls(visibleClaims, byId, `${month}|${statusFilter}`);
 
   return (
     <>
@@ -456,6 +459,7 @@ export default function ExpensesPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_submitted_by")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_category")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_description")}</th>
@@ -470,8 +474,11 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {visibleClaims.map((c) => (
+              {table.rows.map((c) => (
                 <tr key={c.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(c)} onChange={() => table.toggle(c)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{categoryLabel(c.category)}</td>
                   <td className="px-4 py-3 text-stone-600 max-w-[200px] truncate">{c.description || "—"}</td>
@@ -566,6 +573,7 @@ export default function ExpensesPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

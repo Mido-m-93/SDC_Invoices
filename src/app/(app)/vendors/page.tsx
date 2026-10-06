@@ -8,6 +8,8 @@ import Badge, { type BadgeTone } from "@/components/ui/Badge";
 import type { Vendor } from "@/types";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const EMPTY_VENDOR: Omit<Vendor, "id" | "createdAt"> = {
   name: "",
@@ -42,6 +44,7 @@ export default function VendorsPage() {
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const table = useTableControls(vendors, byId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,6 +170,7 @@ export default function VendorsPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("vendors_col_name")}</th>
                 <th className="px-4 py-3 text-left">{t("vendors_col_aliases")}</th>
                 <th className="px-4 py-3 text-left">{t("vendors_col_tax_reg")}</th>
@@ -176,8 +180,11 @@ export default function VendorsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {vendors.map((v) => (
+              {table.rows.map((v) => (
                 <tr key={v.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(v)} onChange={() => table.toggle(v)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">{v.name}</td>
                   <td className="px-4 py-3 text-stone-500 text-xs">{v.aliases.join(", ") || "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{v.taxRegistrationNumber || "—"}</td>
@@ -195,6 +202,7 @@ export default function VendorsPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

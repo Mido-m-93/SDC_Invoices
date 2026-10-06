@@ -12,6 +12,8 @@ import { fetchRuns, fetchLogs, clearAllRuns } from "@/lib/api/client";
 import { formatTimestamp, logResultColor } from "@/lib/utils";
 import type { ProcessingRun, ProcessingLog } from "@/types";
 import clsx from "clsx";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 export default function LogsPage() {
   const { t, language } = useLanguage();
@@ -75,6 +77,7 @@ export default function LogsPage() {
   };
 
   const selectedRun = runs.find((r) => r.id === selectedRunId);
+  const table = useTableControls(logs, byId, selectedRunId ?? "");
 
   return (
     <>
@@ -167,6 +170,7 @@ export default function LogsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-stone-100 bg-stone-50">
+                        <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                         <Th>{t("logs_col_time")}</Th>
                         <Th>{t("logs_step")}</Th>
                         <Th>{t("logs_col_submission")}</Th>
@@ -175,7 +179,7 @@ export default function LogsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50 font-mono text-xs">
-                      {logs.map((log) => {
+                      {table.rows.map((log) => {
                         const dest = selectedRun?.entityType === "expense" ? "/expenses" : "/invoices";
                         return (
                         <tr
@@ -184,6 +188,9 @@ export default function LogsPage() {
                           className="cursor-pointer hover:bg-stone-50"
                           title={dest === "/expenses" ? t("logs_row_goto_expenses") : t("logs_row_goto_invoices")}
                         >
+                          <td className="pl-4 py-2.5 w-8 cursor-default" onClick={(e) => e.stopPropagation()}>
+                            <RowCheckbox checked={table.isSelected(log)} onChange={() => table.toggle(log)} />
+                          </td>
                           <td className="px-4 py-2.5 text-stone-400 whitespace-nowrap">
                             {formatTimestamp(log.timestamp, language)}
                           </td>
@@ -200,11 +207,11 @@ export default function LogsPage() {
                       })}
                     </tbody>
                   </table>
-                  <div className="px-4 py-2.5 border-t border-stone-100 bg-stone-50">
+                  <TableFooter controls={table}>
                     <p className="text-xs text-stone-400">
                       {logs.length} {t("logs_entries")}
                     </p>
-                  </div>
+                  </TableFooter>
                 </div>
               )}
             </div>

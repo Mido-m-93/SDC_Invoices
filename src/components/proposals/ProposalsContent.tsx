@@ -11,6 +11,8 @@ import type { Proposal, Client, Lead } from "@/types";
 import { generateId } from "@/lib/utils";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const STATUSES: Proposal["status"][] = ["draft", "submitted", "accepted", "rejected", "expired"];
 
@@ -289,6 +291,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
 
   const totalValue = proposals.filter(p => p.status === "accepted").reduce((s, p) => s + p.estimatedAmount, 0);
   const pending = proposals.filter(p => ["draft", "submitted"].includes(p.status)).length;
+  const table = useTableControls(proposals, byId);
 
   const proposalActions = (
     <div className="flex gap-2">
@@ -354,6 +357,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_project")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("proposals_col_date")}</th>
@@ -368,8 +372,11 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {proposals.map((p) => (
+              {table.rows.map((p) => (
                 <tr key={p.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(p)} onChange={() => table.toggle(p)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-900">{p.projectName}</td>
                   <td className="px-4 py-3 text-stone-600">
                     {p.clientName || (p.clientId ? clientName(p.clientId) : "—")}
@@ -445,6 +452,7 @@ export default function ProposalsContent({ compact = false }: ProposalsContentPr
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

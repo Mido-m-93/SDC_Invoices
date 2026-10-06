@@ -5,6 +5,8 @@ import PageHeader from "@/components/ui/PageHeader";
 import { useLanguage, type TranslationKey } from "@/translations";
 import type { ExpenseClaim, ExpenseCategory } from "@/types";
 import { formatTimestamp } from "@/lib/utils";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 export default function ReportsPage() {
   const { t, language } = useLanguage();
@@ -32,6 +34,7 @@ export default function ReportsPage() {
   useEffect(() => { load(); }, [load]);
 
   const sorted = [...claims].sort((a, b) => (b.filedAt ?? "").localeCompare(a.filedAt ?? ""));
+  const table = useTableControls(sorted, byId);
 
   return (
     <>
@@ -55,6 +58,7 @@ export default function ReportsPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_submitted_by")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_category")}</th>
                 <th className="px-4 py-3 text-left">{t("expenses_col_amount")}</th>
@@ -64,8 +68,11 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {sorted.map((c) => (
+              {table.rows.map((c) => (
                 <tr key={c.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(c)} onChange={() => table.toggle(c)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">{c.submittedBy || "—"}</td>
                   <td className="px-4 py-3 text-stone-500">{categoryLabel(c.category)}</td>
                   <td className="px-4 py-3">{c.currency} {c.amount.toLocaleString()}</td>
@@ -85,6 +92,7 @@ export default function ReportsPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
     </>

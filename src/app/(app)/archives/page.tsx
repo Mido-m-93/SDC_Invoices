@@ -5,6 +5,8 @@ import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { useNotifications } from "@/lib/notifications";
 import { useLanguage, type TranslationKey } from "@/translations";
+import { useTableControls } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun, Contract } from "@/types";
 
 interface ArchivedAppUser {
@@ -150,6 +152,8 @@ function toArchivedUser(u: ArchivedAppUser, t: Translate): ArchivedItem {
   };
 }
 
+const archivedItemKey = (item: ArchivedItem) => item.key;
+
 const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
   proposals: (id) => `/api/proposals/${id}/restore`,
   budgets: (id) => `/api/budgets/${id}/restore`,
@@ -255,6 +259,7 @@ export default function ArchivesPage() {
     users: items.filter((i) => i.module === "users").length,
   };
   const filtered = filter === "all" ? items : items.filter((i) => i.module === filter);
+  const table = useTableControls(filtered, archivedItemKey, filter);
 
   return (
     <>
@@ -293,8 +298,13 @@ export default function ArchivesPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((item) => (
+          <label className="flex items-center gap-3 px-4 py-1 text-xs text-stone-500">
+            <SelectAllCheckbox controls={table} />
+            {t("table_select_all")}
+          </label>
+          {table.rows.map((item) => (
             <div key={item.key} className="flex items-center justify-between gap-4 rounded-xl border border-stone-200 bg-white p-4">
+              <RowCheckbox checked={table.isSelected(item)} onChange={() => table.toggle(item)} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">
@@ -313,6 +323,9 @@ export default function ArchivesPage() {
               </Button>
             </div>
           ))}
+          <div className="overflow-hidden rounded-xl border border-stone-200">
+            <TableFooter controls={table} />
+          </div>
         </div>
       )}
     </>

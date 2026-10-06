@@ -10,6 +10,8 @@ import { generateId } from "@/lib/utils";
 import { extractMemberName, normaliseMemberName } from "@/lib/memberName";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 interface MemberFolderFile {
   name: string;
@@ -222,6 +224,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
   const now = new Date();
   const expiredCount = members.filter((m) => isMemberContractExpired(m, now)).length;
   const filteredMembers = expiredOnly ? members.filter((m) => isMemberContractExpired(m, now)) : members;
+  const table = useTableControls(filteredMembers, byId, String(expiredOnly));
 
   const memberActions = (
     <div className="flex items-center gap-2">
@@ -290,6 +293,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("members_col_name")}</th>
                 <th className="px-4 py-3 text-left">{t("members_col_email")}</th>
                 <th className="px-4 py-3 text-left">{t("members_col_role")}</th>
@@ -300,8 +304,11 @@ export default function MembersContent({ compact = false }: MembersContentProps)
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredMembers.map((m) => (
+              {table.rows.map((m) => (
                 <tr key={m.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(m)} onChange={() => table.toggle(m)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">
                     {m.displayName}
                     {m.employeeCode && (
@@ -333,6 +340,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

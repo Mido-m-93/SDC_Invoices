@@ -9,6 +9,8 @@ import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { formatTimestamp } from "@/lib/utils";
 import { MANAGEABLE_TABS } from "@/lib/navTabs";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 interface AppUser {
   id: string;
@@ -35,6 +37,8 @@ export default function UsersPage() {
   const [managingTabsFor, setManagingTabsFor] = useState<AppUser | null>(null);
   const [tabsDraft, setTabsDraft] = useState<Set<string>>(new Set());
   const [savingTabs, setSavingTabs] = useState(false);
+
+  const table = useTableControls(users, byId);
 
   useEffect(() => {
     if (ready && !isAdmin) router.replace("/dashboard");
@@ -192,6 +196,7 @@ export default function UsersPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("users_col_email")}</th>
                 <th className="px-4 py-3 text-left">{t("users_col_role")}</th>
                 <th className="px-4 py-3 text-left">{t("users_col_created")}</th>
@@ -200,10 +205,13 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {users.map((u) => {
+              {table.rows.map((u) => {
                 const isSelf = u.id === userId;
                 return (
                   <tr key={u.id} className="hover:bg-stone-50">
+                    <td className="pl-4 py-3 w-8">
+                      <RowCheckbox checked={table.isSelected(u)} onChange={() => table.toggle(u)} />
+                    </td>
                     <td className="px-4 py-3 font-medium text-stone-800">
                       {u.email || "—"}
                       {isSelf && <span className="ml-2 text-xs text-stone-400">({t("users_you")})</span>}
@@ -246,6 +254,7 @@ export default function UsersPage() {
               })}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

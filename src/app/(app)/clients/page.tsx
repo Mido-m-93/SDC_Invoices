@@ -8,6 +8,8 @@ import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { Client } from "@/types";
 import { generateId } from "@/lib/utils";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const EMPTY_CLIENT: Omit<Client, "id" | "createdAt" | "updatedAt"> = {
   name: "",
@@ -33,6 +35,7 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_CLIENT });
   const [error, setError] = useState<string | null>(null);
+  const table = useTableControls(clients, byId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +135,7 @@ export default function ClientsPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">{t("clients_col_name")}</th>
                 <th className="px-4 py-3 text-left">{t("clients_col_industry")}</th>
                 <th className="px-4 py-3 text-left">{t("clients_col_contact")}</th>
@@ -141,8 +145,11 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {clients.map((c) => (
+              {table.rows.map((c) => (
                 <tr key={c.id} className="hover:bg-stone-50">
+                  <td className="pl-4 py-3 w-8">
+                    <RowCheckbox checked={table.isSelected(c)} onChange={() => table.toggle(c)} />
+                  </td>
                   <td className="px-4 py-3 font-medium text-stone-800">{c.name}</td>
                   <td className="px-4 py-3 text-stone-600">{c.industry || "—"}</td>
                   <td className="px-4 py-3 text-stone-600">{c.contactName || "—"}</td>
@@ -164,6 +171,7 @@ export default function ClientsPage() {
               ))}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 

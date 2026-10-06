@@ -6,6 +6,8 @@ import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import type { PaymentRecord, PaymentRecordStatus } from "@/types";
 import { generateId } from "@/lib/utils";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 const STATUS_TONES: Record<PaymentRecordStatus, BadgeTone> = {
   pending: "warning",
@@ -51,6 +53,8 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [error, setError] = useState<string | null>(null);
+
+  const table = useTableControls(records, byId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,6 +151,7 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
             <table className="w-full text-sm">
               <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                 <tr>
+                  <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                   {isCollection ? (
                     <>
                       <th className="px-4 py-3 text-left">{t("payment_records_field_invoice_id")}</th>
@@ -164,8 +169,11 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {records.map((r) => (
+                {table.rows.map((r) => (
                   <tr key={r.id} className="hover:bg-stone-50">
+                    <td className="pl-4 py-3 w-8">
+                      <RowCheckbox checked={table.isSelected(r)} onChange={() => table.toggle(r)} />
+                    </td>
                     {isCollection ? (
                       <>
                         <td className="px-4 py-3 font-mono text-xs text-stone-500">{r.invoiceId}</td>
@@ -191,6 +199,7 @@ export default function PaymentDirectionPage({ direction, title, subtitle }: Pay
                 ))}
               </tbody>
             </table>
+            <TableFooter controls={table} />
           </div>
         )}
 

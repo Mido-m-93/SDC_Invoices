@@ -14,6 +14,8 @@ import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import type { Contract, Vendor, Client, Proposal, Budget } from "@/types";
 import { generateId } from "@/lib/utils";
 import { isContractExpired } from "@/lib/contractStats";
+import { useTableControls, byId } from "@/lib/hooks/useTableControls";
+import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
 type ContractForm = Omit<Contract, "id" | "createdAt">;
 
@@ -392,6 +394,8 @@ export default function ContractsPage() {
     return result;
   })();
 
+  const table = useTableControls(filteredContracts, byId, `${search}|${expiredOnly}`);
+
   return (
     <>
       <PageHeader
@@ -526,6 +530,7 @@ export default function ContractsPage() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
+                <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
                 <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_client")}</th>
                 <th className="px-4 py-3 text-left">{t("contracts_col_status")}</th>
@@ -534,11 +539,14 @@ export default function ContractsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredContracts.map((c, idx) => {
+              {table.rows.map((c, idx) => {
                 const clientDisplay = resolvedClientName(c);
                 return (
                   <tr key={c.id} className="hover:bg-stone-50">
-                    <td className="px-4 py-3 text-stone-400">{idx + 1}</td>
+                    <td className="pl-4 py-3 w-8">
+                      <RowCheckbox checked={table.isSelected(c)} onChange={() => table.toggle(c)} />
+                    </td>
+                    <td className="px-4 py-3 text-stone-400">{(table.page - 1) * table.pageSize + idx + 1}</td>
                     <td className="px-4 py-3 text-stone-600">
                       {clientDisplay ?? <span className="text-stone-300">—</span>}
                       {c.proposalId && (
@@ -621,6 +629,7 @@ export default function ContractsPage() {
               })}
             </tbody>
           </table>
+          <TableFooter controls={table} />
         </div>
       )}
 
