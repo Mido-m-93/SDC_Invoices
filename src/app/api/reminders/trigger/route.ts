@@ -2,8 +2,7 @@
 // Manual reminder trigger for logged-in dashboard users.
 // Uses Supabase session cookie for auth — no CRON_SECRET needed.
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/auth-guard";
 import { getReminderService } from "@/lib/services";
 import type { ReminderType } from "@/types";
 
@@ -24,22 +23,9 @@ function currentMonthJST(): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Verify the user is authenticated via session cookie
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Shared guard: signed in AND approved (pending sign-ups are refused).
+  const { user, response } = await requireAuth();
+  if (!user) return response!;
 
   let body: unknown;
   try { body = await req.json(); } catch { body = {}; }

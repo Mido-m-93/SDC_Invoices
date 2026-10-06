@@ -25,7 +25,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // app_metadata is merged on update; null removes the key.
     const db = getSupabaseClient();
     const { error } = await db.auth.admin.updateUserById(params.id, {
-      app_metadata: { role: role === "admin" ? "admin" : null },
+      // Promoting also approves, so a later demotion doesn't drop them back to pending.
+      app_metadata: role === "admin" ? { role: "admin", approval: "approved" } : { role: null },
     });
     if (error) throw new Error(error.message);
 

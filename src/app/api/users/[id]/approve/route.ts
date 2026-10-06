@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isValidTabSelection } from "@/lib/navTabs";
-import { sendEmail, approvedEmail, appUrl } from "@/lib/accountEmails";
+import { sendEmail, approvedEmail, resolveAppUrl } from "@/lib/accountEmails";
+import { readAuthz } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "tabs must be null or an array of known tab hrefs" }, { status: 400 });
     }
 
-    // app_metadata is merged on update; null removes the key.
     const db = getSupabaseClient();
+    const { data: target, error: getErr } = await db.auth.admin.getUserById(params.id);
+    if (getErr) throw new Error(getErr.message);
+    if (!readAuthz(target.user).isPending) {
+      return NextResponse.json({ error: "User is not pending approval" }, { status: 409 });
+    }
+
+    // app_metadata is merged on update; null removes the key.
     const { data, error } = await db.auth.admin.updateUserById(params.id, {
       app_metadata: { approval: "approved", allowedTabs: tabs },
     });
@@ -29,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Best-effort: a failed email doesn't undo the approval.
     const email = data.user?.email;
-    const emailed = email ? await sendEmail([email], approvedEmail(appUrl(req.nextUrl.origin))) : false;
+    const emailed = email ? await sendEmail([email], approvedEmail(resolveAppUrl(req.nextUrl.origin))) : false;
 
     return NextResponse.json({ ok: true, emailed });
   } catch (err) {

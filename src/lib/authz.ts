@@ -11,7 +11,7 @@ export interface Authz {
   isAdmin: boolean;
   /** `null` = unrestricted; an array names the only tab hrefs this user can see. */
   allowedTabs: string[] | null;
-  /** New sign-ups wait for admin approval. No flag = approved (pre-existing accounts). Admins are never pending. */
+  /** True unless app_metadata.approval === "approved". Admins are never pending. */
   isPending: boolean;
 }
 
@@ -20,7 +20,9 @@ export function readAuthz(user: AuthUserLike): Authz {
   const role = typeof meta.role === "string" ? meta.role : undefined;
   const allowedTabs = Array.isArray(meta.allowedTabs) ? (meta.allowedTabs as string[]) : null;
   const isAdmin = role === "admin";
-  return { role, isAdmin, allowedTabs, isPending: !isAdmin && meta.approval === "pending" };
+  // Fail closed: only an explicit "approved" (or admin) gets in. A missing flag
+  // means a new sign-up — or a flag lost somewhere — and is treated as pending.
+  return { role, isAdmin, allowedTabs, isPending: !isAdmin && meta.approval !== "approved" };
 }
 
 export const PENDING_PATH = "/pending";

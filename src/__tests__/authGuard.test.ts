@@ -79,7 +79,7 @@ describe("requireAuth", () => {
   // ── Test 2 ──────────────────────────────────────────────────────────────────
   it("returns { user: {id, email}, response: null } when Supabase returns a user", async () => {
     // Arrange – getUser returns a real user object
-    const fakeUser = { id: "user-abc-123", email: "test@example.com" };
+    const fakeUser = { id: "user-abc-123", email: "test@example.com", app_metadata: { approval: "approved" } };
     mockCreateServerClient.mockReturnValue(
       makeSupabaseStub({ data: { user: fakeUser } }) as never
     );
@@ -149,9 +149,16 @@ describe("requireAuth — account approval", () => {
     expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
   });
 
-  it("lets through an account with no approval flag (existing users)", async () => {
-    signedInAs({ id: "u3", email: "old@x.com", app_metadata: {} });
-    expect((await requireAuth()).user).toMatchObject({ id: "u3" });
+  it("refuses an account with no approval flag (fail closed)", async () => {
+    signedInAs({ id: "u3", email: "x@x.com", app_metadata: {} });
+    const result = await requireAuth();
+    expect(result.user).toBeNull();
+    expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
+  });
+
+  it("lets through an approved account", async () => {
+    signedInAs({ id: "u5", email: "ok@x.com", app_metadata: { approval: "approved" } });
+    expect((await requireAuth()).user).toMatchObject({ id: "u5" });
   });
 
   it("never treats an admin as pending", async () => {

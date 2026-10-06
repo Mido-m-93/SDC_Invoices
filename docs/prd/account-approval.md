@@ -20,12 +20,12 @@ New accounts start **pending**. A pending user can sign in but only sees a "wait
 
 ## Implementation Decisions
 - **Authorization storage:** `role`, `allowedTabs` and the new `approval` status live in Supabase `app_metadata` (writable only with the service role). `user_metadata` keeps only profile data (name). A one-time migration copies existing `role` / `allowedTabs` from `user_metadata` to `app_metadata`.
-- **Approval status:** `app_metadata.approval` is `"pending"` for new accounts, absent or `"approved"` otherwise. Absent = approved, so existing accounts are grandfathered without a backfill.
-- **Pending at creation:** a `before insert` trigger on `auth.users` sets `approval = "pending"` (same pattern as the former signup-domain trigger), so it can't be bypassed by calling Supabase Auth directly.
+- **Approval status (fail closed):** a user is approved only if `app_metadata.approval === "approved"` (admins always are). A missing flag means pending, so new sign-ups need nothing special at creation and can't bypass it by calling Supabase Auth directly. A migration marks every existing account approved before the code deploys. (An earlier draft used a sign-up trigger to set `"pending"`; security review rejected it as fail-open — if the flag was ever lost, the user got in.)
+- **Bootstrap admin:** the one-time "make me admin when none exists" endpoint also requires a server secret, since a migration mistake leaving no admin would otherwise let any sign-up take admin.
 - **Enforcement:** the shared server auth check refuses pending users (403) for every guarded API route; the page middleware sends pending users to a dedicated pending page and keeps them there. Admins are never pending.
 - **Approve:** admin-only endpoint sets `approval = "approved"` and the chosen `allowedTabs` together, then emails the user.
 - **Reject:** reuses the existing archive (server-enforced ban), restorable from the archived list.
-- **Admin notification:** after sign-up, the app asks the server to notify; the server emails all admins about pending users not yet notified and records `app_metadata.signupNotifiedAt` so each sign-up is emailed once. Uses the existing Resend setup.
+- **Admin notification:** the pending page asks the server to notify; the server claims pending users not yet notified (`app_metadata.signupNotifiedAt`), emails all admins, and releases the claim if the send fails. Uses the existing Resend setup. Links use `APP_URL` (falls back to the request origin).
 - **Role management:** set-role, set-tabs, bootstrap-admin, archive and restore write `app_metadata` instead of `user_metadata`.
 
 ## Testing Decisions
@@ -37,4 +37,6 @@ New accounts start **pending**. A pending user can sign in but only sees a "wait
 - Bulk approve/reject from the new table checkboxes.
 - Restricting sign-up by email domain.
 - Locking the admin role to one account (admins keep choosing admins).
-- Securing the 11 unguarded API routes (webhooks, cron, callbacks) — they use their own secrets and are unaffected.
+- Securing the other unguarded API routes (webhooks, cron, callbacks) — they use their own secrets. (`reminders/trigger` did its own login check and was moved onto the shared guard.)
+- Server-side enforcement of `allowedTabs`: it only hides sidebar tabs today; API routes don't check it. Known gap, follow-up.
+- Rate limiting `signup-notify`.

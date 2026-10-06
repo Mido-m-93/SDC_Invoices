@@ -54,6 +54,6 @@ export async function sendEmail(to: string[], email: { subject: string; html: st
 }
 
 /** Base URL for links in emails: APP_URL if set, else the request's own origin. */
-export function appUrl(requestOrigin: string): string {
+export function resolveAppUrl(requestOrigin: string): string {
   return (process.env.APP_URL ?? requestOrigin).replace(/\/$/, "");
 }

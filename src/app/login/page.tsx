@@ -51,10 +51,6 @@ function LoginForm() {
         password,
         options: { data: { name: name.trim() } },
       });
-      // New account (pending approval) — let admins know. Fire-and-forget.
-      if (!authError && signUpData.user?.identities?.length) {
-        fetch("/api/auth/signup-notify", { method: "POST" }).catch(() => {});
-      }
       if (authError) {
         setError(authError.message);
         setLoading(false);
