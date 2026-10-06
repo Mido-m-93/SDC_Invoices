@@ -3,14 +3,28 @@
 // Promotes the given account to admin, but ONLY while no admin exists yet.
 // Self-locking: once any admin exists, this endpoint refuses to run again —
 // further promotions must go through an existing admin (see set-role).
+// Also requires the BOOTSTRAP_ADMIN_SECRET env var to be set and sent as the
+// x-bootstrap-secret header — otherwise, if no admin existed (e.g. a migration
+// went wrong), any brand-new sign-up could make itself admin.
 
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { getSupabaseClient } from "@/lib/supabase";
 import { anyAdminExists, listAllAuthUsers } from "@/lib/authUsers";
 
 export const dynamic = "force-dynamic";
 
+function hasBootstrapSecret(req: NextRequest): boolean {
+  const expected = process.env.BOOTSTRAP_ADMIN_SECRET;
+  const given = req.headers.get("x-bootstrap-secret");
+  if (!expected || !given || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
 export async function POST(req: NextRequest) {
+  if (!hasBootstrapSecret(req)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   try {
     if (await anyAdminExists()) {
       return NextResponse.json(
@@ -26,11 +40,8 @@ export async function POST(req: NextRequest) {
     if (!target) return NextResponse.json({ error: `No account found for ${email}` }, { status: 404 });
 
     const db = getSupabaseClient();
-    const { data: existing, error: fetchErr } = await db.auth.admin.getUserById(target.id);
-    if (fetchErr) throw new Error(fetchErr.message);
-
     const { error } = await db.auth.admin.updateUserById(target.id, {
-      user_metadata: { ...(existing.user?.user_metadata ?? {}), role: "admin" },
+      app_metadata: { role: "admin", approval: "approved" },
     });
     if (error) throw new Error(error.message);
 

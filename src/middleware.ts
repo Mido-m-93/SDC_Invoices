@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { readAuthz, pendingRedirect } from "@/lib/authz";
 
 export async function middleware(request: NextRequest) {
   // If Supabase is not configured (local dev without credentials), skip auth.
@@ -55,6 +56,16 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // New sign-ups wait on /pending until an admin approves them.
+  if (user) {
+    const target = pendingRedirect(pathname, readAuthz(user).isPending);
+    if (target) {
+      const url = request.nextUrl.clone();
+      url.pathname = target;
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

@@ -4,6 +4,7 @@
 
 import "server-only";
 import { getSupabaseClient } from "@/lib/supabase";
+import { readAuthz } from "@/lib/authz";
 
 export interface AppUser {
   id: string;
@@ -13,6 +14,10 @@ export interface AppUser {
   archivedAt: string | null;
   archivedBy: string | null;
   isAdmin: boolean;
+  /** New sign-up waiting for admin approval. */
+  isPending: boolean;
+  /** When admins were emailed about this sign-up (app_metadata), so it's sent once. */
+  signupNotifiedAt: string | null;
   // `null` = unrestricted (sees every tab); an array names the only hrefs
   // (from MANAGEABLE_TABS) this Member can see. Ignored for admins.
   allowedTabs: string[] | null;
@@ -33,7 +38,8 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
     if (error) throw new Error(error.message);
 
     for (const u of data.users) {
-      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string; role?: string; allowedTabs?: string[] };
+      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string };
+      const { isAdmin, allowedTabs, isPending } = readAuthz(u);
       users.push({
         id: u.id,
         email: u.email ?? "",
@@ -41,8 +47,10 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         lastSignInAt: u.last_sign_in_at ?? null,
         archivedAt: u.banned_until ? metadata.archived_at ?? u.banned_until : null,
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
-        isAdmin: metadata.role === "admin",
-        allowedTabs: metadata.allowedTabs ?? null,
+        isAdmin,
+        isPending,
+        signupNotifiedAt: (u.app_metadata?.signupNotifiedAt as string | undefined) ?? null,
+        allowedTabs,
       });
     }
 

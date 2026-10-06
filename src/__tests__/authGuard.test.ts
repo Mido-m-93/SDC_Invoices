@@ -28,7 +28,7 @@ jest.mock("@supabase/ssr", () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
-import { requireAuth } from "@/lib/auth-guard";
+import { requireAuth, requireAdmin } from "@/lib/auth-guard";
 import { createServerClient } from "@supabase/ssr";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,6 +46,11 @@ function makeSupabaseStub(getUserResult: { data: { user: unknown }; error?: unkn
 const mockCreateServerClient = createServerClient as jest.MockedFunction<typeof createServerClient>;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+// auth-guard falls back to a dev admin when Supabase isn't configured — set the
+// env so these tests exercise the real path.
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
 
 describe("requireAuth", () => {
   beforeEach(() => {
@@ -74,7 +79,7 @@ describe("requireAuth", () => {
   // ── Test 2 ──────────────────────────────────────────────────────────────────
   it("returns { user: {id, email}, response: null } when Supabase returns a user", async () => {
     // Arrange – getUser returns a real user object
-    const fakeUser = { id: "user-abc-123", email: "test@example.com" };
+    const fakeUser = { id: "user-abc-123", email: "test@example.com", app_metadata: { approval: "approved" } };
     mockCreateServerClient.mockReturnValue(
       makeSupabaseStub({ data: { user: fakeUser } }) as never
     );
@@ -112,5 +117,52 @@ describe("requireAuth", () => {
       // Implementation propagated — acceptable as long as no silent success
       expect(result).toBeNull(); // propagated error, no user leaked
     }
+  });
+});
+
+describe("requireAdmin", () => {
+  const signedInAs = (user: Record<string, unknown>) =>
+    mockCreateServerClient.mockReturnValue(makeSupabaseStub({ data: { user } }) as never);
+
+  it("does not grant admin from user_metadata (which users can edit themselves)", async () => {
+    signedInAs({ id: "u1", email: "a@b.c", user_metadata: { role: "admin" }, app_metadata: {} });
+    const result = await requireAdmin();
+    expect(result.user).toBeNull();
+    expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
+  });
+
+  it("grants admin from app_metadata", async () => {
+    signedInAs({ id: "u1", email: "a@b.c", user_metadata: {}, app_metadata: { role: "admin" } });
+    const result = await requireAdmin();
+    expect(result.user).toMatchObject({ id: "u1", role: "admin" });
+  });
+});
+
+describe("requireAuth — account approval", () => {
+  const signedInAs = (user: Record<string, unknown>) =>
+    mockCreateServerClient.mockReturnValue(makeSupabaseStub({ data: { user } }) as never);
+
+  it("refuses a pending account with 403", async () => {
+    signedInAs({ id: "u2", email: "new@x.com", app_metadata: { approval: "pending" } });
+    const result = await requireAuth();
+    expect(result.user).toBeNull();
+    expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
+  });
+
+  it("refuses an account with no approval flag (fail closed)", async () => {
+    signedInAs({ id: "u3", email: "x@x.com", app_metadata: {} });
+    const result = await requireAuth();
+    expect(result.user).toBeNull();
+    expect((result.response as { init: unknown }).init).toMatchObject({ status: 403 });
+  });
+
+  it("lets through an approved account", async () => {
+    signedInAs({ id: "u5", email: "ok@x.com", app_metadata: { approval: "approved" } });
+    expect((await requireAuth()).user).toMatchObject({ id: "u5" });
+  });
+
+  it("never treats an admin as pending", async () => {
+    signedInAs({ id: "u4", email: "boss@x.com", app_metadata: { role: "admin", approval: "pending" } });
+    expect((await requireAdmin()).user).toMatchObject({ id: "u4" });
   });
 });

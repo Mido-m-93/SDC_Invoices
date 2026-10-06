@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { readAuthz } from "@/lib/authz";
 
 export async function requireAuth(): Promise<
   | { user: { id: string; email: string; role: string | undefined }; response: null }
@@ -30,11 +31,17 @@ export async function requireAuth(): Promise<
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
-  const role = (user.user_metadata as { role?: string } | undefined)?.role;
+  const { role, isPending } = readAuthz(user);
+  if (isPending) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: "Account pending approval" }, { status: 403 }),
+    };
+  }
   return { user: { id: user.id, email: user.email ?? user.id, role }, response: null };
 }
 
-/** Like requireAuth(), but also requires the "admin" role in user_metadata. */
+/** Like requireAuth(), but also requires the "admin" role in app_metadata. */
 export async function requireAdmin(): Promise<
   | { user: { id: string; email: string; role: string | undefined }; response: null }
   | { user: null; response: NextResponse }
