@@ -18,37 +18,43 @@ export async function GET(req: NextRequest) {
   );
   const groqKey = process.env.GROQ_API_KEY;
 
+  // Keep these as the single source of truth for which model id is live in
+  // production — the Admin Tools UI reads them back from this response
+  // rather than hardcoding its own copy, so the two can't drift apart.
+  const GROQ_TEXT_MODEL = "openai/gpt-oss-120b";
+  const GROQ_VISION_MODEL = "qwen/qwen3.8-27b";
+
   // Test Groq's text model (used for PDF/text receipt & contract extraction)
-  let groqPing: { ok: boolean; error?: string } = { ok: false };
+  let groqPing: { ok: boolean; model: string; error?: string } = { ok: false, model: GROQ_TEXT_MODEL };
   // Test Groq's vision model (used for photographed/scanned receipts &
   // contracts) — a plain reachability ping, same model id as production use,
   // so a future deprecation like the one that broke invoice filing shows up
   // here instead of in a user-facing 500.
-  let groqVisionPing: { ok: boolean; error?: string } = { ok: false };
+  let groqVisionPing: { ok: boolean; model: string; error?: string } = { ok: false, model: GROQ_VISION_MODEL };
   if (groqKey) {
     try {
       const Groq = (await import("groq-sdk")).default;
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
-        model: "openai/gpt-oss-120b",
+        model: GROQ_TEXT_MODEL,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });
-      groqPing = { ok: !!res.choices[0]?.message?.content };
+      groqPing = { ok: !!res.choices[0]?.message?.content, model: GROQ_TEXT_MODEL };
     } catch (err) {
-      groqPing = { ok: false, error: String(err) };
+      groqPing = { ok: false, model: GROQ_TEXT_MODEL, error: String(err) };
     }
     try {
       const Groq = (await import("groq-sdk")).default;
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
-        model: "qwen/qwen3.8-27b",
+        model: GROQ_VISION_MODEL,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });
-      groqVisionPing = { ok: !!res.choices[0]?.message?.content };
+      groqVisionPing = { ok: !!res.choices[0]?.message?.content, model: GROQ_VISION_MODEL };
     } catch (err) {
-      groqVisionPing = { ok: false, error: String(err) };
+      groqVisionPing = { ok: false, model: GROQ_VISION_MODEL, error: String(err) };
     }
   }
 

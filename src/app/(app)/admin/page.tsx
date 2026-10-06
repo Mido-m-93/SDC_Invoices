@@ -24,6 +24,9 @@ const FEATURE_FLAGS: Array<[string, boolean]> = [
   ["SHOW_MF_SANDBOX_TEST", SHOW_MF_SANDBOX_TEST],
 ];
 
+type Status = "ok" | "warn" | "fail" | null;
+interface ToolResult { ok: boolean; data: unknown; checkedAt: string }
+
 interface Tool {
   key: string;
   titleKey: TranslationKey;
@@ -34,12 +37,82 @@ interface Tool {
   sideEffecting?: boolean;
 }
 
+// Model pings return { ok, model, error? } — read the model id back from the
+// response instead of hardcoding it a second time here, so this label can
+// never drift from what production actually calls.
+interface ModelPing { ok: boolean; model?: string; error?: string }
+interface AiHealthData {
+  groqKeySet?: boolean;
+  groqTextModelReachable?: ModelPing;
+  groqVisionModelReachable?: ModelPing;
+}
+interface DriveHealthData {
+  writeTest?: { ok: boolean };
+}
+
+function deriveStatus(key: string, result?: ToolResult): Status {
+  if (!result) return null;
+  if (!result.ok) return "fail";
+
+  if (key === "ai_health") {
+    const data = result.data as AiHealthData;
+    if (!data.groqKeySet) return "fail";
+    const textOk = !!data.groqTextModelReachable?.ok;
+    const visionOk = !!data.groqVisionModelReachable?.ok;
+    if (textOk && visionOk) return "ok";
+    if (textOk || visionOk) return "warn";
+    return "fail";
+  }
+
+  if (key === "drive") {
+    const data = result.data as DriveHealthData;
+    return data.writeTest?.ok ? "ok" : "fail";
+  }
+
+  return "ok";
+}
+
+const STATUS_STYLE: Record<Exclude<Status, null>, { dot: string; chip: string; labelKey: TranslationKey }> = {
+  ok:   { dot: "bg-emerald-500", chip: "bg-emerald-50 border-emerald-200 text-emerald-700", labelKey: "admin_status_ok" },
+  warn: { dot: "bg-amber-500",   chip: "bg-amber-50 border-amber-200 text-amber-700",       labelKey: "admin_status_warn" },
+  fail: { dot: "bg-red-500",     chip: "bg-red-50 border-red-200 text-red-700",             labelKey: "admin_status_fail" },
+};
+
+function StatusBadge({ status, t }: { status: Status; t: (k: TranslationKey) => string }) {
+  if (!status) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-stone-300" />
+        {t("admin_status_not_run")}
+      </span>
+    );
+  }
+  const s = STATUS_STYLE[status];
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${s.chip}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+      {t(s.labelKey)}
+    </span>
+  );
+}
+
+function ModelChip({ label, ping }: { label: string; ping?: ModelPing }) {
+  if (!ping?.model) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] text-stone-600">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ping.ok ? "bg-emerald-500" : "bg-red-500"}`} />
+      <span className="text-stone-400">{label}</span>
+      <span className="font-mono">{ping.model}</span>
+    </span>
+  );
+}
+
 export default function AdminPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isAdmin, ready } = useCurrentUser();
   const router = useRouter();
   const [running, setRunning] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, { ok: boolean; data: unknown }>>({});
+  const [results, setResults] = useState<Record<string, ToolResult>>({});
 
   useEffect(() => {
     if (ready && !isAdmin) router.replace("/dashboard");
@@ -50,9 +123,9 @@ export default function AdminPage() {
     setRunning(tool.key);
     try {
       const data = await tool.run();
-      setResults((prev) => ({ ...prev, [tool.key]: { ok: true, data } }));
+      setResults((prev) => ({ ...prev, [tool.key]: { ok: true, data, checkedAt: new Date().toISOString() } }));
     } catch (e) {
-      setResults((prev) => ({ ...prev, [tool.key]: { ok: false, data: e instanceof Error ? e.message : String(e) } }));
+      setResults((prev) => ({ ...prev, [tool.key]: { ok: false, data: e instanceof Error ? e.message : String(e), checkedAt: new Date().toISOString() } }));
     } finally {
       setRunning(null);
     }
@@ -129,13 +202,27 @@ export default function AdminPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {tools.map((tool) => {
           const result = results[tool.key];
+          const status = deriveStatus(tool.key, result);
+          const aiData = tool.key === "ai_health" ? (result?.data as AiHealthData | undefined) : undefined;
+
           return (
-            <div key={tool.key} className="bg-white rounded-xl border border-stone-200 p-5 flex flex-col gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-stone-800">{t(tool.titleKey)}</h3>
-                <p className="text-xs text-stone-500 mt-0.5">{t(tool.descKey)}</p>
+            <div key={tool.key} className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-800">{t(tool.titleKey)}</h3>
+                  <p className="mt-0.5 text-xs text-stone-500">{t(tool.descKey)}</p>
+                </div>
+                <StatusBadge status={status} t={t} />
               </div>
-              <div>
+
+              {aiData && (aiData.groqTextModelReachable?.model || aiData.groqVisionModelReachable?.model) && (
+                <div className="flex flex-wrap gap-1.5">
+                  <ModelChip label={t("admin_model_text")} ping={aiData.groqTextModelReachable} />
+                  <ModelChip label={t("admin_model_vision")} ping={aiData.groqVisionModelReachable} />
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -144,30 +231,41 @@ export default function AdminPage() {
                 >
                   {t(tool.buttonKey)}
                 </Button>
+                {result && (
+                  <span className="text-[11px] text-stone-400">
+                    {t("admin_last_checked")} {new Date(result.checkedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US")}
+                  </span>
+                )}
               </div>
+
               {result && (
-                <pre
-                  className={`text-xs rounded-lg p-3 overflow-auto max-h-64 whitespace-pre-wrap ${
-                    result.ok ? "bg-stone-50 text-stone-700" : "bg-red-50 text-red-700"
-                  }`}
-                >
-                  {typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2)}
-                </pre>
+                <details className="group">
+                  <summary className="cursor-pointer select-none text-xs font-medium text-stone-500 hover:text-stone-700">
+                    {t("admin_view_raw")}
+                  </summary>
+                  <pre
+                    className={`mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-xs ${
+                      result.ok ? "bg-stone-50 text-stone-700" : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2)}
+                  </pre>
+                </details>
               )}
             </div>
           );
         })}
 
-        <div className="bg-white rounded-xl border border-stone-200 p-5 flex flex-col gap-3 md:col-span-2">
+        <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-5 shadow-sm md:col-span-2">
           <div>
             <h3 className="text-sm font-semibold text-stone-800">{t("admin_flags_title")}</h3>
-            <p className="text-xs text-stone-500 mt-0.5">{t("admin_flags_desc")}</p>
+            <p className="mt-0.5 text-xs text-stone-500">{t("admin_flags_desc")}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
             {FEATURE_FLAGS.map(([name, value]) => (
               <div key={name} className="flex items-center justify-between rounded-lg border border-stone-100 px-3 py-2">
                 <span className="font-mono text-stone-600">{name}</span>
-                <span className={value ? "text-green-600 font-semibold" : "text-stone-400"}>{String(value)}</span>
+                <span className={value ? "font-semibold text-emerald-600" : "text-stone-400"}>{String(value)}</span>
               </div>
             ))}
           </div>
