@@ -22,15 +22,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "You can't remove your own admin access — ask another admin." }, { status: 400 });
     }
 
+    // app_metadata is merged on update; null removes the key.
     const db = getSupabaseClient();
-    const { data: existing, error: fetchErr } = await db.auth.admin.getUserById(params.id);
-    if (fetchErr) throw new Error(fetchErr.message);
-
     const { error } = await db.auth.admin.updateUserById(params.id, {
-      user_metadata: {
-        ...(existing.user?.user_metadata ?? {}),
-        role: role === "admin" ? "admin" : undefined,
-      },
+      app_metadata: { role: role === "admin" ? "admin" : null },
     });
     if (error) throw new Error(error.message);
 

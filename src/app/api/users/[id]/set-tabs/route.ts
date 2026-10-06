@@ -22,15 +22,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "tabs must be null or an array of known tab hrefs" }, { status: 400 });
     }
 
+    // app_metadata is merged on update; null removes the key.
     const db = getSupabaseClient();
-    const { data: existing, error: fetchErr } = await db.auth.admin.getUserById(params.id);
-    if (fetchErr) throw new Error(fetchErr.message);
-
     const { error } = await db.auth.admin.updateUserById(params.id, {
-      user_metadata: {
-        ...(existing.user?.user_metadata ?? {}),
-        allowedTabs: tabs ?? undefined,
-      },
+      app_metadata: { allowedTabs: tabs },
     });
     if (error) throw new Error(error.message);
 

@@ -4,6 +4,7 @@
 
 import "server-only";
 import { getSupabaseClient } from "@/lib/supabase";
+import { readAuthz } from "@/lib/authz";
 
 export interface AppUser {
   id: string;
@@ -33,7 +34,8 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
     if (error) throw new Error(error.message);
 
     for (const u of data.users) {
-      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string; role?: string; allowedTabs?: string[] };
+      const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string };
+      const { isAdmin, allowedTabs } = readAuthz(u);
       users.push({
         id: u.id,
         email: u.email ?? "",
@@ -41,8 +43,8 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         lastSignInAt: u.last_sign_in_at ?? null,
         archivedAt: u.banned_until ? metadata.archived_at ?? u.banned_until : null,
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
-        isAdmin: metadata.role === "admin",
-        allowedTabs: metadata.allowedTabs ?? null,
+        isAdmin,
+        allowedTabs,
       });
     }
 

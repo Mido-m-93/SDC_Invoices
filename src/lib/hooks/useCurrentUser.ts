@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
+import { readAuthz } from "@/lib/authz";
 
 export type AppUser = string;
 
@@ -34,7 +35,7 @@ export function useCurrentUser() {
       return;
     }
 
-    type RawUser = { id?: string; user_metadata?: Record<string, unknown>; email?: string } | null;
+    type RawUser = { id?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown>; email?: string } | null;
 
     const resolveUser = (authUser: RawUser) => {
       if (!authUser) return null;
@@ -44,8 +45,9 @@ export function useCurrentUser() {
     const applyUser = (authUser: RawUser) => {
       setUser(resolveUser(authUser));
       setUserId(authUser?.id ?? null);
-      setIsAdmin((authUser?.user_metadata?.role as string | undefined) === "admin");
-      setAllowedTabs((authUser?.user_metadata?.allowedTabs as string[] | undefined) ?? null);
+      const { isAdmin, allowedTabs } = readAuthz(authUser);
+      setIsAdmin(isAdmin);
+      setAllowedTabs(allowedTabs);
     };
 
     supabase.auth.refreshSession().then(async ({ data: { user: refreshedUser } }) => {

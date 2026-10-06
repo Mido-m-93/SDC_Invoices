@@ -26,11 +26,8 @@ export async function POST(req: NextRequest) {
     if (!target) return NextResponse.json({ error: `No account found for ${email}` }, { status: 404 });
 
     const db = getSupabaseClient();
-    const { data: existing, error: fetchErr } = await db.auth.admin.getUserById(target.id);
-    if (fetchErr) throw new Error(fetchErr.message);
-
     const { error } = await db.auth.admin.updateUserById(target.id, {
-      user_metadata: { ...(existing.user?.user_metadata ?? {}), role: "admin" },
+      app_metadata: { role: "admin" },
     });
     if (error) throw new Error(error.message);
 

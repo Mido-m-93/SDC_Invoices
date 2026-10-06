@@ -1,7 +1,7 @@
 // src/lib/navTabs.ts
 // Shared list of sidebar tabs that can be individually granted/restricted per
 // Member via the Users page. Keys match each tab's href, which is also used
-// as the storage key in user_metadata.allowedTabs. Dashboard and Users are
+// as the storage key in app_metadata.allowedTabs. Dashboard and Users are
 // deliberately excluded — Dashboard is always the landing page for everyone,
 // and Users is already admin-only regardless of this list.
 import type { TranslationKey } from "@/translations";
