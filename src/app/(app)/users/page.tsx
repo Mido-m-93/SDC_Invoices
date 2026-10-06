@@ -18,6 +18,7 @@ interface AppUser {
   createdAt: string;
   lastSignInAt: string | null;
   isAdmin: boolean;
+  isPending: boolean;
   allowedTabs: string[] | null;
 }
 
@@ -37,8 +38,12 @@ export default function UsersPage() {
   const [managingTabsFor, setManagingTabsFor] = useState<AppUser | null>(null);
   const [tabsDraft, setTabsDraft] = useState<Set<string>>(new Set());
   const [savingTabs, setSavingTabs] = useState(false);
+  // The tabs modal doubles as the approve dialog for pending sign-ups.
+  const [approving, setApproving] = useState(false);
 
-  const table = useTableControls(users, byId);
+  const pendingUsers = users.filter((u) => u.isPending);
+  const activeUsers = users.filter((u) => !u.isPending);
+  const table = useTableControls(activeUsers, byId);
 
   useEffect(() => {
     if (ready && !isAdmin) router.replace("/dashboard");
@@ -85,7 +90,8 @@ export default function UsersPage() {
   }
 
   async function handleRemove(u: AppUser) {
-    if (!confirm(t("users_remove_confirm").replace("{email}", u.email))) return;
+    const confirmKey = u.isPending ? "users_reject_confirm" : "users_remove_confirm";
+    if (!confirm(t(confirmKey).replace("{email}", u.email))) return;
     setRemovingId(u.id);
     try {
       const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
@@ -124,8 +130,16 @@ export default function UsersPage() {
   }
 
   function openManageTabs(u: AppUser) {
+    setApproving(false);
     setManagingTabsFor(u);
     setTabsDraft(new Set(u.allowedTabs ?? MANAGEABLE_TABS.map((tab) => tab.href)));
+  }
+
+  // Nothing pre-ticked: new users get no tabs unless you choose them.
+  function openApprove(u: AppUser) {
+    setApproving(true);
+    setManagingTabsFor(u);
+    setTabsDraft(new Set());
   }
 
   function toggleTabDraft(href: string) {
@@ -142,19 +156,20 @@ export default function UsersPage() {
     try {
       const allSelected = tabsDraft.size === MANAGEABLE_TABS.length;
       const tabs = allSelected ? null : Array.from(tabsDraft);
-      const res = await fetch(`/api/users/${managingTabsFor.id}/set-tabs`, {
+      const action = approving ? "approve" : "set-tabs";
+      const res = await fetch(`/api/users/${managingTabsFor.id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tabs }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "Failed to update tabs");
-      setUsers((prev) => prev.map((x) => x.id === managingTabsFor.id ? { ...x, allowedTabs: tabs } : x));
-      notify("success", `Updated visible tabs for ${managingTabsFor.email}`, "/users");
+      if (!res.ok || !data.ok) throw new Error(data.error ?? `Failed to ${action}`);
+      setUsers((prev) => prev.map((x) => x.id === managingTabsFor.id ? { ...x, allowedTabs: tabs, isPending: false } : x));
+      notify("success", `${approving ? "Approved" : "Updated visible tabs for"} ${managingTabsFor.email}`, "/users");
       setManagingTabsFor(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      notify("error", `Failed to update tabs: ${message}`, "/users");
+      notify("error", `Failed to ${approving ? "approve user" : "update tabs"}: ${message}`, "/users");
     } finally {
       setSavingTabs(false);
     }
@@ -185,9 +200,43 @@ export default function UsersPage() {
         </div>
       )}
 
+      {!loading && pendingUsers.length > 0 && (
+        <div className="mb-6 bg-amber-50 rounded-xl border border-amber-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-200">
+            <h2 className="text-sm font-semibold text-amber-900">
+              {t("users_pending_title").replace("{count}", String(pendingUsers.length))}
+            </h2>
+            <p className="text-xs text-amber-700 mt-0.5">{t("users_pending_subtitle")}</p>
+          </div>
+          <ul className="divide-y divide-amber-100">
+            {pendingUsers.map((u) => (
+              <li key={u.id} className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 bg-white/60">
+                <div>
+                  <p className="text-sm font-medium text-stone-800">{u.email || "—"}</p>
+                  <p className="text-xs text-stone-500">{formatTimestamp(u.createdAt, language)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => openApprove(u)}
+                    className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white"
+                  >
+                    {t("users_action_approve")}
+                  </Button>
+                  <Button variant="ghost" size="sm" loading={removingId === u.id} onClick={() => handleRemove(u)}>
+                    {t("users_action_reject")}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-stone-400">{t("users_loading")}</p>
-      ) : users.length === 0 ? (
+      ) : activeUsers.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
           <p className="text-stone-400 text-sm">{t("users_empty_title")}</p>
         </div>
@@ -298,13 +347,13 @@ export default function UsersPage() {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
             <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between">
               <h2 className="text-base font-semibold">
-                {t("users_manage_tabs_title").replace("{email}", managingTabsFor.email)}
+                {t(approving ? "users_approve_title" : "users_manage_tabs_title").replace("{email}", managingTabsFor.email)}
               </h2>
               <button onClick={() => setManagingTabsFor(null)} className="text-stone-400 hover:text-stone-700 text-xl leading-none">×</button>
             </div>
             <div className="px-6 py-5">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs text-stone-500">{t("users_manage_tabs_subtitle")}</p>
+                <p className="text-xs text-stone-500">{t(approving ? "users_approve_subtitle" : "users_manage_tabs_subtitle")}</p>
                 <button
                   className="text-xs text-[#1a3d2b] font-medium hover:underline"
                   onClick={() => setTabsDraft(
@@ -336,7 +385,7 @@ export default function UsersPage() {
                 onClick={handleSaveTabs}
                 className="bg-[#1a3d2b] hover:bg-[#1a3d2b]/90 text-white"
               >
-                {t("users_manage_tabs_save")}
+                {t(approving ? "users_action_approve" : "users_manage_tabs_save")}
               </Button>
             </div>
           </div>

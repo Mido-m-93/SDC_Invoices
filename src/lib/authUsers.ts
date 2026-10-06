@@ -14,6 +14,8 @@ export interface AppUser {
   archivedAt: string | null;
   archivedBy: string | null;
   isAdmin: boolean;
+  /** New sign-up waiting for admin approval. */
+  isPending: boolean;
   // `null` = unrestricted (sees every tab); an array names the only hrefs
   // (from MANAGEABLE_TABS) this Member can see. Ignored for admins.
   allowedTabs: string[] | null;
@@ -35,7 +37,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
 
     for (const u of data.users) {
       const metadata = (u.user_metadata ?? {}) as { archived_at?: string; archived_by?: string };
-      const { isAdmin, allowedTabs } = readAuthz(u);
+      const { isAdmin, allowedTabs, isPending } = readAuthz(u);
       users.push({
         id: u.id,
         email: u.email ?? "",
@@ -44,6 +46,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         archivedAt: u.banned_until ? metadata.archived_at ?? u.banned_until : null,
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
         isAdmin,
+        isPending,
         allowedTabs,
       });
     }

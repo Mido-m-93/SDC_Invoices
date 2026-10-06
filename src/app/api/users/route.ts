@@ -39,6 +39,12 @@ export async function POST(req: NextRequest) {
     const { data, error } = await db.auth.admin.inviteUserByEmail(email);
     if (error) throw new Error(error.message);
 
+    // Admin-invited accounts don't need approval (the sign-up trigger marks every new account pending).
+    const { error: approveErr } = await db.auth.admin.updateUserById(data.user.id, {
+      app_metadata: { approval: "approved" },
+    });
+    if (approveErr) throw new Error(approveErr.message);
+
     return NextResponse.json({ ok: true, id: data.user.id, email: data.user.email });
   } catch (err) {
     console.error("[POST /api/users]", err);

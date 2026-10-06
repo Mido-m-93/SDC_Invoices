@@ -31,3 +31,11 @@ export function canSeeTab(href: string, allowedTabs: string[] | null, isAdmin: b
   if (isAdmin || allowedTabs === null) return true;
   return allowedTabs.includes(href);
 }
+
+const MANAGEABLE_HREFS = new Set(MANAGEABLE_TABS.map((t) => t.href));
+
+/** Valid `allowedTabs` request value: null (unrestricted) or an array of known tab hrefs. */
+export function isValidTabSelection(tabs: unknown): tabs is string[] | null {
+  if (tabs === null) return true;
+  return Array.isArray(tabs) && tabs.every((h) => typeof h === "string" && MANAGEABLE_HREFS.has(h));
+}
