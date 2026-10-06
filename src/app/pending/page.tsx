@@ -3,11 +3,15 @@
 // Shown to new accounts until an admin approves them. Middleware keeps
 // pending users here and sends approved users on to the dashboard.
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase-client";
 
 export default function PendingPage() {
   const router = useRouter();
+
+  // Let admins know someone is waiting (the server emails each sign-up once).
+  useEffect(() => { fetch("/api/auth/signup-notify", { method: "POST" }).catch(() => {}); }, []);
 
   const signOut = async () => {
     await createSupabaseBrowserClient()?.auth.signOut();

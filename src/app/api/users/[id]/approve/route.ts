@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isValidTabSelection } from "@/lib/navTabs";
+import { sendEmail, approvedEmail, appUrl } from "@/lib/accountEmails";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // app_metadata is merged on update; null removes the key.
     const db = getSupabaseClient();
-    const { error } = await db.auth.admin.updateUserById(params.id, {
+    const { data, error } = await db.auth.admin.updateUserById(params.id, {
       app_metadata: { approval: "approved", allowedTabs: tabs },
     });
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({ ok: true });
+    // Best-effort: a failed email doesn't undo the approval.
+    const email = data.user?.email;
+    const emailed = email ? await sendEmail([email], approvedEmail(appUrl(req.nextUrl.origin))) : false;
+
+    return NextResponse.json({ ok: true, emailed });
   } catch (err) {
     console.error("[POST /api/users/[id]/approve]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -16,6 +16,8 @@ export interface AppUser {
   isAdmin: boolean;
   /** New sign-up waiting for admin approval. */
   isPending: boolean;
+  /** When admins were emailed about this sign-up (app_metadata), so it's sent once. */
+  signupNotifiedAt: string | null;
   // `null` = unrestricted (sees every tab); an array names the only hrefs
   // (from MANAGEABLE_TABS) this Member can see. Ignored for admins.
   allowedTabs: string[] | null;
@@ -47,6 +49,7 @@ export async function listAllAuthUsers(): Promise<AppUser[]> {
         archivedBy: u.banned_until ? metadata.archived_by ?? null : null,
         isAdmin,
         isPending,
+        signupNotifiedAt: (u.app_metadata?.signupNotifiedAt as string | undefined) ?? null,
         allowedTabs,
       });
     }
