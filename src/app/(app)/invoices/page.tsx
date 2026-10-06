@@ -60,7 +60,7 @@ export default function InvoicesPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -389,12 +389,12 @@ export default function InvoicesPage() {
       ? items.filter((i) => i.validation?.humanRejected)
       : items.filter((i) => i.validation?.statusCode === filterStatus);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Reset to page 1 whenever filter or month changes
-  useEffect(() => { setPage(1); }, [filterStatus, month]);
+  // Reset to page 1 whenever filter, month or page size changes
+  useEffect(() => { setPage(1); }, [filterStatus, month, pageSize]);
 
   const tabCount = (f: string): number => {
     if (f === "ALL") return items.length;
@@ -766,9 +766,23 @@ export default function InvoicesPage() {
             </div>
 
             <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-4">
-              <p className="text-xs text-stone-400">
-                {filtered.length} / {items.length} {t("items_shown")}
-              </p>
+              <div className="flex items-center gap-4">
+                <p className="text-xs text-stone-400">
+                  {filtered.length} / {items.length} {t("items_shown")}
+                </p>
+                <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                  {t("invoices_rows_per_page")}
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="rounded border border-stone-200 bg-white px-1.5 py-0.5 text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">
                   <button
