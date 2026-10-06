@@ -852,7 +852,7 @@ const ja = {
   users_subtitle: "このアプリのアカウントを持つ全員",
 
   admin_title: "管理ツール",
-  admin_subtitle: "診断と特権バックエンド操作 — 管理者のみ",
+  admin_subtitle: "診断と特権バックエンド操作。管理者のみ。",
   admin_tool_drive_title: "Google Drive",
   admin_tool_drive_desc: "請求書格納フォルダへのサービスアカウントのアクセス権を、実際の書き込みテストを含めて確認します。",
   admin_tool_drive_button: "Drive接続をテスト",
@@ -1457,7 +1457,7 @@ const ja = {
 
   // ── Archives ───────────────────────────────────────────────────────────────
   archives_title: "アーカイブ",
-  archives_subtitle: "提案、予算、契約、パイプライン同期、経費、発行請求書、請求書、処理ログ、ユーザーの削除済み項目です — 誤って移動した項目はここから復元できます。",
+  archives_subtitle: "提案、予算、契約、パイプライン同期、経費、発行請求書、請求書、処理ログ、ユーザーの削除済み項目です。誤って移動した項目はここから復元できます。",
   archives_filter_all: "すべて",
   archives_module_proposals: "提案",
   archives_module_budgets: "予算",

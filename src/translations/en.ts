@@ -852,7 +852,7 @@ const en = {
   users_subtitle: "Everyone with an account in this app",
 
   admin_title: "Admin Tools",
-  admin_subtitle: "Diagnostics and privileged backend actions — admin only",
+  admin_subtitle: "Diagnostics and privileged backend actions. Admin only.",
   admin_tool_drive_title: "Google Drive",
   admin_tool_drive_desc: "Checks the service account's access to the invoice filing folder, including a real write test.",
   admin_tool_drive_button: "Test Drive connection",
@@ -1457,7 +1457,7 @@ const en = {
 
   // ── Archives ───────────────────────────────────────────────────────────────
   archives_title: "Archives",
-  archives_subtitle: "Deleted items from Proposals, Budget, Contracts, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users — restore anything moved here by mistake.",
+  archives_subtitle: "Deleted items from Proposals, Budget, Contracts, Pipeline Sync, Expenses, Outbound Invoices, Invoices, Processing Logs, and Users. Restore anything moved here by mistake.",
   archives_filter_all: "All",
   archives_module_proposals: "Proposal",
   archives_module_budgets: "Budget",
