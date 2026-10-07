@@ -8,19 +8,13 @@ import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
 import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
-import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE } from "@/lib/featureFlags";
-import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
-import { createInvoiceMfPayee } from "@/lib/api/client";
 
 interface Props {
   item: InvoiceListItem;
   onClose: () => void;
-  onSendToMF?: (item: InvoiceListItem) => void;
-  sendingToMF?: boolean;
-  onPayeeCreated?: () => void;
 }
 
-export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingToMF, onPayeeCreated }: Props) {
+export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
   // Prefer the currency detected from the PDF's own text over the
@@ -146,39 +140,17 @@ export default function InvoiceDetailPanel({ item, onClose, onSendToMF, sendingT
           {v && (
             <Section title="">
               <ValidationStages v={v} submission={s} />
-              {onSendToMF && (
+              {v.mfBillingUrl && (
                 <div className="mt-3">
-                  {SHOW_SEND_TO_MF && !v.mfBillingUrl && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={!!sendingToMF}
-                      onClick={() => onSendToMF(item)}
-                    >
-                      💴 {t("action_send_to_mf")}
-                    </Button>
-                  )}
-                  {v.mfBillingUrl && (
-                    <a
-                      href={v.mfBillingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-500 hover:underline whitespace-nowrap"
-                      title={t("mf_sent")}
-                    >
-                      💴 {t("action_view_in_mf")}
-                    </a>
-                  )}
-                  {SHOW_CREATE_MF_PAYEE && (
-                    <div className="mt-2">
-                      <CreatePayeeButton
-                        personName={s.payerName}
-                        existingPayeeId={v.mfPayeeId}
-                        onCreate={(bankDetails) => createInvoiceMfPayee(s, v, bankDetails)}
-                        onCreated={() => onPayeeCreated?.()}
-                      />
-                    </div>
-                  )}
+                  <a
+                    href={v.mfBillingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                    title={t("mf_sent")}
+                  >
+                    💴 {t("action_view_in_mf")}
+                  </a>
                 </div>
               )}
             </Section>

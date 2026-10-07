@@ -7,21 +7,11 @@ import Button from "@/components/ui/Button";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import {
-  SHOW_SEND_TO_MF,
-  SHOW_CREATE_MF_PAYEE,
   SHOW_EXPENSES_UPLOAD_EXCEL,
-  SHOW_EXPENSES_NEW_CLAIM,
-  SHOW_DASHBOARD_NO_DATA_BANNER,
-  SHOW_MF_SANDBOX_TEST,
 } from "@/lib/featureFlags";
 
 const FEATURE_FLAGS: Array<[string, boolean]> = [
-  ["SHOW_SEND_TO_MF", SHOW_SEND_TO_MF],
-  ["SHOW_CREATE_MF_PAYEE", SHOW_CREATE_MF_PAYEE],
   ["SHOW_EXPENSES_UPLOAD_EXCEL", SHOW_EXPENSES_UPLOAD_EXCEL],
-  ["SHOW_EXPENSES_NEW_CLAIM", SHOW_EXPENSES_NEW_CLAIM],
-  ["SHOW_DASHBOARD_NO_DATA_BANNER", SHOW_DASHBOARD_NO_DATA_BANNER],
-  ["SHOW_MF_SANDBOX_TEST", SHOW_MF_SANDBOX_TEST],
 ];
 
 type Status = "ok" | "warn" | "fail" | null;

@@ -178,24 +178,6 @@ export async function fileInvoiceBulk(
   });
 }
 
-export async function sendInvoiceToMoneyForward(
-  submission: InvoiceSubmission,
-  validation: InvoiceValidationResult
-): Promise<{ billingId: string; billingUrl: string }> {
-  return apiFetch("/api/invoices/send-to-mf", {
-    method: "POST",
-    body: JSON.stringify({ submission, validation }),
-  });
-}
-
-export async function sendExpenseToMoneyForward(
-  claimId: string
-): Promise<{ billingId: string; billingUrl: string }> {
-  return apiFetch(`/api/expenses/${claimId}/send-to-mf`, {
-    method: "POST",
-  });
-}
-
 export async function fileExpenseClaim(
   claimId: string
 ): Promise<{ filedStoragePath: string; filedAt: string }> {
@@ -226,60 +208,6 @@ export interface CreateMfPayeeResult {
   counterpartyId: string;
   createdAt: string;
   reused: boolean;
-}
-
-// Thrown with `code` preserved so the UI can tell "needs a bank-details form"
-// apart from "something actually went wrong".
-export class MfPayeeApiError extends Error {
-  constructor(
-    message: string,
-    public readonly code?: string,
-    public readonly memberName?: string
-  ) {
-    super(message);
-  }
-}
-
-async function postMfPayee(
-  path: string,
-  bankDetails?: MfBankDetailsInput
-): Promise<CreateMfPayeeResult> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(bankDetails ? { bankDetails } : {}),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const { error, code, memberName } = body as { error?: string; code?: string; memberName?: string };
-    throw new MfPayeeApiError(error ?? `HTTP ${res.status}`, code, memberName);
-  }
-  return body as CreateMfPayeeResult;
-}
-
-export async function createInvoiceMfPayee(
-  submission: InvoiceSubmission,
-  validation: InvoiceValidationResult,
-  bankDetails?: MfBankDetailsInput
-): Promise<CreateMfPayeeResult> {
-  const res = await fetch("/api/invoices/create-mf-payee", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ submission, validation, bankDetails }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const { error, code, memberName } = body as { error?: string; code?: string; memberName?: string };
-    throw new MfPayeeApiError(error ?? `HTTP ${res.status}`, code, memberName);
-  }
-  return body as CreateMfPayeeResult;
-}
-
-export async function createExpenseMfPayee(
-  claimId: string,
-  bankDetails?: MfBankDetailsInput
-): Promise<CreateMfPayeeResult> {
-  return postMfPayee(`/api/expenses/${claimId}/create-mf-payee`, bankDetails);
 }
 
 // ── Validation results & filed documents ─────────────────────────────────────

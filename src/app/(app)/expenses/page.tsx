@@ -9,9 +9,8 @@ import RefreshIcon from "@/components/ui/RefreshIcon";
 import TrashIcon from "@/components/ui/TrashIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import { sendExpenseToMoneyForward, createExpenseMfPayee, fileExpenseClaim, markExpensePaid } from "@/lib/api/client";
-import { SHOW_SEND_TO_MF, SHOW_CREATE_MF_PAYEE, SHOW_EXPENSES_UPLOAD_EXCEL, SHOW_EXPENSES_NEW_CLAIM } from "@/lib/featureFlags";
-import CreatePayeeButton from "@/components/moneyforward/CreatePayeeButton";
+import { fileExpenseClaim, markExpensePaid } from "@/lib/api/client";
+import { SHOW_EXPENSES_UPLOAD_EXCEL } from "@/lib/featureFlags";
 import { monthOptions } from "@/lib/utils";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 import { useTableControls, byId } from "@/lib/hooks/useTableControls";
@@ -81,7 +80,6 @@ export default function ExpensesPage() {
   const [approveAction, setApproveAction] = useState<"approve" | "reject" | null>(null);
   const [approveComment, setApproveComment] = useState("");
   const [actorName, setActorName] = useState("");
-  const [sendingToMF, setSendingToMF] = useState<string | null>(null);
   const [filingId, setFilingId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [confirmCleanAll, setConfirmCleanAll] = useState(false);
@@ -264,23 +262,6 @@ export default function ExpensesPage() {
     load();
   }
 
-  async function handleSendToMF(id: string) {
-    setSendingToMF(id);
-    setError(null);
-    const claim = claims.find((c) => c.id === id) ?? null;
-    try {
-      await sendExpenseToMoneyForward(id);
-      notify("success", `Sent expense claim${claim ? ` for ${claim.submittedBy}` : ""} to MoneyForward`, "/expenses");
-      load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      notify("error", `Failed to send expense claim${claim ? ` for ${claim.submittedBy}` : ""} to MoneyForward: ${msg}`, "/expenses");
-    } finally {
-      setSendingToMF(null);
-    }
-  }
-
   async function handleFile(id: string) {
     setFilingId(id);
     setError(null);
@@ -398,9 +379,6 @@ export default function ExpensesPage() {
                 {uploading ? t("expenses_reading") : t("expenses_upload_excel")}
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
               </label>
-            )}
-            {SHOW_EXPENSES_NEW_CLAIM && (
-              <Button variant="primary" onClick={openNew}>{t("expenses_new_claim")}</Button>
             )}
           </div>
         }
@@ -550,22 +528,11 @@ export default function ExpensesPage() {
                     {(c.status === "approved" || c.status === "rejected") && (
                       <Button variant="ghost" size="sm" loading={undoingId === c.id} onClick={() => handleUndoReview(c.id)}>{t("expenses_action_undo")}</Button>
                     )}
-                    {SHOW_SEND_TO_MF && (c.status === "approved" || c.status === "paid") && !c.mfBillingUrl && (
-                      <Button variant="ghost" size="sm" loading={sendingToMF === c.id} onClick={() => handleSendToMF(c.id)}>💴 {t("action_send_to_mf")}</Button>
-                    )}
                     {c.mfBillingUrl && (
                       <a href={c.mfBillingUrl} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-blue-500 hover:underline whitespace-nowrap self-center" title={t("mf_sent")}>
                         💴 {t("action_view_in_mf")}
                       </a>
-                    )}
-                    {SHOW_CREATE_MF_PAYEE && (c.status === "approved" || c.status === "paid") && (
-                      <CreatePayeeButton
-                        personName={c.submittedBy}
-                        existingPayeeId={c.mfPayeeId}
-                        onCreate={(bankDetails) => createExpenseMfPayee(c.id, bankDetails)}
-                        onCreated={() => load()}
-                      />
                     )}
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>{t("expenses_action_delete")}</Button>
                   </td>

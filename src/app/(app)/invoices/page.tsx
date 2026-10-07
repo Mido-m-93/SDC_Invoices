@@ -23,7 +23,6 @@ import {
   fetchAvailableMonths,
   clearAllInvoices,
   patchSubmissionCurrency,
-  sendInvoiceToMoneyForward,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
 import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@/lib/utils";
@@ -52,7 +51,6 @@ export default function InvoicesPage() {
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<InvoiceListItem | null>(null);
-  const [sendingToMF, setSendingToMF] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [error, setError] = useState<string | null>(null);
   const [sheetsWarning, setSheetsWarning] = useState<string | null>(null);
@@ -304,36 +302,6 @@ export default function InvoicesPage() {
       notify("error", `Failed to delete invoice for ${item.submission.payerName}`, "/invoices");
     } finally {
       setDeletingSubmission(null);
-    }
-  };
-
-  const handleSendToMF = async (item: InvoiceListItem) => {
-    if (!item.validation) return;
-    setSendingToMF(item.submission.id);
-    setError(null);
-    try {
-      const result = await sendInvoiceToMoneyForward(item.submission, item.validation);
-      const updated = {
-        ...item,
-        validation: {
-          ...item.validation,
-          mfBillingId: result.billingId,
-          mfBillingUrl: result.billingUrl,
-          mfSentAt: new Date().toISOString(),
-        },
-      };
-      setItems((prev) =>
-        prev.map((i) => (i.submission.id === item.submission.id ? updated : i))
-      );
-      setSelectedItem((prev) =>
-        prev?.submission.id === item.submission.id ? updated : prev
-      );
-      notify("success", `Sent invoice for ${item.submission.payerName} to MoneyForward`, "/invoices");
-    } catch (err) {
-      setError(String(err));
-      notify("error", `Failed to send invoice for ${item.submission.payerName} to MoneyForward: ${String(err)}`, "/invoices");
-    } finally {
-      setSendingToMF(null);
     }
   };
 
@@ -779,9 +747,6 @@ export default function InvoicesPage() {
         <InvoiceDetailPanel
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
-          onSendToMF={handleSendToMF}
-          sendingToMF={sendingToMF === selectedItem.submission.id}
-          onPayeeCreated={() => loadInvoices()}
         />
       )}
 
