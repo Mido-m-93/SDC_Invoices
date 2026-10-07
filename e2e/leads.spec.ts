@@ -13,7 +13,7 @@
  * required.  The in-memory store resets between tests via beforeEach.
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 
 // ── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ test.describe("/leads — pipeline flow", () => {
 
     // Fill required fields
     await page.getByPlaceholder("Deal or opportunity title").fill(NEW_LEAD.title);
-    await page.getByPlaceholder("Acme Corp").fill(NEW_LEAD.clientName);
+    await page.getByPlaceholder("Search or type a new client name…").fill(NEW_LEAD.clientName);
     await page.getByPlaceholder("500000").fill(String(NEW_LEAD.estimatedValue));
 
     // Save
@@ -188,7 +188,7 @@ test.describe("/leads — pipeline flow", () => {
     await expect(page.getByRole("heading", { name: "Add Lead" })).toBeVisible();
 
     await page.getByPlaceholder("Deal or opportunity title").fill(NEW_LEAD.title);
-    await page.getByPlaceholder("Acme Corp").fill(NEW_LEAD.clientName);
+    await page.getByPlaceholder("Search or type a new client name…").fill(NEW_LEAD.clientName);
     await page.getByPlaceholder("500000").fill(String(NEW_LEAD.estimatedValue));
 
     await page.getByRole("button", { name: "Save Lead" }).click();

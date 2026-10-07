@@ -12,7 +12,7 @@
  * The in-memory store resets between tests via beforeEach.
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,15 +154,6 @@ function setupAccountingApiMocks(page: Page, store: { entries: AccountingEntry[]
     }
   });
 
-  // P&L endpoint
-  page.route("**/api/accounting/pl**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(buildPl(store.entries)),
-    });
-  });
-
   // /post and /void actions  +  PUT/DELETE /api/accounting/:id
   page.route("**/api/accounting/**", async (route) => {
     const method = route.request().method();
@@ -208,6 +199,15 @@ function setupAccountingApiMocks(page: Page, store: { entries: AccountingEntry[]
     } else {
       await route.continue();
     }
+  });
+
+  // P&L endpoint
+  page.route("**/api/accounting/pl**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(buildPl(store.entries)),
+    });
   });
 }
 

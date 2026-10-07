@@ -1,13 +1,14 @@
 import { defineConfig } from "@playwright/test";
-import { STORAGE_STATE_PATH } from "./global-setup";
 
 export default defineConfig({
   testDir: ".",
+  testMatch: "**/*.spec.ts",
   fullyParallel: false,
-  globalSetup: "./global-setup.ts",
+  workers: 1,
+  retries: 1,
+  timeout: 60_000,
   use: {
     baseURL: "http://localhost:3000",
     screenshot: "only-on-failure",
-    storageState: STORAGE_STATE_PATH,
   },
 });

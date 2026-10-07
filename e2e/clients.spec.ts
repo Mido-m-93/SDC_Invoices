@@ -15,7 +15,7 @@
  * beforeEach so the tests remain independent.
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 
 // ── Shared fixture data ──────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ test.describe("/clients — CRUD flow", () => {
     await expect(page.getByRole("heading", { name: "Add Client" })).toBeVisible();
 
     // Fill form
-    await page.getByPlaceholder("Acme Corporation").fill(NEW_CLIENT.name);
+    await page.getByPlaceholder("Acme Corporation", { exact: true }).fill(NEW_CLIENT.name);
     await page.getByPlaceholder("Technology, Finance, Healthcare…").fill(NEW_CLIENT.industry);
     await page.getByPlaceholder("Taro Yamada").fill(NEW_CLIENT.contactName);
     await page.getByPlaceholder("taro@example.com").fill(NEW_CLIENT.contactEmail);
@@ -141,7 +141,7 @@ test.describe("/clients — CRUD flow", () => {
     await expect(page.getByRole("heading", { name: "Edit Client" })).toBeVisible();
 
     // Clear and type the new name
-    const nameInput = page.getByPlaceholder("Acme Corporation");
+    const nameInput = page.getByPlaceholder("Acme Corporation", { exact: true });
     await nameInput.clear();
     await nameInput.fill(UPDATED_NAME);
 
@@ -179,7 +179,7 @@ test.describe("/clients — CRUD flow", () => {
     await page.getByRole("button", { name: "+ Add Client" }).click();
     await expect(page.getByRole("heading", { name: "Add Client" })).toBeVisible();
 
-    await page.getByPlaceholder("Acme Corporation").fill(NEW_CLIENT.name);
+    await page.getByPlaceholder("Acme Corporation", { exact: true }).fill(NEW_CLIENT.name);
     await page.getByPlaceholder("Technology, Finance, Healthcare…").fill(NEW_CLIENT.industry);
     await page.getByPlaceholder("Taro Yamada").fill(NEW_CLIENT.contactName);
     await page.getByPlaceholder("taro@example.com").fill(NEW_CLIENT.contactEmail);
@@ -192,7 +192,7 @@ test.describe("/clients — CRUD flow", () => {
     await row.getByRole("button", { name: "Edit" }).click();
     await expect(page.getByRole("heading", { name: "Edit Client" })).toBeVisible();
 
-    const nameInput = page.getByPlaceholder("Acme Corporation");
+    const nameInput = page.getByPlaceholder("Acme Corporation", { exact: true });
     await nameInput.clear();
     await nameInput.fill(UPDATED_NAME);
     await page.getByRole("button", { name: "Save Client" }).click();

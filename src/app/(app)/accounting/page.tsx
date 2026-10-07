@@ -117,6 +117,7 @@ export default function AccountingPage() {
     setPlLoading(true);
     try {
       const res = await fetch(`/api/accounting/pl?month=${plMonth}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as ProfitAndLoss;
       setPl(data);
     } catch {
