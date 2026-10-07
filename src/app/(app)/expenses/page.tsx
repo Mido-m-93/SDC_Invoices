@@ -131,12 +131,6 @@ export default function ExpensesPage() {
     }
   };
 
-  function openNew() {
-    setEditing(null);
-    setForm({ ...EMPTY_FORM });
-    setShowForm(true);
-  }
-
   function openEdit(c: ExpenseClaim) {
     setEditing(c);
     setForm({
@@ -429,7 +423,6 @@ export default function ExpensesPage() {
               {t("expenses_upload_excel")}
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" disabled={uploading} onChange={handleExcelUpload} />
             </label>
-            <Button variant="secondary" onClick={openNew}>{t("expenses_new_claim")}</Button>
           </div>
         </div>
       ) : (
