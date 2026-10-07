@@ -113,7 +113,7 @@ export default function CloseChecklistPage() {
         title={t("close_checklist_title")}
         subtitle={t("close_checklist_subtitle")}
         actions={
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <input
               type="month"
               value={month}

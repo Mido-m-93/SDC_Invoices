@@ -137,7 +137,7 @@ export default function VendorsPage() {
         title={t("vendors_title")}
         subtitle={t("vendors_subtitle")}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" loading={importing} onClick={handleImport}>{t("vendors_import_button")}</Button>
             <Button variant="primary" onClick={openNew}>{t("vendors_add_button")}</Button>
           </div>

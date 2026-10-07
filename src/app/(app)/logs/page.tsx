@@ -85,7 +85,7 @@ export default function LogsPage() {
         <PageHeader
           title={t("logs_title")}
           actions={
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Button variant="secondary" size="md" onClick={loadRuns} loading={loading} icon={<RefreshIcon />}>
                 {t("logs_refresh")}
               </Button>

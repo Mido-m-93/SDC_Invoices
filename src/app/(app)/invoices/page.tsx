@@ -410,7 +410,7 @@ export default function InvoicesPage() {
         <PageHeader
           title={t("invoice_list_title")}
           actions={
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
               <Button variant="danger-light" onClick={() => setConfirmClear(true)} icon={<TrashIcon />}>
                 {t("invoices_clear_all")}

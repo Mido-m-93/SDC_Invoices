@@ -216,7 +216,7 @@ export default function LeadsPage() {
         title={t("leads_title")}
         subtitle={t("leads_subtitle")}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1">
               <button
                 onClick={() => setViewMode("table")}

@@ -279,7 +279,7 @@ export default function BudgetPage() {
         title={t("budget_title")}
         subtitle={t("budget_subtitle")}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => handleSyncFromSharePoint(true)} loading={syncing} icon={<RefreshIcon />}>
               {t("budget_sync_button")}
             </Button>

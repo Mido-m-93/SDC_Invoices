@@ -100,7 +100,7 @@ export default function ExceptionsPage() {
         title={t("exceptions_title")}
         subtitle={t("exceptions_subtitle")}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <select
               value={selectedMonth}
               onChange={(e) => setMonth(e.target.value)}

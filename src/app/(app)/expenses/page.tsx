@@ -378,7 +378,7 @@ export default function ExpensesPage() {
         title={t("expenses_title")}
         subtitle={t("expenses_subtitle")}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <MonthSelector value={month} onChange={setMonth} availableMonths={availableMonths} />
             <Button variant="secondary" loading={syncing} onClick={handleSyncForms} icon={<RefreshIcon />}>
               {t("expenses_sync_from_forms")}
