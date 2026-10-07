@@ -344,8 +344,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-h-dvh bg-white pt-14 lg:ml-[220px] lg:pt-0">
-        <div className="px-6 py-8 lg:px-10">{isBlocked ? null : children}</div>
+      <main className="min-h-dvh min-w-0 overflow-x-hidden bg-white pt-14 lg:ml-[220px] lg:pt-0">
+        <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-10">{isBlocked ? null : children}</div>
       </main>
     </div>
   );

@@ -414,7 +414,7 @@ export default function ContractsPage() {
         }
       />
 
-      <div className="mb-5 flex gap-1 border-b border-stone-200">
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-stone-200">
         {(["contracts", "members"] as const).map((tb) => (
           <button
             key={tb}
@@ -437,7 +437,7 @@ export default function ContractsPage() {
       </div>
       <div hidden={tab !== "contracts"}>
       {contracts.length > 0 && (
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <input
             className={`${input} max-w-xs`}
             value={search}
@@ -465,7 +465,7 @@ export default function ContractsPage() {
 
       {syncMsg && (
         <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-2">
             <span>{syncMsg}</span>
             <div className="flex items-center gap-3">
               {syncDetails && syncDetails.length > 0 && (
@@ -526,8 +526,8 @@ export default function ContractsPage() {
           <p className="text-stone-400 text-sm">{t("contracts_search_no_results")}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
                 <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>

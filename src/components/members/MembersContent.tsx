@@ -227,7 +227,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
   const table = useTableControls(filteredMembers, byId, String(expiredOnly));
 
   const memberActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {expiredCount > 0 && (
         <button
           onClick={() => setExpiredOnly((v) => !v)}
@@ -289,8 +289,8 @@ export default function MembersContent({ compact = false }: MembersContentProps)
           <p className="text-stone-400 text-sm">{t("members_expired_none")}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
                 <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>

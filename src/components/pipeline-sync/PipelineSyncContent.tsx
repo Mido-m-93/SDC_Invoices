@@ -452,12 +452,13 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
     const { contractCount, proposalCount, budgetCount } = existenceCounts(r.rawClientName, contracts, proposals, budgets);
     return (
       <div key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-3 sm:gap-4">
           <div className="pt-1">
             <RowCheckbox checked={table.isSelected(r)} onChange={() => table.toggle(r)} />
           </div>
+
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge tone={STATUS_TONES[r.status]}>{STATUS_LABELS[r.status]}</Badge>
               {pending && (
                 <span className="text-xs text-stone-400">{t("pipeline_sync_confidence").replace("{pct}", (r.matchConfidence * 100).toFixed(0))}</span>
@@ -493,7 +494,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
           </div>
         </div>
 
-        <div className="mt-3 flex justify-between gap-2 border-t border-stone-100 pt-3">
+        <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-stone-100 pt-3">
           <Button variant="ghost" size="sm" loading={busyId === r.id} onClick={() => deleteRecord(r)}>
             Delete
           </Button>
@@ -618,7 +619,7 @@ export default function PipelineSyncContent({ compact = false }: PipelineSyncCon
         </div>
       )}
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1 border-b border-stone-200">
           {(
             [
