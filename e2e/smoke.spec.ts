@@ -4,35 +4,12 @@
  * Navigation smoke test — verifies that all 16 sidebar nav links are present
  * and correctly attributed on every authenticated page visit.
  *
- * The test bypasses Supabase auth by intercepting the middleware route so that
- * the app shell renders without a real session.  If you prefer to test with a
- * real account, replace the storageState approach below with a proper
- * loginAs() helper that POSTs to /api/auth/login and stores the session.
+ * Auth is handled globally: e2e/global-setup.ts logs in once through the
+ * real /login form and every test's browser context starts from that saved
+ * session (see storageState in playwright.config.ts).
  */
 
-import { test, expect, type Page } from "@playwright/test";
-
-// ── Auth helper ─────────────────────────────────────────────────────────────
-// The app redirects unauthenticated visitors to /login.  We stub the Supabase
-// cookie so the middleware considers the user signed-in.
-async function mockAuth(page: Page) {
-  // Intercept the Supabase getUser call made by the middleware and return a
-  // synthetic user object so the redirect to /login is skipped.
-  await page.route("**/auth/v1/user**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "test-user-id",
-        email: "e2e@example.com",
-        role: "authenticated",
-        aud: "authenticated",
-        app_metadata: {},
-        user_metadata: { name: "E2E User" },
-      }),
-    });
-  });
-}
+import { test, expect } from "@playwright/test";
 
 // ── Expected nav items (order matches AppShell NAV_ITEMS) ───────────────────
 const NAV_LINKS: { label: string; href: string }[] = [
@@ -55,10 +32,6 @@ const NAV_LINKS: { label: string; href: string }[] = [
 ];
 
 test.describe("Navigation smoke — all 16 nav links", () => {
-  test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-  });
-
   test("sidebar renders all 16 nav links on /dashboard", async ({ page }) => {
     await page.goto("/dashboard");
 

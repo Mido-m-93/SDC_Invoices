@@ -69,25 +69,6 @@ const NEW_ENTRY: AccountingEntry = {
   updatedAt: new Date().toISOString(),
 };
 
-// ── Auth helper ──────────────────────────────────────────────────────────────
-
-async function mockAuth(page: Page) {
-  await page.route("**/auth/v1/user**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "test-user-id",
-        email: "e2e@example.com",
-        role: "authenticated",
-        aud: "authenticated",
-        app_metadata: {},
-        user_metadata: { name: "E2E User" },
-      }),
-    });
-  });
-}
-
 // ── API mock helpers ─────────────────────────────────────────────────────────
 
 function buildSummary(entries: AccountingEntry[]) {
@@ -237,7 +218,6 @@ test.describe("/accounting — entry lifecycle", () => {
 
   test.beforeEach(async ({ page }) => {
     store = { entries: [] };
-    await mockAuth(page);
     setupAccountingApiMocks(page, store);
   });
 

@@ -38,24 +38,7 @@ const NEW_CLIENT = {
 
 const UPDATED_NAME = "Acme Test Corp UPDATED";
 
-// ── Auth + API mock helpers ──────────────────────────────────────────────────
-
-async function mockAuth(page: Page) {
-  await page.route("**/auth/v1/user**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "test-user-id",
-        email: "e2e@example.com",
-        role: "authenticated",
-        aud: "authenticated",
-        app_metadata: {},
-        user_metadata: { name: "E2E User" },
-      }),
-    });
-  });
-}
+// ── API mock helpers ─────────────────────────────────────────────────────────
 
 /** Wire up GET/POST/PUT/DELETE stubs for /api/clients using a shared array. */
 function setupClientApiMocks(page: Page, store: { clients: typeof NEW_CLIENT[] }) {
@@ -113,7 +96,6 @@ test.describe("/clients — CRUD flow", () => {
 
   test.beforeEach(async ({ page }) => {
     store = { clients: [] };
-    await mockAuth(page);
     setupClientApiMocks(page, store);
   });
 

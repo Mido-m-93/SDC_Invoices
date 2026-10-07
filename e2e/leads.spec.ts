@@ -60,23 +60,6 @@ const NEW_LEAD: Lead = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function mockAuth(page: Page) {
-  await page.route("**/auth/v1/user**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "test-user-id",
-        email: "e2e@example.com",
-        role: "authenticated",
-        aud: "authenticated",
-        app_metadata: {},
-        user_metadata: { name: "E2E User" },
-      }),
-    });
-  });
-}
-
 function setupLeadApiMocks(page: Page, store: { leads: Lead[] }) {
   // GET + POST /api/leads
   page.route("**/api/leads", async (route) => {
@@ -137,7 +120,6 @@ test.describe("/leads — pipeline flow", () => {
 
   test.beforeEach(async ({ page }) => {
     store = { leads: [] };
-    await mockAuth(page);
     setupLeadApiMocks(page, store);
   });
 

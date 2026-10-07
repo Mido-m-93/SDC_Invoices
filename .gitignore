@@ -67,3 +67,8 @@ automation/**/logs/
 *.xls
 
 .vercel
+
+# Playwright — session storage state holds a real auth token, never commit
+e2e/.auth/
+playwright-report/
+test-results/
