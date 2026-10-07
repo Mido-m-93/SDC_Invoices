@@ -261,11 +261,11 @@ export default function AdminPage() {
             <h3 className="text-sm font-semibold text-stone-800">{t("admin_flags_title")}</h3>
             <p className="mt-0.5 text-xs text-stone-500">{t("admin_flags_desc")}</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
             {FEATURE_FLAGS.map(([name, value]) => (
-              <div key={name} className="flex items-center justify-between rounded-lg border border-stone-100 px-3 py-2">
-                <span className="font-mono text-stone-600">{name}</span>
-                <span className={value ? "font-semibold text-emerald-600" : "text-stone-400"}>{String(value)}</span>
+              <div key={name} className="flex items-center justify-between gap-3 rounded-lg border border-stone-100 px-3 py-2">
+                <span className="min-w-0 break-all font-mono text-stone-600">{name}</span>
+                <span className={`shrink-0 ${value ? "font-semibold text-emerald-600" : "text-stone-400"}`}>{String(value)}</span>
               </div>
             ))}
           </div>
