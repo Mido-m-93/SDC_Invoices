@@ -107,9 +107,9 @@ export default function LogsPage() {
         ) : runs.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-stone-400 text-sm">{t("logs_no_runs")}</div>
         ) : (
-          <div className="flex gap-6">
+          <div className="flex flex-col gap-6 lg:flex-row">
             {/* Run list sidebar */}
-            <div className="w-72 flex-shrink-0">
+            <div className="w-full lg:w-72 lg:flex-shrink-0">
               <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-3">
                 {t("logs_run_history")}
               </h3>
@@ -152,7 +152,7 @@ export default function LogsPage() {
             {/* Log detail */}
             <div className="flex-1 min-w-0">
               {selectedRun && (
-                <div className="mb-4 bg-white rounded-xl border border-stone-200 p-4 grid grid-cols-4 gap-4">
+                <div className="mb-4 bg-white rounded-xl border border-stone-200 p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <RunMeta label={t("logs_run_id")} value={selectedRun.id} mono />
                   <RunMeta label={t("logs_started_at")} value={formatTimestamp(selectedRun.startedAt, language)} />
                   <RunMeta
@@ -166,8 +166,8 @@ export default function LogsPage() {
               {logsLoading ? (
                 <div className="flex items-center justify-center h-32 text-stone-400 text-sm">{t("loading")}</div>
               ) : (
-                <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
                     <thead>
                       <tr className="border-b border-stone-100 bg-stone-50">
                         <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
