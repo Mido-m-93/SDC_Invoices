@@ -70,6 +70,7 @@ export default function ExpensesPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [csvIncludePaid, setCsvIncludePaid] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ExpenseFilter>("all");
   const [showForm, setShowForm] = useState(false);
@@ -265,20 +266,20 @@ export default function ExpensesPage() {
     setError(null);
     setUploadMsg(null);
     try {
-      const res = await fetch("/api/expenses?status=approved");
+      const res = await fetch(csvIncludePaid ? "/api/expenses" : "/api/expenses?status=approved");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { claims: ExpenseClaim[] };
       const now = new Date();
-      const result = buildBankTransfer(data.claims ?? [], `Expenses ${now.toISOString().slice(0, 7)}`);
+      const result = buildBankTransfer(data.claims ?? [], `Expenses ${now.toISOString().slice(0, 7)}`, { includePaid: csvIncludePaid });
       if (result.rows.length === 0) {
-        setUploadMsg(t("expenses_bank_csv_none"));
+        setUploadMsg(t(csvIncludePaid ? "expenses_bank_csv_none_incl_paid" : "expenses_bank_csv_none"));
         return;
       }
       const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `bank-transfer-${now.toISOString().slice(0, 10)}.csv`;
+      a.download = `bank-transfer-${now.toISOString().slice(0, 10)}${csvIncludePaid ? "-incl-paid" : ""}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -403,9 +404,15 @@ export default function ExpensesPage() {
             <Button variant="danger-light" onClick={() => setConfirmCleanAll(true)} icon={<TrashIcon />}>
               {t("expenses_clean_all")}
             </Button>
-            <Button variant="secondary" loading={exportingCsv} onClick={handleExportBankCsv}>
-              {t("expenses_export_bank_csv")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" loading={exportingCsv} onClick={handleExportBankCsv}>
+                {t("expenses_export_bank_csv")}
+              </Button>
+              <label className="flex items-center gap-1.5 text-xs text-stone-500 cursor-pointer select-none">
+                <input type="checkbox" checked={csvIncludePaid} onChange={(e) => setCsvIncludePaid(e.target.checked)} />
+                {t("expenses_bank_csv_include_paid")}
+              </label>
+            </div>
             {SHOW_EXPENSES_UPLOAD_EXCEL && (
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${
                 uploading

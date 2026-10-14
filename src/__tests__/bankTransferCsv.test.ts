@@ -111,4 +111,39 @@ describe("buildBankTransfer", () => {
     expect(r.rows).toEqual([]);
     expect(r.csv).toBe("﻿" + HEADER + "\r\n");
   });
+
+  describe("includePaid option", () => {
+    const paid = (over: Partial<ExpenseClaim>) => claim({ status: "paid", paidAt: "2026-10-02T00:00:00Z", ...over });
+
+    it("excludes paid claims by default", () => {
+      expect(buildBankTransfer([paid({ id: "a" })], "m").rows).toEqual([]);
+    });
+
+    it("includes paid claims when asked, and still excludes submitted / rejected / deleted", () => {
+      const r = buildBankTransfer(
+        [paid({ id: "a" }), claim({ id: "b", status: "submitted" }), claim({ id: "c", status: "rejected" }), paid({ id: "d", deletedAt: "2026-10-03" })],
+        "m",
+        { includePaid: true }
+      );
+      expect(r.rows).toHaveLength(1);
+      expect(r.rows[0].claimCount).toBe(1);
+    });
+
+    it("warns not to pay again when every claim in a row is already paid", () => {
+      const r = buildBankTransfer([paid({ id: "a" }), paid({ id: "b", amount: 500 })], "m", { includePaid: true });
+      expect(r.rows[0].amount).toBe(1500);
+      expect(r.rows[0].note).toMatch(/Already marked paid: do not pay again/);
+    });
+
+    it("says how many claims were already paid when a row mixes paid and unpaid", () => {
+      const r = buildBankTransfer([paid({ id: "a" }), claim({ id: "b", amount: 500 })], "m", { includePaid: true });
+      expect(r.rows[0].amount).toBe(1500);
+      expect(r.rows[0].note).toMatch(/1 of 2 claims already marked paid/);
+    });
+
+    it("adds no paid warning when nothing in the row is paid", () => {
+      const r = buildBankTransfer([claim({ id: "a" })], "m", { includePaid: true });
+      expect(r.rows[0].note).toBe("");
+    });
+  });
 });

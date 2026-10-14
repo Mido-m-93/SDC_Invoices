@@ -26,9 +26,20 @@ export interface BankTransferResult {
 const CSV_HEADER = ["Recipient", "Email", "Bank Account", "Currency", "Amount", "Claims", "Memo", "Note"];
 const ZERO_DECIMAL_CURRENCIES = new Set(["JPY", "KRW", "VND"]);
 
-/** Approved and not yet paid, and not soft-deleted. */
-function isPayable(c: ExpenseClaim): boolean {
-  return c.status === "approved" && !c.paidAt && !c.deletedAt;
+export interface BankTransferOptions {
+  /** Also include claims already marked paid (e.g. to re-create a record of a transfer). */
+  includePaid?: boolean;
+}
+
+function isPaid(c: ExpenseClaim): boolean {
+  return c.status === "paid" || !!c.paidAt;
+}
+
+/** Approved and not yet paid (or, with includePaid, paid too), and not soft-deleted. */
+function isPayable(c: ExpenseClaim, includePaid: boolean): boolean {
+  if (c.deletedAt) return false;
+  if (c.status === "approved") return includePaid || !isPaid(c);
+  return includePaid && c.status === "paid";
 }
 
 function toMinorUnits(amount: number, currency: string): number {
@@ -51,11 +62,15 @@ function escapeCell(value: string, isText = true): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function buildBankTransfer(claims: ExpenseClaim[], memo: string): BankTransferResult {
+export function buildBankTransfer(
+  claims: ExpenseClaim[],
+  memo: string,
+  options: BankTransferOptions = {}
+): BankTransferResult {
   type Group = { claims: ExpenseClaim[]; currency: string };
   const groups = new Map<string, Group>();
 
-  for (const c of claims.filter(isPayable)) {
+  for (const c of claims.filter((x) => isPayable(x, options.includePaid ?? false))) {
     const currency = (c.currency || "JPY").toUpperCase();
     const member = (c.submittedByEmail || c.submittedBy).trim().toLowerCase();
     const key = `${member}|${currency}`;
@@ -73,6 +88,9 @@ export function buildBankTransfer(claims: ExpenseClaim[], memo: string): BankTra
     if (accounts.length === 0) notes.push("No bank account on the claims");
     if (accounts.length > 1) notes.push(`${accounts.length} different bank accounts on the claims: confirm which to use`);
     if (minor <= 0) notes.push("Total is zero or negative");
+    const paidCount = cs.filter(isPaid).length;
+    if (paidCount === cs.length) notes.push("Already marked paid: do not pay again");
+    else if (paidCount > 0) notes.push(`${paidCount} of ${cs.length} claims already marked paid: total includes them`);
     return {
       recipient: sorted[0].submittedBy.trim(),
       email: sorted[0].submittedByEmail.trim(),
