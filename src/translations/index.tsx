@@ -9,6 +9,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
   useCallback,
 } from "react";
@@ -51,11 +52,17 @@ export function LanguageProvider({
     document.documentElement.lang = language;
   }, [language]);
 
+  // `t` keeps one identity across language changes. Pages list it in the deps
+  // of their data loaders (useCallback(..., [t])), so a new `t` per language
+  // re-ran every fetch and flashed the page to "Loading..." on each toggle.
+  // Consumers still re-render on a switch because the context value carries
+  // `language`, and they call `t` fresh during render.
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const t = useCallback(
-    (key: TranslationKey): string => {
-      return translations[language][key] ?? translations["ja"][key] ?? key;
-    },
-    [language]
+    (key: TranslationKey): string =>
+      translations[languageRef.current][key] ?? translations["ja"][key] ?? key,
+    []
   );
 
   return (
