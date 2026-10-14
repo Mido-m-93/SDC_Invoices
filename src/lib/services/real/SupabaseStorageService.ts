@@ -400,6 +400,14 @@ export class SupabaseStorageService implements IStorageService {
     if (error) throw new Error(`markFiledDocumentPaid: ${error.message}`);
   }
 
+  async markFiledDocumentUnpaid(submissionId: string): Promise<void> {
+    const { error } = await this.db
+      .from("filed_documents")
+      .update({ paid_at: null })
+      .eq("submission_id", submissionId);
+    if (error) throw new Error(`markFiledDocumentUnpaid: ${error.message}`);
+  }
+
   async loadValidationResults(submissionIds: string[]): Promise<InvoiceValidationResult[]> {
     if (submissionIds.length === 0) return [];
     const { data, error } = await this.db

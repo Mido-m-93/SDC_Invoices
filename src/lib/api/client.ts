@@ -163,6 +163,13 @@ export async function markInvoicePaid(submissionId: string): Promise<{ ok: true;
   });
 }
 
+export async function unmarkInvoicePaid(submissionId: string): Promise<{ ok: true }> {
+  return apiFetch("/api/invoices/unmark-paid", {
+    method: "POST",
+    body: JSON.stringify({ submissionId }),
+  });
+}
+
 export async function fileInvoiceBulk(
   validations: InvoiceValidationResult[],
   submissions: InvoiceSubmission[]
@@ -188,6 +195,12 @@ export async function fileExpenseClaim(
 
 export async function markExpensePaid(claimId: string): Promise<{ ok: true }> {
   return apiFetch(`/api/expenses/${claimId}/mark-paid`, {
+    method: "POST",
+  });
+}
+
+export async function undoExpensePaid(claimId: string): Promise<{ ok: true }> {
+  return apiFetch(`/api/expenses/${claimId}/undo-paid`, {
     method: "POST",
   });
 }

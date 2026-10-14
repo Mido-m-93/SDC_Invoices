@@ -354,6 +354,8 @@ const en = {
   status_REJECTED: "Rejected",
   status_PAID: "Paid",
   paid_on: "Paid on {date}",
+  action_undo_paid: "Undo Paid",
+  undo_paid_confirm: "Remove the paid mark? It will count as unpaid again (and reappear in the bank transfer export).",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",

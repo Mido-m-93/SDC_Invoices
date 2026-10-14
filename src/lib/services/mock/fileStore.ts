@@ -253,6 +253,15 @@ export function markFiledDocumentPaid(submissionId: string): void {
   }
 }
 
+export function markFiledDocumentUnpaid(submissionId: string): void {
+  const store = readStore();
+  const doc = store.filedDocuments[submissionId];
+  if (doc) {
+    store.filedDocuments[submissionId] = { ...doc, paidAt: null };
+    writeStore(store);
+  }
+}
+
 // ── Processing runs ───────────────────────────────────────────────────────────
 
 export function saveRun(run: ProcessingRun): void {

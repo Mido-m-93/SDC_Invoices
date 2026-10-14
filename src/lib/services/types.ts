@@ -147,6 +147,8 @@ export interface IStorageService {
 
   /** Mark a previously-filed document as paid */
   markFiledDocumentPaid(submissionId: string): Promise<void>;
+  /** Clears the paid mark and date (the filed document itself is kept). */
+  markFiledDocumentUnpaid(submissionId: string): Promise<void>;
 
   /** Load validation results for a run */
   loadValidationResults(

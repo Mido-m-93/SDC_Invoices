@@ -354,6 +354,8 @@ const ja = {
   status_REJECTED: "却下",
   status_PAID: "支払済み",
   paid_on: "支払日 {date}",
+  action_undo_paid: "支払済みを取消",
+  undo_paid_confirm: "支払済みを取り消しますか？未払いに戻り、銀行振込CSVにも再び含まれます。",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "保留中",

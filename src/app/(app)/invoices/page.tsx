@@ -19,6 +19,7 @@ import {
   validateInvoice,
   fileInvoice,
   markInvoicePaid,
+  unmarkInvoicePaid,
   uploadInvoiceExcel,
   fetchAvailableMonths,
   clearAllInvoices,
@@ -208,6 +209,25 @@ export default function InvoicesPage() {
       notify("error", `Failed to file invoice for ${item.submission.payerName}: ${String(err)}`, "/invoices");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handleUndoPaid = async (item: InvoiceListItem) => {
+    if (!item.filedDocument) return;
+    if (!window.confirm(t("undo_paid_confirm"))) return;
+    setMarkingPaidId(item.submission.id);
+    setError(null);
+    try {
+      await unmarkInvoicePaid(item.submission.id);
+      const updated = { ...item, filedDocument: { ...item.filedDocument, paidAt: null } };
+      setItems((prev) => prev.map((i) => (i.submission.id === item.submission.id ? updated : i)));
+      setSelectedItem((prev) => (prev?.submission.id === item.submission.id ? updated : prev));
+      notify("info", `Removed the paid mark for ${item.submission.payerName}`, "/invoices");
+    } catch (err) {
+      setError(String(err));
+      notify("error", `Failed to undo paid for ${item.submission.payerName}: ${String(err)}`, "/invoices");
+    } finally {
+      setMarkingPaidId(null);
     }
   };
 
@@ -720,7 +740,12 @@ export default function InvoicesPage() {
                               <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
                             )}
                             {item.filedDocument?.paidAt && (
-                              <span className="text-xs text-emerald-600 font-medium">✓ {t("status_PAID")}</span>
+                              <>
+                                <span className="text-xs text-emerald-600 font-medium">✓ {t("status_PAID")}</span>
+                                <Button variant="ghost" size="sm" loading={markingPaidId === s.id} onClick={() => handleUndoPaid(item)}>
+                                  {t("action_undo_paid")}
+                                </Button>
+                              </>
                             )}
                             <Button
                               variant="ghost"
