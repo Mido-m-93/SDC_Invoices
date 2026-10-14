@@ -71,6 +71,8 @@ export default function ExpensesPage() {
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [csvIncludePaid, setCsvIncludePaid] = useState(false);
+  const [bankViewClaim, setBankViewClaim] = useState<ExpenseClaim | null>(null);
+  const [bankCopied, setBankCopied] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ExpenseFilter>("all");
   const [showForm, setShowForm] = useState(false);
@@ -257,6 +259,16 @@ export default function ExpensesPage() {
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     notify("info", `Deleted expense claim${claim ? ` for ${claim.submittedBy}` : ""} — restore from Archives if needed`, "/archives");
     load();
+  }
+
+  async function copyBankAccount(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setBankCopied(true);
+      setTimeout(() => setBankCopied(false), 1500);
+    } catch {
+      // Clipboard can be blocked (permissions / insecure context); the text is still selectable in the box.
+    }
   }
 
   // Bank-transfer CSV: approved, not-yet-paid claims, one row per recipient.
@@ -548,6 +560,7 @@ export default function ExpensesPage() {
                   </td>
                   <td className="px-4 py-3 flex gap-1 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>{t("expenses_action_edit")}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setBankCopied(false); setBankViewClaim(c); }}>{t("expenses_action_view")}</Button>
                     <Button variant="ghost" size="sm" loading={validating === c.id} onClick={() => handleValidate(c.id)}>{t("expenses_action_validate")}</Button>
                     {(c.extractedAmount !== null || c.extractedDate !== null || c.extractedVendor !== null || c.policyViolations.length > 0) && (
                       <Button variant="ghost" size="sm" loading={undoingValidateId === c.id} onClick={() => handleUndoValidate(c.id)}>{t("expenses_action_undo_validate")}</Button>
@@ -827,6 +840,76 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+
+      {bankViewClaim && (() => {
+        const v = bankViewClaim;
+        const validated = v.extractedAmount !== null || v.extractedDate !== null || v.extractedVendor !== null || v.policyViolations.length > 0;
+        const amountMatches = v.extractedAmount !== null && v.extractedAmount === v.amount;
+        const row = (label: string, value: string, tone = "text-stone-800") => (
+          <div className="flex justify-between gap-4 py-1 text-xs">
+            <span className="text-stone-500">{label}</span>
+            <span className={`text-right font-medium ${tone}`}>{value}</span>
+          </div>
+        );
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setBankViewClaim(null)}>
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h2 className="mb-1 text-base font-semibold text-stone-900">{v.submittedBy}</h2>
+              <p className="mb-4 text-sm text-stone-500">{v.currency} {v.amount.toLocaleString()}</p>
+
+              <p className="mb-1 text-xs font-semibold text-stone-600">{t("expenses_bank_transfer")}</p>
+              {v.bankAccount ? (
+                <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
+                  <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono leading-relaxed select-all">{v.bankAccount}</pre>
+                </div>
+              ) : (
+                <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                  {t("expenses_no_bank_account")}
+                </div>
+              )}
+
+              <p className="mb-1 text-xs font-semibold text-stone-600">{t("expenses_view_validation")}</p>
+              {validated ? (
+                <div className="mb-4 rounded-lg border border-stone-200 px-3 py-2">
+                  {row(t("expenses_view_claimed_amount"), `${v.currency} ${v.amount.toLocaleString()}`)}
+                  {v.extractedAmount !== null && row(
+                    t("expenses_view_receipt_amount"),
+                    `${v.currency} ${v.extractedAmount.toLocaleString()} ${amountMatches ? "✓" : "✗"}`,
+                    amountMatches ? "text-emerald-600" : "text-red-600"
+                  )}
+                  {v.extractedDate && row(t("expenses_view_receipt_date"), v.extractedDate)}
+                  {v.extractedVendor && row(t("expenses_view_vendor"), v.extractedVendor)}
+                  {v.extractedPurpose && row(t("expenses_view_purpose"), v.extractedPurpose)}
+                  {v.policyViolations.length > 0
+                    ? row(t("expenses_view_violations"), v.policyViolations.map(violationLabel).join(", "), "text-red-600")
+                    : row(t("expenses_view_violations"), t("expenses_view_no_violations"), "text-emerald-600")}
+                </div>
+              ) : (
+                <div className="mb-4 rounded-lg bg-stone-50 border border-stone-200 px-3 py-2 text-xs text-stone-500">
+                  {t("expenses_view_not_validated")}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                {v.bankAccount && (
+                  <button
+                    onClick={() => copyBankAccount(v.bankAccount ?? "")}
+                    className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50"
+                  >
+                    {bankCopied ? t("expenses_bank_copied") : t("expenses_bank_copy")}
+                  </button>
+                )}
+                <button
+                  onClick={() => setBankViewClaim(null)}
+                  className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                >
+                  {t("close")}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {confirmCleanAll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
