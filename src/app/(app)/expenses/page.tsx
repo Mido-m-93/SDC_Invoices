@@ -12,6 +12,7 @@ import { useNotifications } from "@/lib/notifications";
 import { fileExpenseClaim, markExpensePaid } from "@/lib/api/client";
 import { SHOW_EXPENSES_UPLOAD_EXCEL } from "@/lib/featureFlags";
 import { monthOptions } from "@/lib/utils";
+import { buildBankTransfer } from "@/lib/bankTransferCsv";
 import type { ExpenseClaim, ExpenseCategory, ExpensePaymentMethod, ExpenseStatus, ExpenseValidationResult } from "@/types";
 import { useTableControls, byId } from "@/lib/hooks/useTableControls";
 import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
@@ -68,6 +69,7 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ExpenseFilter>("all");
   const [showForm, setShowForm] = useState(false);
@@ -256,6 +258,46 @@ export default function ExpensesPage() {
     load();
   }
 
+  // Bank-transfer CSV: approved, not-yet-paid claims, one row per recipient.
+  // Fetches its own list so the current status filter pill can't hide claims.
+  async function handleExportBankCsv() {
+    setExportingCsv(true);
+    setError(null);
+    setUploadMsg(null);
+    try {
+      const res = await fetch("/api/expenses?status=approved");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { claims: ExpenseClaim[] };
+      const now = new Date();
+      const result = buildBankTransfer(data.claims ?? [], `Expenses ${now.toISOString().slice(0, 7)}`);
+      if (result.rows.length === 0) {
+        setUploadMsg(t("expenses_bank_csv_none"));
+        return;
+      }
+      const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bank-transfer-${now.toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      const totals = Object.entries(result.totalsByCurrency)
+        .map(([cur, amt]) => `${cur} ${amt.toLocaleString()}`)
+        .join(" / ");
+      const flagged = result.rows.filter((r) => r.note).length;
+      setUploadMsg(
+        t("expenses_bank_csv_done").replace("{count}", String(result.rows.length)).replace("{totals}", totals) +
+          (flagged > 0 ? t("expenses_bank_csv_flagged").replace("{count}", String(flagged)) : "")
+      );
+    } catch {
+      setError(t("expenses_bank_csv_failed"));
+    } finally {
+      setExportingCsv(false);
+    }
+  }
+
   async function handleFile(id: string) {
     setFilingId(id);
     setError(null);
@@ -360,6 +402,9 @@ export default function ExpensesPage() {
             </Button>
             <Button variant="danger-light" onClick={() => setConfirmCleanAll(true)} icon={<TrashIcon />}>
               {t("expenses_clean_all")}
+            </Button>
+            <Button variant="secondary" loading={exportingCsv} onClick={handleExportBankCsv}>
+              {t("expenses_export_bank_csv")}
             </Button>
             {SHOW_EXPENSES_UPLOAD_EXCEL && (
               <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-all select-none ${

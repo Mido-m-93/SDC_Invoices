@@ -1,0 +1,109 @@
+// Builds the bank-transfer summary and CSV from approved, unpaid expense claims.
+// Pure functions (no I/O) so the Expenses page and the tests share one code path.
+
+import type { ExpenseClaim } from "@/types";
+
+export interface BankTransferRow {
+  recipient: string;
+  email: string;
+  bankAccount: string;
+  currency: string;
+  /** Total in the currency's major unit (JPY: whole yen, others: 2 decimals). */
+  amount: number;
+  claimCount: number;
+  memo: string;
+  /** Empty when the row is ready to pay; otherwise what to check first. */
+  note: string;
+}
+
+export interface BankTransferResult {
+  rows: BankTransferRow[];
+  /** Grand total per currency; currencies are never added together. */
+  totalsByCurrency: Record<string, number>;
+  csv: string;
+}
+
+const CSV_HEADER = ["Recipient", "Email", "Bank Account", "Currency", "Amount", "Claims", "Memo", "Note"];
+const ZERO_DECIMAL_CURRENCIES = new Set(["JPY", "KRW", "VND"]);
+
+/** Approved and not yet paid, and not soft-deleted. */
+function isPayable(c: ExpenseClaim): boolean {
+  return c.status === "approved" && !c.paidAt && !c.deletedAt;
+}
+
+function toMinorUnits(amount: number, currency: string): number {
+  return ZERO_DECIMAL_CURRENCIES.has(currency) ? Math.round(amount) : Math.round(amount * 100);
+}
+
+function fromMinorUnits(minor: number, currency: string): number {
+  return ZERO_DECIMAL_CURRENCIES.has(currency) ? minor : minor / 100;
+}
+
+function formatAmount(amount: number, currency: string): string {
+  return ZERO_DECIMAL_CURRENCIES.has(currency) ? String(amount) : amount.toFixed(2);
+}
+
+// Cells that start with these characters are executed as formulas by Excel /
+// Sheets. Claim text comes from a public form, so neutralise them.
+function escapeCell(value: string, isText = true): string {
+  let v = value;
+  if (isText && /^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+export function buildBankTransfer(claims: ExpenseClaim[], memo: string): BankTransferResult {
+  type Group = { claims: ExpenseClaim[]; currency: string };
+  const groups = new Map<string, Group>();
+
+  for (const c of claims.filter(isPayable)) {
+    const currency = (c.currency || "JPY").toUpperCase();
+    const member = (c.submittedByEmail || c.submittedBy).trim().toLowerCase();
+    const key = `${member}|${currency}`;
+    const g = groups.get(key);
+    if (g) g.claims.push(c);
+    else groups.set(key, { claims: [c], currency });
+  }
+
+  const rows: BankTransferRow[] = [...groups.values()].map(({ claims: cs, currency }) => {
+    // Newest claim first, so the most recent name / bank account wins.
+    const sorted = [...cs].sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+    const accounts = [...new Set(sorted.map((c) => (c.bankAccount ?? "").trim()).filter(Boolean))];
+    const minor = cs.reduce((sum, c) => sum + toMinorUnits(c.amount, currency), 0);
+    const notes: string[] = [];
+    if (accounts.length === 0) notes.push("No bank account on the claims");
+    if (accounts.length > 1) notes.push(`${accounts.length} different bank accounts on the claims: confirm which to use`);
+    if (minor <= 0) notes.push("Total is zero or negative");
+    return {
+      recipient: sorted[0].submittedBy.trim(),
+      email: sorted[0].submittedByEmail.trim(),
+      bankAccount: accounts[0] ?? "",
+      currency,
+      amount: fromMinorUnits(minor, currency),
+      claimCount: cs.length,
+      memo,
+      note: notes.join("; "),
+    };
+  });
+
+  rows.sort((a, b) => a.recipient.localeCompare(b.recipient) || a.currency.localeCompare(b.currency));
+
+  const totalsMinor: Record<string, number> = {};
+  for (const r of rows) totalsMinor[r.currency] = (totalsMinor[r.currency] ?? 0) + toMinorUnits(r.amount, r.currency);
+  const totalsByCurrency = Object.fromEntries(
+    Object.entries(totalsMinor).map(([cur, minor]) => [cur, fromMinorUnits(minor, cur)])
+  );
+
+  const lines = [
+    CSV_HEADER.join(","),
+    ...rows.map((r) =>
+      [
+        escapeCell(r.recipient), escapeCell(r.email), escapeCell(r.bankAccount), escapeCell(r.currency),
+        escapeCell(formatAmount(r.amount, r.currency), false), String(r.claimCount), escapeCell(r.memo), escapeCell(r.note),
+      ].join(",")
+    ),
+  ];
+  // UTF-8 BOM so Excel opens Japanese names correctly; CRLF per RFC 4180.
+  const csv = "﻿" + lines.join("\r\n") + "\r\n";
+
+  return { rows, totalsByCurrency, csv };
+}
