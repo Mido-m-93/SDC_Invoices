@@ -11,6 +11,14 @@ export interface BankTransferRow {
   /** Total in the currency's major unit (JPY: whole yen, others: 2 decimals). */
   amount: number;
   claimCount: number;
+  /** Claim details, one value per claim (newest first) joined with " | ". */
+  feeReason: string;
+  expenseReason: string;
+  submitted: string;
+  expenseDate: string;
+  attachment: string;
+  /** One value when every claim has the same status, otherwise per claim joined with " | ". */
+  status: string;
   memo: string;
   /** Empty when the row is ready to pay; otherwise what to check first. */
   note: string;
@@ -23,7 +31,12 @@ export interface BankTransferResult {
   csv: string;
 }
 
-const CSV_HEADER = ["Recipient", "Email", "Bank Account", "Currency", "Amount", "Claims", "Memo", "Note"];
+const CSV_HEADER = [
+  "Recipient", "Email", "Bank Account", "Currency", "Amount", "Claims",
+  "Transportation Fee Reason", "Expense Reason", "Submitted", "Expense Date", "Attachment", "Status",
+  "Memo", "Note",
+];
+const JOIN = " | ";
 const ZERO_DECIMAL_CURRENCIES = new Set(["JPY", "KRW", "VND"]);
 
 export interface BankTransferOptions {
@@ -62,6 +75,12 @@ function escapeCell(value: string, isText = true): string {
   return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
+/** Per-claim values joined in claim order so columns line up; blank if every value is empty. */
+function joinPerClaim(values: string[]): string {
+  const cleaned = values.map((v) => (v ?? "").trim());
+  return cleaned.every((v) => v === "") ? "" : cleaned.join(JOIN);
+}
+
 export function buildBankTransfer(
   claims: ExpenseClaim[],
   memo: string,
@@ -98,6 +117,12 @@ export function buildBankTransfer(
       currency,
       amount: fromMinorUnits(minor, currency),
       claimCount: cs.length,
+      feeReason: joinPerClaim(sorted.map((c) => c.description)),
+      expenseReason: joinPerClaim(sorted.map((c) => c.expenseReason)),
+      submitted: joinPerClaim(sorted.map((c) => (c.submittedAt || "").slice(0, 10))),
+      expenseDate: joinPerClaim(sorted.map((c) => (c.expenseDate || "").slice(0, 10))),
+      attachment: joinPerClaim(sorted.map((c) => c.receiptUrl)),
+      status: new Set(sorted.map((c) => c.status)).size === 1 ? sorted[0].status : sorted.map((c) => c.status).join(JOIN),
       memo,
       note: notes.join("; "),
     };
@@ -116,7 +141,9 @@ export function buildBankTransfer(
     ...rows.map((r) =>
       [
         escapeCell(r.recipient), escapeCell(r.email), escapeCell(r.bankAccount), escapeCell(r.currency),
-        escapeCell(formatAmount(r.amount, r.currency), false), String(r.claimCount), escapeCell(r.memo), escapeCell(r.note),
+        escapeCell(formatAmount(r.amount, r.currency), false), String(r.claimCount),
+        escapeCell(r.feeReason), escapeCell(r.expenseReason), escapeCell(r.submitted), escapeCell(r.expenseDate),
+        escapeCell(r.attachment), escapeCell(r.status), escapeCell(r.memo), escapeCell(r.note),
       ].join(",")
     ),
   ];

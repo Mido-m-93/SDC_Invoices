@@ -13,7 +13,8 @@ function claim(over: Partial<ExpenseClaim>): ExpenseClaim {
   } as ExpenseClaim;
 }
 
-const HEADER = "Recipient,Email,Bank Account,Currency,Amount,Claims,Memo,Note";
+const HEADER =
+  "Recipient,Email,Bank Account,Currency,Amount,Claims,Transportation Fee Reason,Expense Reason,Submitted,Expense Date,Attachment,Status,Memo,Note";
 
 describe("buildBankTransfer", () => {
   it("totals each member's approved claims into one row", () => {
@@ -144,6 +145,57 @@ describe("buildBankTransfer", () => {
     it("adds no paid warning when nothing in the row is paid", () => {
       const r = buildBankTransfer([claim({ id: "a" })], "m", { includePaid: true });
       expect(r.rows[0].note).toBe("");
+    });
+  });
+
+  describe("claim detail columns", () => {
+    it("adds the claim columns, newest claim first, joined with ' | ' so they line up", () => {
+      const r = buildBankTransfer(
+        [
+          claim({ id: "a", submittedAt: "2026-09-04T07:01:00Z", description: "From Ama till Shimane", expenseReason: "Fare to Okikisen", expenseDate: "2026-08-30", receiptUrl: "https://x.test/a" }),
+          claim({ id: "b", submittedAt: "2026-09-05T07:01:00Z", description: "To Ama from Shimane", expenseReason: "Fare", expenseDate: "2026-08-28", receiptUrl: "https://x.test/b" }),
+        ],
+        "m"
+      );
+      const row = r.rows[0];
+      expect(row.feeReason).toBe("To Ama from Shimane | From Ama till Shimane");
+      expect(row.expenseReason).toBe("Fare | Fare to Okikisen");
+      expect(row.submitted).toBe("2026-09-05 | 2026-09-04");
+      expect(row.expenseDate).toBe("2026-08-28 | 2026-08-30");
+      expect(row.attachment).toBe("https://x.test/b | https://x.test/a");
+      expect(r.csv).toContain("To Ama from Shimane | From Ama till Shimane,Fare | Fare to Okikisen,2026-09-05 | 2026-09-04");
+    });
+
+    it("keeps positions when one claim has an empty value, and leaves a column blank when all are empty", () => {
+      const r = buildBankTransfer(
+        [
+          claim({ id: "a", submittedAt: "2026-09-04T00:00:00Z", description: "Taxi", expenseReason: "" }),
+          claim({ id: "b", submittedAt: "2026-09-05T00:00:00Z", description: "", expenseReason: "" }),
+        ],
+        "m"
+      );
+      expect(r.rows[0].feeReason).toBe(" | Taxi");
+      expect(r.rows[0].expenseReason).toBe("");
+    });
+
+    it("shows a single status when all claims share it, otherwise one per claim", () => {
+      const same = buildBankTransfer([claim({ id: "a" }), claim({ id: "b" })], "m");
+      expect(same.rows[0].status).toBe("approved");
+      const mixed = buildBankTransfer(
+        [
+          claim({ id: "a", submittedAt: "2026-09-04T00:00:00Z" }),
+          claim({ id: "b", submittedAt: "2026-09-05T00:00:00Z", status: "paid", paidAt: "2026-10-01" }),
+        ],
+        "m",
+        { includePaid: true }
+      );
+      expect(mixed.rows[0].status).toBe("paid | approved");
+    });
+
+    it("escapes commas in claim text and neutralises formulas", () => {
+      const r = buildBankTransfer([claim({ description: "Taxi, airport", expenseReason: "=SUM(A1)" })], "m");
+      expect(r.csv).toContain('"Taxi, airport"');
+      expect(r.csv).toContain("'=SUM(A1)");
     });
   });
 });
