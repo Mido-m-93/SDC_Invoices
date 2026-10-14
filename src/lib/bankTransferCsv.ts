@@ -19,6 +19,8 @@ export interface BankTransferRow {
   attachment: string;
   /** One value when every claim has the same status, otherwise per claim joined with " | ". */
   status: string;
+  /** Date each claim was marked paid (blank for unpaid claims), per claim joined with " | ". */
+  paidDate: string;
   memo: string;
   /** Empty when the row is ready to pay; otherwise what to check first. */
   note: string;
@@ -33,7 +35,7 @@ export interface BankTransferResult {
 
 const CSV_HEADER = [
   "Recipient", "Email", "Bank Account", "Currency", "Amount", "Claims",
-  "Transportation Fee Reason", "Expense Reason", "Submitted", "Expense Date", "Attachment", "Status",
+  "Transportation Fee Reason", "Expense Reason", "Submitted", "Expense Date", "Attachment", "Status", "Paid Date",
   "Memo", "Note",
 ];
 const JOIN = " | ";
@@ -123,6 +125,7 @@ export function buildBankTransfer(
       expenseDate: joinPerClaim(sorted.map((c) => (c.expenseDate || "").slice(0, 10))),
       attachment: joinPerClaim(sorted.map((c) => c.receiptUrl)),
       status: new Set(sorted.map((c) => c.status)).size === 1 ? sorted[0].status : sorted.map((c) => c.status).join(JOIN),
+      paidDate: joinPerClaim(sorted.map((c) => (c.paidAt || "").slice(0, 10))),
       memo,
       note: notes.join("; "),
     };
@@ -143,7 +146,7 @@ export function buildBankTransfer(
         escapeCell(r.recipient), escapeCell(r.email), escapeCell(r.bankAccount), escapeCell(r.currency),
         escapeCell(formatAmount(r.amount, r.currency), false), String(r.claimCount),
         escapeCell(r.feeReason), escapeCell(r.expenseReason), escapeCell(r.submitted), escapeCell(r.expenseDate),
-        escapeCell(r.attachment), escapeCell(r.status), escapeCell(r.memo), escapeCell(r.note),
+        escapeCell(r.attachment), escapeCell(r.status), escapeCell(r.paidDate), escapeCell(r.memo), escapeCell(r.note),
       ].join(",")
     ),
   ];

@@ -613,6 +613,11 @@ export default function InvoicesPage() {
                               </span>
                             )}
                           </div>
+                          {item.filedDocument?.paidAt && (
+                            <div className="mt-1 text-xs text-stone-400">
+                              {t("paid_on").replace("{date}", item.filedDocument.paidAt.slice(0, 10))}
+                            </div>
+                          )}
                         </td>
 
                         {/* Issues */}

@@ -14,7 +14,7 @@ function claim(over: Partial<ExpenseClaim>): ExpenseClaim {
 }
 
 const HEADER =
-  "Recipient,Email,Bank Account,Currency,Amount,Claims,Transportation Fee Reason,Expense Reason,Submitted,Expense Date,Attachment,Status,Memo,Note";
+  "Recipient,Email,Bank Account,Currency,Amount,Claims,Transportation Fee Reason,Expense Reason,Submitted,Expense Date,Attachment,Status,Paid Date,Memo,Note";
 
 describe("buildBankTransfer", () => {
   it("totals each member's approved claims into one row", () => {
@@ -196,6 +196,23 @@ describe("buildBankTransfer", () => {
       const r = buildBankTransfer([claim({ description: "Taxi, airport", expenseReason: "=SUM(A1)" })], "m");
       expect(r.csv).toContain('"Taxi, airport"');
       expect(r.csv).toContain("'=SUM(A1)");
+    });
+  });
+
+  describe("paid date column", () => {
+    it("is blank for unpaid claims and lists each paid claim's date (newest first)", () => {
+      const unpaid = buildBankTransfer([claim({})], "m");
+      expect(unpaid.rows[0].paidDate).toBe("");
+      const r = buildBankTransfer(
+        [
+          claim({ id: "a", submittedAt: "2026-09-04T00:00:00Z", status: "paid", paidAt: "2026-09-10T08:00:00Z" }),
+          claim({ id: "b", submittedAt: "2026-09-05T00:00:00Z", status: "paid", paidAt: "2026-09-12T08:00:00Z" }),
+        ],
+        "m",
+        { includePaid: true }
+      );
+      expect(r.rows[0].paidDate).toBe("2026-09-12 | 2026-09-10");
+      expect(r.csv).toContain(",paid,2026-09-12 | 2026-09-10,");
     });
   });
 });

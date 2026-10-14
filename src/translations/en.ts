@@ -353,6 +353,7 @@ const en = {
   status_SAVE_ERROR: "Save Error",
   status_REJECTED: "Rejected",
   status_PAID: "Paid",
+  paid_on: "Paid on {date}",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",

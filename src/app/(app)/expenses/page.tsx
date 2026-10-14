@@ -541,6 +541,9 @@ export default function ExpensesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONES[c.status]}>{statusLabel(c.status)}</Badge>
+                    {c.paidAt && (
+                      <div className="mt-1 text-xs text-stone-400 whitespace-nowrap">{t("paid_on").replace("{date}", fmtDate(c.paidAt))}</div>
+                    )}
                     {c.bankAccount && (
                       <div className="flex gap-1 mt-1">
                         <span className="text-xs text-stone-400" title={c.bankAccount}>🏦</span>
@@ -855,7 +858,8 @@ export default function ExpensesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setBankViewClaim(null)}>
             <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
               <h2 className="mb-1 text-base font-semibold text-stone-900">{v.submittedBy}</h2>
-              <p className="mb-4 text-sm text-stone-500">{v.currency} {v.amount.toLocaleString()}</p>
+              <p className={v.paidAt ? "text-sm text-stone-500" : "mb-4 text-sm text-stone-500"}>{v.currency} {v.amount.toLocaleString()}</p>
+              {v.paidAt && <p className="mb-4 text-xs text-emerald-600">{t("paid_on").replace("{date}", fmtDate(v.paidAt))}</p>}
 
               <p className="mb-1 text-xs font-semibold text-stone-600">{t("expenses_bank_transfer")}</p>
               {v.bankAccount ? (
