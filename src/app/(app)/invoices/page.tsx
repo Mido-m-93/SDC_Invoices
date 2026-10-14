@@ -20,6 +20,7 @@ import {
   fileInvoice,
   markInvoicePaid,
   unmarkInvoicePaid,
+  unsaveInvoice,
   uploadInvoiceExcel,
   fetchAvailableMonths,
   clearAllInvoices,
@@ -207,6 +208,25 @@ export default function InvoicesPage() {
     } catch (err) {
       setError(String(err));
       notify("error", `Failed to file invoice for ${item.submission.payerName}: ${String(err)}`, "/invoices");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleUndoSave = async (item: InvoiceListItem) => {
+    if (!item.filedDocument || item.filedDocument.paidAt) return;
+    if (!window.confirm(t("undo_save_confirm_invoice"))) return;
+    setSaving(item.submission.id);
+    setError(null);
+    try {
+      await unsaveInvoice(item.submission.id);
+      const updated = { ...item, filedDocument: null };
+      setItems((prev) => prev.map((i) => (i.submission.id === item.submission.id ? updated : i)));
+      setSelectedItem((prev) => (prev?.submission.id === item.submission.id ? updated : prev));
+      notify("info", `Undid Save for ${item.submission.payerName}`, "/invoices");
+    } catch (err) {
+      setError(String(err));
+      notify("error", `Failed to undo Save for ${item.submission.payerName}: ${String(err)}`, "/invoices");
     } finally {
       setSaving(null);
     }
@@ -737,7 +757,12 @@ export default function InvoicesPage() {
                               </Button>
                             )}
                             {item.filedDocument && !item.filedDocument.paidAt && (
-                              <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
+                              <>
+                                <span className="text-xs text-emerald-600 font-medium">✓ {t("saved")}</span>
+                                <Button variant="ghost" size="sm" loading={saving === s.id} onClick={() => handleUndoSave(item)}>
+                                  {t("action_undo_save")}
+                                </Button>
+                              </>
                             )}
                             {item.filedDocument?.paidAt && (
                               <>

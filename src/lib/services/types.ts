@@ -91,6 +91,8 @@ export interface IDriveService {
   listMonthFolders(rootFolderId: string): Promise<DriveFolder[]>;
   listFilesInFolder(folderId: string): Promise<DriveFile[]>;
   downloadById(fileId: string): Promise<Uint8Array>;
+  /** Moves a file to the Drive trash (recoverable). Resolves if it is already gone. */
+  trashFile(fileId: string): Promise<void>;
 }
 
 // ── Validation service ────────────────────────────────────────────────────────
@@ -149,6 +151,8 @@ export interface IStorageService {
   markFiledDocumentPaid(submissionId: string): Promise<void>;
   /** Clears the paid mark and date (the filed document itself is kept). */
   markFiledDocumentUnpaid(submissionId: string): Promise<void>;
+  /** Removes the filed-document record ("Saved"); the caller deals with the Drive file. */
+  deleteFiledDocument(submissionId: string): Promise<void>;
 
   /** Load validation results for a run */
   loadValidationResults(

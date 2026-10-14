@@ -356,6 +356,9 @@ const ja = {
   paid_on: "支払日 {date}",
   action_undo_paid: "支払済みを取消",
   undo_paid_confirm: "支払済みを取り消しますか？未払いに戻り、銀行振込CSVにも再び含まれます。",
+  action_undo_save: "保存を取消",
+  undo_save_confirm_invoice: "保存済みを取り消しますか？Google Drive上のPDFはゴミ箱に移動されます（30日間は復元可能）。",
+  undo_save_confirm_expense: "保存済みを取り消しますか？保存した領収書のコピーは削除されます（元の添付ファイルはそのままです）。",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "保留中",

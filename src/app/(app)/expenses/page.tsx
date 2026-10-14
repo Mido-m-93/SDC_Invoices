@@ -9,7 +9,7 @@ import RefreshIcon from "@/components/ui/RefreshIcon";
 import TrashIcon from "@/components/ui/TrashIcon";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
-import { fileExpenseClaim, markExpensePaid, undoExpensePaid } from "@/lib/api/client";
+import { fileExpenseClaim, markExpensePaid, undoExpensePaid, undoExpenseSave } from "@/lib/api/client";
 import { SHOW_EXPENSES_UPLOAD_EXCEL } from "@/lib/featureFlags";
 import { monthOptions } from "@/lib/utils";
 import { buildBankTransfer } from "@/lib/bankTransferCsv";
@@ -328,6 +328,24 @@ export default function ExpensesPage() {
     }
   }
 
+  async function handleUndoSave(id: string) {
+    if (!window.confirm(t("undo_save_confirm_expense"))) return;
+    setFilingId(id);
+    setError(null);
+    const claim = claims.find((c) => c.id === id) ?? null;
+    try {
+      await undoExpenseSave(id);
+      notify("info", `Undid Save${claim ? ` for ${claim.submittedBy}` : ""}`, "/expenses");
+      load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      notify("error", `Failed to undo Save${claim ? ` for ${claim.submittedBy}` : ""}: ${msg}`, "/expenses");
+    } finally {
+      setFilingId(null);
+    }
+  }
+
   async function handleUndoPaid(id: string) {
     if (!window.confirm(t("undo_paid_confirm"))) return;
     setPayingId(id);
@@ -594,6 +612,9 @@ export default function ExpensesPage() {
                     )}
                     {c.status === "approved" && c.filedStoragePath && (
                       <Button variant="primary" size="sm" loading={payingId === c.id} onClick={() => handleMarkPaid(c.id)}>{t("expenses_action_paid")}</Button>
+                    )}
+                    {c.status !== "paid" && c.filedStoragePath && (
+                      <Button variant="ghost" size="sm" loading={filingId === c.id} onClick={() => handleUndoSave(c.id)}>{t("action_undo_save")}</Button>
                     )}
                     {c.status === "paid" && (
                       <Button variant="ghost" size="sm" loading={payingId === c.id} onClick={() => handleUndoPaid(c.id)}>{t("action_undo_paid")}</Button>

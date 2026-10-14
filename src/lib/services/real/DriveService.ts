@@ -193,6 +193,21 @@ export class RealDriveService implements IDriveService {
     return (res.data.files?.length ?? 0) > 0;
   }
 
+  async trashFile(fileId: string): Promise<void> {
+    const drive = await this.getDrive();
+    try {
+      await drive.files.update({
+        fileId,
+        requestBody: { trashed: true },
+        supportsAllDrives: true,
+      });
+    } catch (err) {
+      // Already deleted / not found: nothing left to trash.
+      if ((err as { code?: number }).code === 404) return;
+      throw err;
+    }
+  }
+
   async listMonthFolders(rootFolderId: string) {
     const drive = await this.getDrive();
     const res = await drive.files.list({

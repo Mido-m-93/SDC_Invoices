@@ -262,6 +262,14 @@ export function markFiledDocumentUnpaid(submissionId: string): void {
   }
 }
 
+export function deleteFiledDocument(submissionId: string): void {
+  const store = readStore();
+  if (store.filedDocuments[submissionId]) {
+    delete store.filedDocuments[submissionId];
+    writeStore(store);
+  }
+}
+
 // ── Processing runs ───────────────────────────────────────────────────────────
 
 export function saveRun(run: ProcessingRun): void {

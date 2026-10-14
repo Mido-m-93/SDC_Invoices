@@ -65,6 +65,7 @@ import {
   loadFiledDocuments,
   markFiledDocumentPaid,
   markFiledDocumentUnpaid,
+  deleteFiledDocument,
   saveRun,
   loadRuns,
   clearAllRuns,
@@ -161,6 +162,10 @@ export class MockDriveService implements IDriveService {
     await delay(100);
     // Simulate: the filed document for sub-005 already exists
     return params.filename.startsWith("中村 美咲_");
+  }
+
+  async trashFile(_fileId: string): Promise<void> {
+    await delay(100);
   }
 
   async listMonthFolders(_rootFolderId: string) {
@@ -324,6 +329,10 @@ export class MockStorageService implements IStorageService {
 
   async markFiledDocumentUnpaid(submissionId: string): Promise<void> {
     markFiledDocumentUnpaid(submissionId);
+  }
+
+  async deleteFiledDocument(submissionId: string): Promise<void> {
+    deleteFiledDocument(submissionId);
   }
 
   async loadValidationResults(submissionIds: string[]): Promise<InvoiceValidationResult[]> {

@@ -356,6 +356,9 @@ const en = {
   paid_on: "Paid on {date}",
   action_undo_paid: "Undo Paid",
   undo_paid_confirm: "Remove the paid mark? It will count as unpaid again (and reappear in the bank transfer export).",
+  action_undo_save: "Undo Save",
+  undo_save_confirm_invoice: "Remove the Saved mark? The PDF in Google Drive will be moved to the Drive trash (recoverable for 30 days).",
+  undo_save_confirm_expense: "Remove the Saved mark? The saved copy of the receipt is deleted; the original attachment is not touched.",
 
   // ── Dashboard (extra) ──────────────────────────────────────────────────────
   dashboard_stat_pending: "Pending",
