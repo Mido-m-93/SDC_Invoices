@@ -526,8 +526,8 @@ export default function ExpensesPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
               <tr>
                 <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
