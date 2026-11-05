@@ -140,8 +140,8 @@ export default function FeedbackPage() {
               <p className="text-stone-400 text-sm">{t("feedback_admin_list_empty")}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm">
                 <thead className="bg-stone-50 text-xs text-stone-500 uppercase tracking-wide">
                   <tr>
                     <th className="pl-4 py-3 w-8"><SelectAllCheckbox controls={table} /></th>
