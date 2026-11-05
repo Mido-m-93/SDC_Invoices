@@ -11,6 +11,7 @@
 import "server-only";
 import Groq from "groq-sdk";
 import type { ConsistencyVerdict } from "@/types";
+import { TEXT_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 let _client: Groq | undefined;
 function getClient(): Groq {
@@ -38,6 +39,7 @@ export async function verifyConsistency(
 
   const response = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 1024,
     messages: [
       {

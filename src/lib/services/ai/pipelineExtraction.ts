@@ -7,6 +7,7 @@
 
 import "server-only";
 import Groq from "groq-sdk";
+import { TEXT_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 export interface ExtractedPipelineItem {
   rawClientName: string;
@@ -93,6 +94,7 @@ export async function extractPipelineRecordsFromText(
 
   const response = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 2048,
     messages: [
       {
@@ -121,6 +123,7 @@ export async function extractPipelineRecordsFromPdf(pdfBytes: Uint8Array): Promi
 
   const response = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 2048,
     messages: [{
       role: "user",

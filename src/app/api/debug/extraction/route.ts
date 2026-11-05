@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractFromPdf } from "@/lib/services/ai/pdfExtractor";
 import { downloadSharePointFile } from "@/lib/services/real/SharePointContractService";
 import { requireAdmin } from "@/lib/auth-guard";
+import { TEXT_TEMPERATURE, VISION_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
         model: GROQ_TEXT_MODEL,
+        temperature: TEXT_TEMPERATURE,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
       const client = new Groq({ apiKey: groqKey });
       const res = await client.chat.completions.create({
         model: GROQ_VISION_MODEL,
+        temperature: VISION_TEMPERATURE,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hi" }],
       });

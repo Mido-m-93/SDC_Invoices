@@ -1,3 +1,4 @@
+import { TEXT_TEMPERATURE, VISION_TEMPERATURE } from "@/lib/services/ai/sampling";
 // ─────────────────────────────────────────────────────────────────────────────
 // lib/services/ai/contractExtractor.ts — member contract PDF field extraction
 //
@@ -88,6 +89,7 @@ async function extractViaGroq(rawText: string): Promise<ExtractedContractFields>
   const client = await getClient();
   const response = await client.chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 512,
     messages: [
       {
@@ -121,6 +123,7 @@ export async function extractContractFieldsFromImage(
     const base64 = Buffer.from(imageBytes).toString("base64");
     const response = await client.chat.completions.create({
       model: "qwen/qwen3.8-27b",
+      temperature: VISION_TEMPERATURE,
       max_tokens: 512,
       messages: [
         {

@@ -7,6 +7,7 @@ import type {
   ExpenseStatus,
   ExpenseValidationResult,
 } from "@/types";
+import { TEXT_TEMPERATURE, VISION_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 const EXPENSE_EXTRACT_PROMPT = `You are a receipt data extractor. Read the receipt/invoice text below carefully and extract the following fields.
 
@@ -316,6 +317,7 @@ export class SupabaseExpenseService implements IExpenseService {
             const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
             const response = await client.chat.completions.create({
               model: "openai/gpt-oss-120b",
+              temperature: TEXT_TEMPERATURE,
               max_tokens: 512,
               messages: [{ role: "user", content: `${EXPENSE_EXTRACT_PROMPT}\n\nRECEIPT TEXT:\n${rawText.slice(0, 8000)}` }],
             });
@@ -346,6 +348,7 @@ export class SupabaseExpenseService implements IExpenseService {
           const base64 = fileBuffer.toString("base64");
           const response = await client.chat.completions.create({
             model: "qwen/qwen3.8-27b",
+            temperature: VISION_TEMPERATURE,
             max_tokens: 512,
             messages: [{
               role: "user",

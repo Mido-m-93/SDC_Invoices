@@ -8,6 +8,7 @@
 
 import { detectCurrency } from "@/lib/utils";
 import type { ExtractedInvoiceFields } from "@/types";
+import { TEXT_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,7 @@ async function extractWithGroq(pdfBytes: Uint8Array): Promise<ExtractedInvoiceFi
 
   const response = await client.chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 1024,
     messages: [
       {

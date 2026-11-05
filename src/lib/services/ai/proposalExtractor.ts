@@ -1,5 +1,6 @@
 import "server-only";
 import Groq from "groq-sdk";
+import { TEXT_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 export interface ExtractedProposalFields {
   clientName: string | null;
@@ -70,6 +71,7 @@ export async function extractProposalFromText(text: string): Promise<ExtractedPr
   if (!text.trim()) return parseResponse("{}");
   const response = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 512,
     messages: [{ role: "user", content: `${PROPOSAL_EXTRACT_PROMPT}\n\nDOCUMENT TEXT:\n${text.slice(0, 8000)}` }],
   });

@@ -8,6 +8,7 @@ import {
   downloadSharePointFile,
   type ContractFile,
 } from "@/lib/services/real/SharePointContractService";
+import { TEXT_TEMPERATURE } from "@/lib/services/ai/sampling";
 
 export interface AIMatchResult {
   vendorId: string | null;
@@ -52,6 +53,7 @@ async function findAndExtractContract(
   const fileList = contracts.map((c) => `- ${c.name} (id: ${c.id})`).join("\n");
   const pick = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 128,
     messages: [
       {
@@ -174,6 +176,7 @@ Respond with ONLY this JSON (no markdown):
 
   const response = await getClient().chat.completions.create({
     model: "openai/gpt-oss-120b",
+    temperature: TEXT_TEMPERATURE,
     max_tokens: 512,
     messages: [
       { role: "system", content: systemPrompt },
