@@ -673,7 +673,7 @@ const en = {
   expenses_amount_extract_failed: "Amount: could not extract from receipt",
   expenses_receipt_date: "Receipt date",
   expenses_date_not_found: "Date: not found in receipt",
-  expenses_vendor: "Member",
+  expenses_vendor: "Vendor",
   expenses_purpose: "Purpose",
   expenses_error_label: "Error",
   expenses_delete_confirm: "Delete this expense claim?",
