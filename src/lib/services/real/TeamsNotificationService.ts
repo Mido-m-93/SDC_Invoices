@@ -106,6 +106,7 @@ function buildAdaptiveCard(type: ReminderType, payload: unknown) {
       stale: StaleReview[];
       approaching: DueDateAlert[];
       overdue: DueDateAlert[];
+      pendingExpenses?: number;
       expiredContracts?: ExpiredContractAlert[];
     });
   }
@@ -129,10 +130,18 @@ function buildSummaryCard(payload: {
   stale: StaleReview[];
   approaching: DueDateAlert[];
   overdue: DueDateAlert[];
+  pendingExpenses?: number;
   expiredContracts?: ExpiredContractAlert[];
 }) {
   const expiredContracts = payload.expiredContracts ?? [];
-  const allClear = !payload.gaps.length && !payload.stale.length && !payload.approaching.length && !payload.overdue.length && !expiredContracts.length;
+  // Client contracts and member contracts are separate records; the dashboard
+  // lists them separately, so the card does too.
+  const expiredClient = expiredContracts.filter((a) => a.kind === "contract");
+  const expiredMembers = expiredContracts.filter((a) => a.kind === "member");
+  const pendingExpenses = payload.pendingExpenses ?? 0;
+  const allClear =
+    !payload.gaps.length && !payload.stale.length && !payload.approaching.length && !payload.overdue.length &&
+    !pendingExpenses && !expiredContracts.length;
 
   const facts = [
     {
@@ -152,8 +161,16 @@ function buildSummaryCard(payload: {
       value: payload.overdue.length ? `${payload.overdue.length}件 / ${payload.overdue.length} invoice(s)` : "✅ なし / None",
     },
     {
-      title: "📄 契約期限切れ / Expired Contracts",
-      value: expiredContracts.length ? `${expiredContracts.length}件 / ${expiredContracts.length} contract(s)` : "✅ なし / None",
+      title: "🧾 経費承認待ち / Pending Expenses",
+      value: pendingExpenses ? `${pendingExpenses}件 / ${pendingExpenses} claim(s)` : "✅ なし / None",
+    },
+    {
+      title: "📄 クライアント契約期限切れ / Expired Client Contracts",
+      value: expiredClient.length ? `${expiredClient.length}件 / ${expiredClient.length} contract(s)` : "✅ なし / None",
+    },
+    {
+      title: "👤 メンバー契約期限切れ / Expired Member Contracts",
+      value: expiredMembers.length ? `${expiredMembers.length}件 / ${expiredMembers.length} contract(s)` : "✅ なし / None",
     },
   ];
 

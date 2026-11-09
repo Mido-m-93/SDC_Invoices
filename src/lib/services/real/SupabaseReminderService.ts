@@ -277,18 +277,17 @@ export class SupabaseReminderService implements IReminderService {
     // "all" → always send one summary card with all counts (even if 0)
     if (type === "all") {
       const db2 = getSupabase();
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 5);
-      const [gaps, stale, dueAll, expenseStaleResult, expiredContracts] = await Promise.all([
+      const [gaps, stale, dueAll, expenseResult, expiredContracts] = await Promise.all([
         this.detectGaps(month),
         this.detectStaleReviews(3),
         this.detectDueDateIssues(5),
-        db2.from("expense_claims").select("id", { count: "exact", head: true }).in("status", ["submitted", "under_review"]).lte("submitted_at", cutoff.toISOString()).is("deleted_at", null),
+        // Same definition as the dashboard's "Pending Expenses" (getSummary), so the card and the dashboard agree.
+        db2.from("expense_claims").select("id", { count: "exact", head: true }).eq("status", "submitted").is("deleted_at", null),
         this.detectExpiredContracts(),
       ]);
       const approaching = dueAll.filter((d) => d.daysUntilDue >= 0);
       const overdue = dueAll.filter((d) => d.daysUntilDue < 0);
-      const payload = { month, gaps, stale, approaching, overdue, staleExpenses: expenseStaleResult.count ?? 0, expiredContracts };
+      const payload = { month, gaps, stale, approaching, overdue, pendingExpenses: expenseResult.count ?? 0, expiredContracts };
       const ok = await notifSvc.sendReminder({ type: "missing_invoice" as ReminderType, payload: { _summary: true, ...payload } });
       if (ok) sent++; else failed++;
       await this._logReminder(db, "missing_invoice", month, "teams", ok, "Monthly summary");
