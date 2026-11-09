@@ -86,6 +86,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
   const [form, setForm] = useState({ ...EMPTY_MEMBER });
   const [error, setError] = useState<string | null>(null);
   const [expiredOnly, setExpiredOnly] = useState(false);
+  const [search, setSearch] = useState("");
   const [folders, setFolders] = useState<MemberFolder[] | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [foldersError, setFoldersError] = useState<string | null>(null);
@@ -223,8 +224,16 @@ export default function MembersContent({ compact = false }: MembersContentProps)
 
   const now = new Date();
   const expiredCount = members.filter((m) => isMemberContractExpired(m, now)).length;
-  const filteredMembers = expiredOnly ? members.filter((m) => isMemberContractExpired(m, now)) : members;
-  const table = useTableControls(filteredMembers, byId, String(expiredOnly));
+  const query = search.trim().toLowerCase();
+  const filteredMembers = members.filter(
+    (m) =>
+      (!expiredOnly || isMemberContractExpired(m, now)) &&
+      (!query ||
+        [m.displayName, m.email, m.role, m.department, m.employeeCode].some((field) =>
+          field?.toLowerCase().includes(query)
+        ))
+  );
+  const table = useTableControls(filteredMembers, byId, `${search}|${expiredOnly}`);
 
   const memberActions = (
     <div className="flex flex-wrap items-center gap-2">
@@ -275,6 +284,25 @@ export default function MembersContent({ compact = false }: MembersContentProps)
         </div>
       )}
 
+      {!loading && members.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input
+            className={`${input} max-w-xs`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("members_search_placeholder")}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-xs text-stone-400 hover:text-stone-600">
+              {t("members_search_clear")}
+            </button>
+          )}
+          <span className="text-xs text-stone-400">
+            {filteredMembers.length} / {members.length} {t("members_search_shown")}
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-stone-400">{t("members_loading")}</p>
       ) : members.length === 0 ? (
@@ -286,7 +314,7 @@ export default function MembersContent({ compact = false }: MembersContentProps)
         </div>
       ) : filteredMembers.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 px-6 py-12 text-center">
-          <p className="text-stone-400 text-sm">{t("members_expired_none")}</p>
+          <p className="text-stone-400 text-sm">{search.trim() ? t("members_search_no_results") : t("members_expired_none")}</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto">
