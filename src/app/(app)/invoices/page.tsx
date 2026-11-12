@@ -397,7 +397,7 @@ export default function InvoicesPage() {
       ? items.filter((i) => i.filedDocument?.paidAt != null)
       : filterStatus === "REJECTED"
       ? items.filter((i) => i.validation?.humanRejected)
-      : items.filter((i) => i.validation?.statusCode === filterStatus);
+      : items.filter((i) => i.validation?.statusCode === filterStatus && !(filterStatus === "READY" && i.validation?.humanRejected));
 
   const table = useTableControls(filtered, invoiceRowId, `${filterStatus}|${month}`);
 
@@ -409,7 +409,7 @@ export default function InvoicesPage() {
     ).length;
     if (f === "PAID") return items.filter((i) => i.filedDocument?.paidAt != null).length;
     if (f === "REJECTED") return items.filter((i) => i.validation?.humanRejected).length;
-    return items.filter((i) => i.validation?.statusCode === f).length;
+    return items.filter((i) => i.validation?.statusCode === f && !(f === "READY" && i.validation?.humanRejected)).length;
   };
 
   return (
@@ -722,7 +722,7 @@ export default function InvoicesPage() {
                                 ✓ {t("action_approve")}
                               </Button>
                             )}
-                            {v?.statusCode === "REVIEW_REQUIRED" && !v.humanApproved && !v.humanRejected && (
+                            {(v?.statusCode === "REVIEW_REQUIRED" || v?.statusCode === "READY") && !v.humanApproved && !v.humanRejected && !item.filedDocument && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -736,7 +736,7 @@ export default function InvoicesPage() {
                             {v?.humanRejected && (
                               <span className="text-xs text-red-600 font-medium">✕ {t("action_rejected")}</span>
                             )}
-                            {(v?.statusCode === "READY" || v?.humanApproved) && !item.filedDocument && (
+                            {(v?.statusCode === "READY" || v?.humanApproved) && !v?.humanRejected && !item.filedDocument && (
                               <Button
                                 variant="primary"
                                 size="sm"

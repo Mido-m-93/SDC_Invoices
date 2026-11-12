@@ -77,6 +77,17 @@ export async function POST(req: NextRequest) {
   try {
     const driveSvc = getDriveService();
     const storageSvc = getStorageService();
+
+    // A reviewer's rejection is stored on the validation result; check the stored
+    // copy too, since the validation sent in the body can be stale (another tab).
+    const [stored] = await storageSvc.loadValidationResults([validation.submissionId]);
+    if (validation.humanRejected || stored?.humanRejected) {
+      return NextResponse.json(
+        { error: "Cannot file invoice", reason: "This invoice was rejected by a reviewer." },
+        { status: 409 }
+      );
+    }
+
     const config = await storageSvc.loadConfig().catch(() => DEFAULT_CONFIG);
 
     // Ensure target folder exists

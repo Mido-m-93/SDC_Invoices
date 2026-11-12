@@ -59,16 +59,27 @@ export async function POST(req: NextRequest) {
   }
   const submissionById = new Map(submissions.map((s) => [s.id, s]));
 
-  // Rule 10: only process READY or human-approved
-  const eligible = validations.filter(
-    (v) => v.statusCode === "READY" || v.humanApproved === true
-  );
-  const skipped = validations
-    .filter((v) => v.statusCode !== "READY" && !v.humanApproved)
-    .map((v) => ({ submissionId: v.submissionId, reason: `Status is ${v.statusCode}` }));
-
   const driveSvc = getDriveService();
   const storageSvc = getStorageService();
+
+  // Invoices a reviewer rejected must never be filed, even if the validation in
+  // the request is stale: check the stored copies too.
+  const storedValidations = await storageSvc.loadValidationResults(validations.map((v) => v.submissionId));
+  const rejectedIds = new Set(
+    [...validations, ...storedValidations].filter((v) => v.humanRejected).map((v) => v.submissionId)
+  );
+
+  // Rule 10: only process READY or human-approved (and not rejected)
+  const isEligible = (v: InvoiceValidationResult) =>
+    !rejectedIds.has(v.submissionId) && (v.statusCode === "READY" || v.humanApproved === true);
+  const eligible = validations.filter(isEligible);
+  const skipped = validations
+    .filter((v) => !isEligible(v))
+    .map((v) => ({
+      submissionId: v.submissionId,
+      reason: rejectedIds.has(v.submissionId) ? "Rejected by a reviewer" : `Status is ${v.statusCode}`,
+    }));
+
   const config = await storageSvc.loadConfig().catch(() => DEFAULT_CONFIG);
 
   const filed: FiledDocument[] = [];

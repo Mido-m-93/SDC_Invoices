@@ -1,10 +1,10 @@
 
 // src/app/api/invoices/reject/route.ts
 // POST /api/invoices/reject
-// Manually rejects a REVIEW_REQUIRED invoice, recording humanRejected +
-// rejectedBy on the validation result. Mirrors /api/invoices/approve —
-// doesn't touch statusCode, so Save stays hidden (it only shows for
-// READY/humanApproved).
+// Manually rejects a validated invoice (REVIEW_REQUIRED or READY), recording
+// humanRejected + rejectedBy on the validation result. Doesn't touch
+// statusCode; the invoice page and the filing routes refuse to file an invoice
+// with humanRejected set, so a rejected invoice can no longer be saved.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageService } from "@/lib/services";
