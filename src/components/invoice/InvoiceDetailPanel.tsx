@@ -6,7 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
 import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
-import { formatCurrency, formatTimestamp, formatAmount, detectCurrency, translateIssue } from "@/lib/utils";
+import { formatCurrency, formatTimestamp, formatAmount, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
 
 interface Props {
@@ -17,10 +17,9 @@ interface Props {
 export default function InvoiceDetailPanel({ item, onClose }: Props) {
   const { t, language } = useLanguage();
   const { submission: s, validation: v, filedDocument: fd } = item;
-  // Prefer the currency detected from the PDF's own text over the
-  // submission's own currency field or a guess from the form string — the
-  // document itself is the most reliable source for what it's actually in.
-  const currency = v?.extractedFields?.currency ?? s.currency ?? detectCurrency(s.claimedAmountTaxIncluded ?? "");
+  // Explicit currency (form column / the list's currency dropdown), then what
+  // the PDF says, then a guess from the form string. See resolveInvoiceCurrency.
+  const currency = resolveInvoiceCurrency(s, v);
 
   // ── Derived / optimistic state ────────────────────────────────────────────
   const effectiveVendorMatched = v?.vendorMatched ?? false;
@@ -72,7 +71,7 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
               <Field label={t("field_payer_name")}>{s.payerName}</Field>
               <Field label={t("field_closing_month")}>{s.closingMonth}</Field>
               <Field label={t("field_project_type")}>{s.projectType || t("none")}</Field>
-              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded, s.currency)}</Field>
+              <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded, currency)}</Field>
               <Field label={t("field_internal_dept")}>{s.internalDepartment || t("none")}</Field>
               <Field label={t("field_external_project")}>{s.externalProjectName || t("none")}</Field>
               <Field label={t("field_payment_status")}>{s.paymentStatus || t("none")}</Field>

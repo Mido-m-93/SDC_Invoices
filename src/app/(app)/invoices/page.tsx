@@ -27,7 +27,7 @@ import {
   patchSubmissionCurrency,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
-import { monthOptions, formatCurrency, formatDateParts, translateIssue } from "@/lib/utils";
+import { monthOptions, formatCurrency, formatDateParts, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 import { useTableControls } from "@/lib/hooks/useTableControls";
@@ -595,9 +595,9 @@ export default function InvoicesPage() {
                         {/* Amount */}
                         <td className="px-4 py-3 text-stone-700 font-mono text-xs whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            {formatCurrency(s.claimedAmountTaxIncluded, s.currency)}
+                            {formatCurrency(s.claimedAmountTaxIncluded, resolveInvoiceCurrency(s, v))}
                             <select
-                              value={s.currency ?? "JPY"}
+                              value={resolveInvoiceCurrency(s, v)}
                               onChange={async (e) => {
                                 const cur = e.target.value;
                                 await patchSubmissionCurrency(s.id, month, cur);

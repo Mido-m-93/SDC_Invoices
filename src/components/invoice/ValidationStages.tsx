@@ -1,7 +1,7 @@
 "use client";
 import type { InvoiceValidationResult, InvoiceSubmission } from "@/types";
 import { useLanguage } from "@/translations";
-import { formatAmount, detectCurrency, translateIssue, translateRecommendation } from "@/lib/utils";
+import { formatAmount, resolveInvoiceCurrency, translateIssue, translateRecommendation } from "@/lib/utils";
 
 type StageStatus = "pass" | "warn" | "fail";
 
@@ -181,11 +181,9 @@ export default function ValidationStages({ v, submission }: { v: InvoiceValidati
   // Always show the AI-extracted member name for Drive search label; fall back to form name
   const driveSearchLabel = pdfPayeeName ?? rawPayerName ?? "this member";
 
-  // Prefer the currency detected from the PDF's own text — the document
-  // itself is the source of truth for what its amounts are in, more so than
-  // guessing from the form submission (which may not mention a currency at
-  // all, or may not match what's actually printed on the invoice).
-  const currency = v.extractedFields?.currency ?? detectCurrency(submission?.claimedAmountTaxIncluded ?? "");
+  // Same currency the rest of the invoice view uses: an explicit one (form
+  // column / the list's currency dropdown), then the PDF's, then a guess.
+  const currency = resolveInvoiceCurrency(submission, v);
   const pdfAmountStr = pdfTotal !== null ? formatAmount(pdfTotal, currency) : null;
 
   const stage3Detail = (() => {

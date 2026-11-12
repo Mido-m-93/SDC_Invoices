@@ -138,6 +138,8 @@ export function truncate(s: string, max = 40): string {
 
 // ── Currency detection ────────────────────────────────────────────────────────
 // Matches symbols, ISO codes, and written names (any case, singular/plural).
+// "¥" / "￥" / "円" are yen (CNY needs an explicit code or name — "¥" alone is
+// ambiguous, and in this app's documents it means yen).
 const CURRENCY_PATTERNS: Array<{ patterns: (string | RegExp)[]; code: string }> = [
   { code: "USD", patterns: ["$", "USD", /\bdollars?\b/i] },
   { code: "EUR", patterns: ["€", "EUR", /\beuros?\b/i] },
@@ -146,19 +148,45 @@ const CURRENCY_PATTERNS: Array<{ patterns: (string | RegExp)[]; code: string }> 
   { code: "CNY", patterns: ["CNY", "RMB", /\byuan\b/i, /\brenminbi\b/i] },
   { code: "SGD", patterns: ["SGD", /\bsingapore\s*dollars?\b/i] },
   { code: "AUD", patterns: ["AUD", /\baustralian\s*dollars?\b/i] },
-  { code: "JPY", patterns: ["JPY", /\byen\b/i, /\b円\b/, /\b円$/] },
+  { code: "JPY", patterns: ["JPY", /\byen\b/i, "円", "¥", "￥"] },
 ];
 
+function countMatches(raw: string, pattern: string | RegExp): number {
+  if (typeof pattern === "string") return raw.toUpperCase().split(pattern).length - 1;
+  const flags = pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g";
+  return (raw.match(new RegExp(pattern.source, flags)) ?? []).length;
+}
+
+// The currency a document mostly talks about wins, not the first symbol found:
+// one stray "$" or "USD" (a template, a bank-transfer note) must not turn a
+// yen invoice into a dollar one. Ties keep the order above; no marker means JPY.
 export function detectCurrency(raw: string): string {
   if (!raw) return "JPY";
+  let best = "JPY";
+  let bestCount = 0;
   for (const { code, patterns } of CURRENCY_PATTERNS) {
-    for (const p of patterns) {
-      if (typeof p === "string" ? raw.toUpperCase().includes(p) : p.test(raw)) {
-        return code;
-      }
+    const count = patterns.reduce((sum, p) => sum + countMatches(raw, p), 0);
+    if (count > bestCount) {
+      best = code;
+      bestCount = count;
     }
   }
-  return "JPY";
+  return best;
+}
+
+// Which currency to show for an invoice. A currency stated on the submission (a
+// Currency column on the form, or picked in the invoice list's currency
+// dropdown) is explicit, so it wins; otherwise what the PDF itself says;
+// otherwise a guess from the form's amount string.
+export function resolveInvoiceCurrency(
+  submission: { currency?: string | null; claimedAmountTaxIncluded?: string | null } | null | undefined,
+  validation: { extractedFields?: { currency?: string | null } | null } | null | undefined
+): string {
+  return (
+    submission?.currency ||
+    validation?.extractedFields?.currency ||
+    detectCurrency(submission?.claimedAmountTaxIncluded ?? "")
+  );
 }
 
 const CURRENCY_FORMAT: Record<string, { symbol: string; locale: string }> = {

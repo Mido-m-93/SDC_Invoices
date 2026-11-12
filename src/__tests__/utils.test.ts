@@ -6,6 +6,7 @@ import {
   monthOptions,
   formatMonthForDisplay,
   detectCurrency,
+  resolveInvoiceCurrency,
 } from "@/lib/utils";
 
 describe("parseSnapshotMonth", () => {
@@ -161,5 +162,54 @@ describe("formatMonthForDisplay", () => {
 
   it("returns raw string when format is invalid", () => {
     expect(formatMonthForDisplay("bad", "en")).toBe("bad");
+  });
+});
+
+describe("detectCurrency: the currency the document mostly uses wins", () => {
+  it("treats ¥ and ￥ as yen", () => {
+    expect(detectCurrency("Total ¥36,463")).toBe("JPY");
+    expect(detectCurrency("合計 ￥36,463")).toBe("JPY");
+  });
+
+  it("detects 円 even when followed by a space or more text", () => {
+    expect(detectCurrency("請求金額 36,463円 (税込) お支払い期限 9月末")).toBe("JPY");
+  });
+
+  it("does not flip a yen invoice to USD because of one stray $ or USD mention", () => {
+    const yenInvoice = "Subtotal ¥33,148  Total ¥36,463  Amount due ¥36,463. Bank: Wise USD account 1234";
+    expect(detectCurrency(yenInvoice)).toBe("JPY");
+    expect(detectCurrency("請求書 $ 合計 36,463円 小計 33,148円 税 3,315円")).toBe("JPY");
+  });
+
+  it("still detects a genuine USD invoice", () => {
+    expect(detectCurrency("Invoice total 216 USD. Subtotal 216 USD. Due 216 USD")).toBe("USD");
+    expect(detectCurrency("Total: $1,200.00  Subtotal: $1,100.00")).toBe("USD");
+  });
+
+  it("keeps the old tie-break order (USD before JPY) when counts are equal", () => {
+    expect(detectCurrency("$100 or 100円")).toBe("USD");
+  });
+
+  it("detects the other currencies by code", () => {
+    expect(detectCurrency("Total EUR 500")).toBe("EUR");
+    expect(detectCurrency("Total GBP 500")).toBe("GBP");
+  });
+});
+
+describe("resolveInvoiceCurrency", () => {
+  const pdfUsd = { extractedFields: { currency: "USD" } };
+
+  it("uses the currency stated on the submission (form column or the list dropdown) over the PDF's", () => {
+    expect(resolveInvoiceCurrency({ currency: "JPY", claimedAmountTaxIncluded: "36463" }, pdfUsd)).toBe("JPY");
+  });
+
+  it("falls back to what the PDF says when the submission has no currency", () => {
+    expect(resolveInvoiceCurrency({ claimedAmountTaxIncluded: "216" }, pdfUsd)).toBe("USD");
+  });
+
+  it("falls back to guessing from the form's amount string, then to JPY", () => {
+    expect(resolveInvoiceCurrency({ claimedAmountTaxIncluded: "$216" }, null)).toBe("USD");
+    expect(resolveInvoiceCurrency({ claimedAmountTaxIncluded: "36463" }, { extractedFields: null })).toBe("JPY");
+    expect(resolveInvoiceCurrency(null, null)).toBe("JPY");
   });
 });
