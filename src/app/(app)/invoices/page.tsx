@@ -27,7 +27,7 @@ import {
   patchSubmissionCurrency,
 } from "@/lib/api/client";
 import type { InvoiceValidationResult } from "@/types";
-import { monthOptions, formatCurrency, formatDateParts, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
+import { monthOptions, formatCurrency, formatDateParts, formatClosingMonth, localizeFormChoice, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
 import type { InvoiceListItem, InvoiceSubmission, InvoiceStatusCode } from "@/types";
 import clsx from "clsx";
 import { useTableControls } from "@/lib/hooks/useTableControls";
@@ -584,12 +584,12 @@ export default function InvoicesPage() {
 
                         {/* Month */}
                         <td className="px-4 py-3 text-stone-500 whitespace-nowrap text-xs">
-                          {s.closingMonth || <span className="text-stone-300">—</span>}
+                          {formatClosingMonth(s.closingMonth, language) || <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Invoice Category */}
                         <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
-                          {s.projectType || <span className="text-stone-300">—</span>}
+                          {localizeFormChoice(s.projectType, language) || <span className="text-stone-300">—</span>}
                         </td>
 
                         {/* Amount */}

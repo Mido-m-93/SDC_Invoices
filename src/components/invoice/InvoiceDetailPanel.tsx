@@ -6,7 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Button from "@/components/ui/Button";
 import ValidationCheck from "@/components/ui/ValidationCheck";
 import type { InvoiceListItem } from "@/types";
-import { formatCurrency, formatTimestamp, formatAmount, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
+import { formatCurrency, formatTimestamp, formatAmount, formatClosingMonth, localizeFormChoice, resolveInvoiceCurrency, translateIssue } from "@/lib/utils";
 import ValidationStages from "@/components/invoice/ValidationStages";
 
 interface Props {
@@ -69,8 +69,8 @@ export default function InvoiceDetailPanel({ item, onClose }: Props) {
           <Section title={t("section_sheet_data")}>
             <FieldGrid>
               <Field label={t("field_payer_name")}>{s.payerName}</Field>
-              <Field label={t("field_closing_month")}>{s.closingMonth}</Field>
-              <Field label={t("field_project_type")}>{s.projectType || t("none")}</Field>
+              <Field label={t("field_closing_month")}>{formatClosingMonth(s.closingMonth, language)}</Field>
+              <Field label={t("field_project_type")}>{localizeFormChoice(s.projectType, language) || t("none")}</Field>
               <Field label={t("field_claimed_amount")}>{formatCurrency(s.claimedAmountTaxIncluded, currency)}</Field>
               <Field label={t("field_internal_dept")}>{s.internalDepartment || t("none")}</Field>
               <Field label={t("field_external_project")}>{s.externalProjectName || t("none")}</Field>

@@ -189,6 +189,42 @@ export function resolveInvoiceCurrency(
   );
 }
 
+// ── Form answers, shown in the UI language ─────────────────────────────────────
+// Invoice/expense forms are filled in Japanese or bilingually and stored exactly
+// as typed ("外部案件 (External Project)", "2026年7月1日"). These helpers only
+// change how they are displayed; the stored value is never altered.
+const FORM_CHOICES: Array<{ ja: string; en: string }> = [
+  { ja: "外部案件", en: "External Project" },
+  { ja: "内部案件", en: "Internal Project" },
+];
+
+const hasJapanese = (s: string) => /[぀-ヿ㐀-鿿]/.test(s);
+
+/** "外部案件 (External Project)" -> "External Project" (EN) or "外部案件" (JA). */
+export function localizeFormChoice(raw: string | null | undefined, language: Language): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  const paired = value.match(/^(.*?)\s*[(（]([^()（）]*)[)）]\s*$/);
+  if (paired) {
+    const [, first, inner] = paired;
+    if (hasJapanese(first) && !hasJapanese(inner)) return language === "en" ? inner.trim() : first.trim();
+    if (!hasJapanese(first) && hasJapanese(inner)) return language === "en" ? first.trim() : inner.trim();
+  }
+  const known = FORM_CHOICES.find((c) => c.ja === value || c.en.toLowerCase() === value.toLowerCase());
+  if (known) return language === "en" ? known.en : known.ja;
+  return value;
+}
+
+/** "2026年7月1日" -> "2026-07-01" and "2026年7月" -> "2026-07" in English; unchanged otherwise. */
+export function formatClosingMonth(raw: string | null | undefined, language: Language): string {
+  const value = (raw ?? "").trim();
+  if (!value || language !== "en") return value;
+  const m = value.match(/^(\d{4})\s*年\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日?)?$/);
+  if (!m) return value;
+  const month = m[2].padStart(2, "0");
+  return m[3] ? `${m[1]}-${month}-${m[3].padStart(2, "0")}` : `${m[1]}-${month}`;
+}
+
 const CURRENCY_FORMAT: Record<string, { symbol: string; locale: string }> = {
   JPY: { symbol: "¥",    locale: "ja-JP" },
   USD: { symbol: "$",    locale: "en-US" },

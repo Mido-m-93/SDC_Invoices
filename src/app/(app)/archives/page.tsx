@@ -7,7 +7,8 @@ import { useNotifications } from "@/lib/notifications";
 import { useLanguage, type TranslationKey } from "@/translations";
 import { useTableControls } from "@/lib/hooks/useTableControls";
 import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
-import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun, Contract } from "@/types";
+import type { Proposal, Budget, StagedPipelineRecord, ExpenseClaim, OutboundInvoice, InvoiceSubmission, ProcessingRun, Contract, Language } from "@/types";
+import { formatClosingMonth } from "@/lib/utils";
 
 interface ArchivedAppUser {
   id: string;
@@ -36,44 +37,47 @@ interface ArchivedItem {
   key: string; // `${module}:${id}` — unique across modules since ids aren't
   module: ModuleKey;
   id: string;
-  title: string;
-  subtitle: string;
+  // Resolved when drawn (not when loaded), so labels follow the UI language
+  // without re-fetching the list on every language switch.
+  title: LazyText;
+  subtitle: LazyText;
   deletedAt: string | null;
   deletedBy: string | null;
 }
 
 type Translate = (key: TranslationKey) => string;
+type LazyText = string | ((ctx: { t: Translate; language: Language }) => string);
 
-function toArchivedProposal(p: Proposal, t: Translate): ArchivedItem {
+function toArchivedProposal(p: Proposal): ArchivedItem {
   return {
     key: `proposals:${p.id}`,
     module: "proposals",
     id: p.id,
-    title: p.projectName || t("archives_untitled_proposal"),
+    title: ({ t }) => p.projectName || t("archives_untitled_proposal"),
     subtitle: p.clientName ?? "",
     deletedAt: p.deletedAt ?? null,
     deletedBy: p.deletedBy ?? null,
   };
 }
 
-function toArchivedBudget(b: Budget, t: Translate): ArchivedItem {
+function toArchivedBudget(b: Budget): ArchivedItem {
   return {
     key: `budgets:${b.id}`,
     module: "budgets",
     id: b.id,
-    title: b.projectName || t("archives_untitled_budget"),
+    title: ({ t }) => b.projectName || t("archives_untitled_budget"),
     subtitle: b.clientName ?? "",
     deletedAt: b.deletedAt ?? null,
     deletedBy: b.deletedBy ?? null,
   };
 }
 
-function toArchivedContract(c: Contract, t: Translate): ArchivedItem {
+function toArchivedContract(c: Contract): ArchivedItem {
   return {
     key: `contracts:${c.id}`,
     module: "contracts",
     id: c.id,
-    title: c.clientName || c.projectName || t("archives_untitled_contract"),
+    title: ({ t }) => c.clientName || c.projectName || t("archives_untitled_contract"),
     subtitle: c.projectName && c.clientName ? c.projectName : "",
     deletedAt: c.deletedAt ?? null,
     deletedBy: c.deletedBy ?? null,
@@ -92,60 +96,60 @@ function toArchivedPipeline(r: StagedPipelineRecord): ArchivedItem {
   };
 }
 
-function toArchivedExpense(c: ExpenseClaim, t: Translate): ArchivedItem {
+function toArchivedExpense(c: ExpenseClaim): ArchivedItem {
   return {
     key: `expenses:${c.id}`,
     module: "expenses",
     id: c.id,
-    title: c.description || t("archives_no_description"),
+    title: ({ t }) => c.description || t("archives_no_description"),
     subtitle: `${c.submittedBy} · ${c.currency} ${c.amount.toLocaleString()}`,
     deletedAt: c.deletedAt ?? null,
     deletedBy: c.deletedBy ?? null,
   };
 }
 
-function toArchivedOutboundInvoice(inv: OutboundInvoice, t: Translate): ArchivedItem {
+function toArchivedOutboundInvoice(inv: OutboundInvoice): ArchivedItem {
   return {
     key: `outbound_invoices:${inv.id}`,
     module: "outbound_invoices",
     id: inv.id,
-    title: inv.invoiceNumber || inv.projectName || t("archives_untitled_invoice"),
+    title: ({ t }) => inv.invoiceNumber || inv.projectName || t("archives_untitled_invoice"),
     subtitle: `${inv.clientName} · ${inv.currency} ${inv.total.toLocaleString()}`,
     deletedAt: inv.deletedAt ?? null,
     deletedBy: inv.deletedBy ?? null,
   };
 }
 
-function toArchivedInvoiceSubmission(s: InvoiceSubmission, t: Translate): ArchivedItem {
+function toArchivedInvoiceSubmission(s: InvoiceSubmission): ArchivedItem {
   return {
     key: `invoices:${s.id}`,
     module: "invoices",
     id: s.id,
-    title: s.payerName || t("archives_unknown_submitter"),
-    subtitle: `${s.closingMonth} · ${s.currency ?? "JPY"} ${s.claimedAmountTaxIncluded}`,
+    title: ({ t }) => s.payerName || t("archives_unknown_submitter"),
+    subtitle: ({ language }) => `${formatClosingMonth(s.closingMonth, language)} · ${s.currency ?? "JPY"} ${s.claimedAmountTaxIncluded}`,
     deletedAt: s.deletedAt ?? null,
     deletedBy: s.deletedBy ?? null,
   };
 }
 
-function toArchivedRun(r: ProcessingRun, t: Translate): ArchivedItem {
+function toArchivedRun(r: ProcessingRun): ArchivedItem {
   return {
     key: `logs:${r.id}`,
     module: "logs",
     id: r.id,
-    title: t("archives_run_label").replace("{id}", r.id),
+    title: ({ t }) => t("archives_run_label").replace("{id}", r.id),
     subtitle: `${r.month} · ${r.status} · ${r.totalRows} row${r.totalRows === 1 ? "" : "s"}`,
     deletedAt: r.deletedAt ?? null,
     deletedBy: r.deletedBy ?? null,
   };
 }
 
-function toArchivedUser(u: ArchivedAppUser, t: Translate): ArchivedItem {
+function toArchivedUser(u: ArchivedAppUser): ArchivedItem {
   return {
     key: `users:${u.id}`,
     module: "users",
     id: u.id,
-    title: u.email || t("archives_unknown_user"),
+    title: ({ t }) => u.email || t("archives_unknown_user"),
     subtitle: "",
     deletedAt: u.archivedAt,
     deletedBy: u.archivedBy,
@@ -167,8 +171,9 @@ const RESTORE_ENDPOINT: Record<ModuleKey, (id: string) => string> = {
 };
 
 export default function ArchivesPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { notify } = useNotifications();
+  const text = (v: LazyText) => (typeof v === "function" ? v({ t, language }) : v);
   const [items, setItems] = useState<ArchivedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,15 +208,15 @@ export default function ArchivesPage() {
       ]);
 
       const all: ArchivedItem[] = [
-        ...(proposalsData.proposals ?? []).map((p) => toArchivedProposal(p, t)),
-        ...(budgetsData.budgets ?? []).map((b) => toArchivedBudget(b, t)),
-        ...(contractsData.contracts ?? []).map((c) => toArchivedContract(c, t)),
+        ...(proposalsData.proposals ?? []).map((p) => toArchivedProposal(p)),
+        ...(budgetsData.budgets ?? []).map((b) => toArchivedBudget(b)),
+        ...(contractsData.contracts ?? []).map((c) => toArchivedContract(c)),
         ...(pipelineData.records ?? []).map(toArchivedPipeline),
-        ...(expensesData.claims ?? []).map((c) => toArchivedExpense(c, t)),
-        ...(outboundData.invoices ?? []).map((inv) => toArchivedOutboundInvoice(inv, t)),
-        ...(invoicesData.submissions ?? []).map((s) => toArchivedInvoiceSubmission(s, t)),
-        ...(logsData.runs ?? []).map((r) => toArchivedRun(r, t)),
-        ...(usersData.users ?? []).map((u) => toArchivedUser(u, t)),
+        ...(expensesData.claims ?? []).map((c) => toArchivedExpense(c)),
+        ...(outboundData.invoices ?? []).map((inv) => toArchivedOutboundInvoice(inv)),
+        ...(invoicesData.submissions ?? []).map((s) => toArchivedInvoiceSubmission(s)),
+        ...(logsData.runs ?? []).map((r) => toArchivedRun(r)),
+        ...(usersData.users ?? []).map((u) => toArchivedUser(u)),
       ].sort((a, b) => (a.deletedAt ?? "") < (b.deletedAt ?? "") ? 1 : -1);
 
       setItems(all);
@@ -237,7 +242,7 @@ export default function ArchivesPage() {
         return;
       }
       setItems((prev) => prev.filter((i) => i.key !== item.key));
-      notify("success", t("archives_restored_toast").replace("{title}", item.title), "/archives");
+      notify("success", t("archives_restored_toast").replace("{title}", text(item.title)), "/archives");
     } catch {
       setError(t("archives_error_restore"));
       notify("error", t("archives_error_restore"), "/archives");
@@ -311,8 +316,8 @@ export default function ArchivesPage() {
                     {t(MODULE_LABEL_KEY[item.module])}
                   </span>
                 </div>
-                <p className="mt-1 truncate font-medium text-stone-900">{item.title}</p>
-                {item.subtitle && <p className="truncate text-sm text-stone-500">{item.subtitle}</p>}
+                <p className="mt-1 truncate font-medium text-stone-900">{text(item.title)}</p>
+                {text(item.subtitle) && <p className="truncate text-sm text-stone-500">{text(item.subtitle)}</p>}
                 <p className="mt-0.5 text-xs text-stone-400">
                   {t("archives_deleted_at").replace("{date}", item.deletedAt ? new Date(item.deletedAt).toLocaleString() : "—")}
                   {item.deletedBy ? t("archives_deleted_by").replace("{user}", item.deletedBy) : ""}

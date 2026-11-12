@@ -7,6 +7,8 @@ import {
   formatMonthForDisplay,
   detectCurrency,
   resolveInvoiceCurrency,
+  localizeFormChoice,
+  formatClosingMonth,
 } from "@/lib/utils";
 
 describe("parseSnapshotMonth", () => {
@@ -211,5 +213,46 @@ describe("resolveInvoiceCurrency", () => {
     expect(resolveInvoiceCurrency({ claimedAmountTaxIncluded: "$216" }, null)).toBe("USD");
     expect(resolveInvoiceCurrency({ claimedAmountTaxIncluded: "36463" }, { extractedFields: null })).toBe("JPY");
     expect(resolveInvoiceCurrency(null, null)).toBe("JPY");
+  });
+});
+
+describe("localizeFormChoice", () => {
+  it("shows the English part of a bilingual form answer in English and the Japanese part in Japanese", () => {
+    expect(localizeFormChoice("外部案件 (External Project)", "en")).toBe("External Project");
+    expect(localizeFormChoice("外部案件 (External Project)", "ja")).toBe("外部案件");
+    expect(localizeFormChoice("内部案件（Internal Project）", "en")).toBe("Internal Project");
+  });
+
+  it("also handles English-first answers", () => {
+    expect(localizeFormChoice("External Project (外部案件)", "ja")).toBe("外部案件");
+    expect(localizeFormChoice("External Project (外部案件)", "en")).toBe("External Project");
+  });
+
+  it("maps the two known choices when only one language was stored", () => {
+    expect(localizeFormChoice("外部案件", "en")).toBe("External Project");
+    expect(localizeFormChoice("Internal Project", "ja")).toBe("内部案件");
+  });
+
+  it("leaves anything else untouched, including empty values and unrelated parentheses", () => {
+    expect(localizeFormChoice("Website redesign (phase 2)", "en")).toBe("Website redesign (phase 2)");
+    expect(localizeFormChoice("ウェブ刷新", "en")).toBe("ウェブ刷新");
+    expect(localizeFormChoice("", "en")).toBe("");
+    expect(localizeFormChoice(undefined, "ja")).toBe("");
+  });
+});
+
+describe("formatClosingMonth", () => {
+  it("turns Japanese-formatted dates into ISO-style text in English only", () => {
+    expect(formatClosingMonth("2026年7月1日", "en")).toBe("2026-07-01");
+    expect(formatClosingMonth("2026年12月31日", "en")).toBe("2026-12-31");
+    expect(formatClosingMonth("2026年7月", "en")).toBe("2026-07");
+    expect(formatClosingMonth("2026年7月1日", "ja")).toBe("2026年7月1日");
+  });
+
+  it("leaves already-ISO and other values alone", () => {
+    expect(formatClosingMonth("2026-09-30", "en")).toBe("2026-09-30");
+    expect(formatClosingMonth("September 2026", "en")).toBe("September 2026");
+    expect(formatClosingMonth("", "en")).toBe("");
+    expect(formatClosingMonth(undefined, "en")).toBe("");
   });
 });
