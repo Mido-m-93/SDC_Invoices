@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { IReminderService, INotificationService } from "../types";
 import type {
   ReminderType,
+  ReminderChannel,
   ReminderLog,
   ReminderGap,
   StaleReview,
@@ -12,7 +13,7 @@ import type {
   InvoiceStatusCode,
 } from "@/types";
 import { generateId } from "@/lib/utils";
-import { TeamsNotificationService } from "./TeamsNotificationService";
+import { buildNotificationChannels } from "./notificationChannels";
 
 const STALE_STATUS_CODES: InvoiceStatusCode[] = [
   "REVIEW_REQUIRED",
@@ -243,23 +244,25 @@ export class SupabaseReminderService implements IReminderService {
     return alerts.sort((a, b) => a.endDate.localeCompare(b.endDate));
   }
 
-  /** Resolve the live notification service: prefer Teams if webhook URL is in app_config */
-  private async resolveNotificationSvc(): Promise<INotificationService> {
+  /**
+   * Resolve the live notification channels from app_config (Teams and/or Slack
+   * webhook URLs, with the TEAMS_WEBHOOK_URL / SLACK_WEBHOOK_URL env fallbacks),
+   * or fall back to the injected service.
+   */
+  private async resolveNotification(): Promise<{ svc: INotificationService; channel: ReminderChannel }> {
     try {
       const db = getSupabase();
-      const { data } = await db
-        .from("app_config")
-        .select("teams_webhook_url")
-        .eq("id", "main")
-        .single();
-      const url = data?.teams_webhook_url as string | undefined;
-      if (url && url.startsWith("https://")) {
-        return new TeamsNotificationService(url);
-      }
+      // select("*"): works whether or not the slack_webhook_url column (migration 053) exists yet
+      const { data } = await db.from("app_config").select("*").eq("id", "main").single();
+      const channels = buildNotificationChannels({
+        teamsUrl: (data?.teams_webhook_url as string | undefined) || process.env.TEAMS_WEBHOOK_URL,
+        slackUrl: (data?.slack_webhook_url as string | undefined) || process.env.SLACK_WEBHOOK_URL,
+      });
+      if (channels) return { svc: channels.service, channel: channels.names.join("+") as ReminderChannel };
     } catch {
       // fall through to injected service
     }
-    return this.notificationSvc;
+    return { svc: this.notificationSvc, channel: "teams" };
   }
 
   async sendReminders(
@@ -268,7 +271,7 @@ export class SupabaseReminderService implements IReminderService {
   ): Promise<{ sent: number; failed: number; skipped: number }> {
     const db = getSupabase();
     // Always read webhook URL fresh from DB so config-page changes take effect immediately
-    const notifSvc = await this.resolveNotificationSvc();
+    const { svc: notifSvc, channel } = await this.resolveNotification();
 
     let sent = 0;
     let failed = 0;
@@ -290,7 +293,7 @@ export class SupabaseReminderService implements IReminderService {
       const payload = { month, gaps, stale, approaching, overdue, pendingExpenses: expenseResult.count ?? 0, expiredContracts };
       const ok = await notifSvc.sendReminder({ type: "missing_invoice" as ReminderType, payload: { _summary: true, ...payload } });
       if (ok) sent++; else failed++;
-      await this._logReminder(db, "missing_invoice", month, "teams", ok, "Monthly summary");
+      await this._logReminder(db, "missing_invoice", month, channel, ok, "Monthly summary");
       return { sent, failed, skipped };
     }
 
@@ -335,7 +338,7 @@ export class SupabaseReminderService implements IReminderService {
     }
 
     const ok = await notifSvc.sendReminder({ type, payload });
-    await this._logReminder(db, type, month, "teams", ok, ok ? `Sent ${type}` : `Failed to send ${type}`);
+    await this._logReminder(db, type, month, channel, ok, ok ? `Sent ${type}` : `Failed to send ${type}`);
     if (ok) sent++; else failed++;
 
     return { sent, failed, skipped };
@@ -345,7 +348,7 @@ export class SupabaseReminderService implements IReminderService {
     _db: ReturnType<typeof getSupabase>,
     type: ReminderType,
     month: string,
-    channel: "teams" | "mock",
+    channel: ReminderChannel,
     ok: boolean,
     message: string
   ) {
@@ -447,7 +450,7 @@ export class SupabaseReminderService implements IReminderService {
         submissionId: r.submission_id as string | undefined,
         contractId: r.contract_id as string | undefined,
         sentAt: r.sent_at as string,
-        channel: r.channel as "teams" | "mock",
+        channel: r.channel as ReminderChannel,
         status: r.status as "sent" | "failed" | "skipped",
         message: r.message as string,
       }));

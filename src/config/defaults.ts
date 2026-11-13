@@ -51,6 +51,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   // ── Phase 7: Reminder / notification defaults ────────────────────────────
   teamsWebhookUrl: "",
+  slackWebhookUrl: "",
   staleReviewThresholdDays: 3,
   dueDateThresholdDays: 5,
   escalationRecipient: "",

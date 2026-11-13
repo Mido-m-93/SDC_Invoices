@@ -205,6 +205,7 @@ export interface AppConfig {
   amountToleranceAbsolute: number;
   // ── Phase 7: Reminder / notification settings ────────────────────────────
   teamsWebhookUrl?: string;
+  slackWebhookUrl?: string;           // Slack incoming webhook; reminders go to Teams and/or Slack
   staleReviewThresholdDays: number;   // days before stale review reminder fires
   dueDateThresholdDays: number;       // days before due date to send alert
   escalationRecipient?: string;       // Teams mention / email for overdue escalation
@@ -373,7 +374,7 @@ export type ReminderType =
   | "escalation"
   | "contract_expired";
 
-export type ReminderChannel = "teams" | "mock";
+export type ReminderChannel = "teams" | "slack" | "teams+slack" | "mock";
 export type ReminderStatus = "sent" | "failed" | "skipped";
 
 export interface ReminderLog {

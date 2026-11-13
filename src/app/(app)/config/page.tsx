@@ -19,6 +19,8 @@ export default function ConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testingSlack, setTestingSlack] = useState(false);
+  const [slackTestResult, setSlackTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [username, setUsername] = useState("");
   const [usernameLoading, setUsernameLoading] = useState(false);
@@ -117,6 +119,21 @@ export default function ConfigPage() {
       setWebhookTestResult({ ok: false, message: String(err) });
     } finally {
       setTestingWebhook(false);
+    }
+  };
+
+  const handleTestSlack = async () => {
+    setTestingSlack(true);
+    setSlackTestResult(null);
+    try {
+      // Save the current Slack URL first so the API can use it
+      await saveConfig(config);
+      const result = await testNotification("slack");
+      setSlackTestResult(result);
+    } catch (err) {
+      setSlackTestResult({ ok: false, message: String(err) });
+    } finally {
+      setTestingSlack(false);
     }
   };
 
@@ -357,6 +374,34 @@ export default function ConfigPage() {
                 {webhookTestResult && (
                   <p className={`text-xs mt-1.5 ${webhookTestResult.ok ? "text-emerald-600" : "text-red-600"}`}>
                     {webhookTestResult.ok ? t("config_teams_test_ok") : `${t("config_teams_test_fail")}: ${webhookTestResult.message}`}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  {t("config_slack_webhook")}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    className={inputClass + " flex-1"}
+                    value={config.slackWebhookUrl ?? ""}
+                    onChange={(e) => set("slackWebhookUrl", e.target.value)}
+                    placeholder={t("config_slack_webhook_placeholder")}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={testingSlack}
+                    onClick={handleTestSlack}
+                  >
+                    {t("config_teams_test_send")}
+                  </Button>
+                </div>
+                <p className="text-xs text-stone-400 mt-1.5">{t("config_slack_webhook_help")}</p>
+                {slackTestResult && (
+                  <p className={`text-xs mt-1.5 ${slackTestResult.ok ? "text-emerald-600" : "text-red-600"}`}>
+                    {slackTestResult.ok ? t("config_slack_test_ok") : `${t("config_teams_test_fail")}: ${slackTestResult.message}`}
                   </p>
                 )}
               </div>

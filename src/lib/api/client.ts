@@ -335,9 +335,12 @@ export async function sendReminders(
   );
 }
 
-export async function testNotification(): Promise<{ ok: boolean; message: string }> {
+export async function testNotification(
+  channel: "teams" | "slack" = "teams"
+): Promise<{ ok: boolean; message: string }> {
   return apiFetch<{ ok: boolean; message: string }>("/api/notifications/test", {
     method: "POST",
+    body: JSON.stringify({ channel }),
   });
 }
 

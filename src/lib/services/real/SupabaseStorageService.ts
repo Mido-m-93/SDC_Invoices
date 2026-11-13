@@ -20,6 +20,7 @@ const DEFAULT_CONFIG: AppConfig = {
   duplicateDetectionMode: "filename",
   amountToleranceAbsolute: 1,
   teamsWebhookUrl: "",
+  slackWebhookUrl: "",
   staleReviewThresholdDays: 3,
   dueDateThresholdDays: 5,
   escalationRecipient: "",
@@ -258,6 +259,7 @@ function fromConfigRow(row: Record<string, unknown>): AppConfig {
     duplicateDetectionMode: (row.duplicate_detection_mode as AppConfig["duplicateDetectionMode"]) ?? "filename",
     amountToleranceAbsolute: (row.amount_tolerance_absolute as number) ?? 1,
     teamsWebhookUrl: (row.teams_webhook_url as string) ?? "",
+    slackWebhookUrl: (row.slack_webhook_url as string) ?? "",
     staleReviewThresholdDays: (row.stale_review_threshold_days as number) ?? 3,
     dueDateThresholdDays: (row.due_date_threshold_days as number) ?? 5,
     escalationRecipient: (row.escalation_recipient as string) ?? "",
@@ -508,8 +510,7 @@ export class SupabaseStorageService implements IStorageService {
   }
 
   async saveConfig(config: AppConfig): Promise<void> {
-    const { error } = await this.db.from("app_config").upsert(
-      {
+    const row: Record<string, unknown> = {
         id: "main",
         completed_statuses: config.completedStatuses,
         skip_statuses: config.skipStatuses,
@@ -524,9 +525,21 @@ export class SupabaseStorageService implements IStorageService {
         due_date_threshold_days: config.dueDateThresholdDays,
         escalation_recipient: config.escalationRecipient,
         payment_terms_days: config.paymentTermsDays,
-      },
-      { onConflict: "id" }
-    );
+        slack_webhook_url: config.slackWebhookUrl ?? "",
+    };
+    let { error } = await this.db.from("app_config").upsert(row, { onConflict: "id" });
+
+    // slack_webhook_url comes from migration 053. Until it is applied, saving the
+    // other settings must keep working; only setting a Slack URL needs the column.
+    if (error && error.message.includes("slack_webhook_url")) {
+      if (config.slackWebhookUrl) {
+        throw new Error(
+          "saveConfig: the slack_webhook_url column is missing. Apply supabase/migrations/053_app_config_slack_webhook.sql first."
+        );
+      }
+      delete row.slack_webhook_url;
+      ({ error } = await this.db.from("app_config").upsert(row, { onConflict: "id" }));
+    }
     if (error) throw new Error(`saveConfig: ${error.message}`);
   }
 }

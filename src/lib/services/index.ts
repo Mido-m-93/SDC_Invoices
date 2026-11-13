@@ -70,7 +70,7 @@ import { MicrosoftSheetsService } from "./real/MicrosoftSheetsService";
 import { SupabaseStorageService } from "./real/SupabaseStorageService";
 import { SupabaseVendorService } from "./real/SupabaseVendorService";
 import { SupabaseContractService } from "./real/SupabaseContractService";
-import { TeamsNotificationService } from "./real/TeamsNotificationService";
+import { buildNotificationChannels } from "./real/notificationChannels";
 import { SupabaseReminderService } from "./real/SupabaseReminderService";
 import { RealValidationService } from "./real/RealValidationService";
 import { RealDriveService } from "./real/DriveService";
@@ -209,21 +209,25 @@ export function getContractService(): IContractService {
 }
 
 // ── Notification (Phase 7) ────────────────────────────────────────────────────
-// Webhook URL comes from Settings (app_config.teamsWebhookUrl, same source the
-// Config page's "Test Send" button uses), falling back to TEAMS_WEBHOOK_URL for
-// environments that still set it that way. Read fresh each call — not cached —
-// so a Settings update takes effect without a redeploy.
+// Webhook URLs come from Settings (app_config.teamsWebhookUrl / slackWebhookUrl,
+// the same source the Config page's "Test Send" buttons use), falling back to
+// TEAMS_WEBHOOK_URL / SLACK_WEBHOOK_URL for environments that set them that way.
+// Reminders go to every connected channel (Teams, Slack, or both). Read fresh
+// each call — not cached — so a Settings update takes effect without a redeploy.
 export async function getNotificationService(): Promise<INotificationService> {
   if (isMock("NEXT_PUBLIC_USE_MOCK_NOTIFICATION")) {
     return new MockNotificationService();
   }
   const config = await getStorageService().loadConfig();
-  const webhookUrl = config.teamsWebhookUrl || process.env.TEAMS_WEBHOOK_URL || "";
-  if (!webhookUrl) {
-    console.warn("[NotificationService] No Teams webhook configured (Settings > Teams Webhook, or TEAMS_WEBHOOK_URL) — falling back to mock");
+  const channels = buildNotificationChannels({
+    teamsUrl: config.teamsWebhookUrl || process.env.TEAMS_WEBHOOK_URL,
+    slackUrl: config.slackWebhookUrl || process.env.SLACK_WEBHOOK_URL,
+  });
+  if (!channels) {
+    console.warn("[NotificationService] No Teams or Slack webhook configured (Settings > Notification Settings, or TEAMS_WEBHOOK_URL / SLACK_WEBHOOK_URL) — falling back to mock");
     return new MockNotificationService();
   }
-  return new TeamsNotificationService(webhookUrl);
+  return channels.service;
 }
 
 // ── Reminder (Phase 7) ────────────────────────────────────────────────────────
