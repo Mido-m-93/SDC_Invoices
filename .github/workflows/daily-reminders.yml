@@ -2,8 +2,10 @@ name: Daily Reminder Check
 
 on:
   schedule:
-    # 00:00 UTC = 09:00 JST every day
-    - cron: "0 0 * * *"
+    # 00:00 UTC = 09:00 JST, Monday to Friday only (day-of-week 1-5; no weekend
+    # reminders). 00:00 UTC and 09:00 JST fall on the same calendar day, so the
+    # weekdays are the same in both.
+    - cron: "0 0 * * 1-5"
   workflow_dispatch:
     # Allow manual trigger from GitHub Actions UI
     inputs:
