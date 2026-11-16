@@ -9,6 +9,7 @@ const en = {
   language_toggle: "日本語",
   nav_dashboard: "Dashboard",
   nav_feedback: "Feedback",
+  nav_sheet_data: "Sheet Data",
   nav_proposals: "Proposals",
   nav_budget: "Budget",
   nav_invoices: "Invoices",
@@ -1466,7 +1467,8 @@ const en = {
 
   // ── Feedback ────────────────────────────────────────────────────────────────
   feedback_title: "Feedback",
-  feedback_subtitle: "Tell us what's working, what isn't, or what you'd like to see.",
+  feedback_subtitle: "Please let us know about product usage, bugs, or requests for improvements and new features. We will review your message and contact you if necessary.",
+  feedback_sensitive_notice: "※ Do not enter sensitive information such as API keys, passwords, or access tokens.",
   feedback_field_rating: "How's your experience so far? (1–5)",
   feedback_field_category: "Category",
   feedback_field_message: "Message",
@@ -1486,6 +1488,21 @@ const en = {
   feedback_col_category: "Category",
   feedback_col_message: "Message",
   feedback_col_submitted_at: "Submitted At",
+
+  // ── Sheet Data (SharePoint Excel sync) ───────────────────────────────────────
+  sheet_data_title: "Sheet Data",
+  sheet_data_subtitle: "Raw copy of the SharePoint Excel workbook. Read-only for now.",
+  sheet_data_sync: "Sync now",
+  sheet_data_syncing: "Syncing...",
+  sheet_data_sync_done: "Sheet data synced",
+  sheet_data_sync_failed: "Sheet sync failed",
+  sheet_data_last_synced: "Last synced",
+  sheet_data_never_synced: "Not synced yet. Click \"Sync now\" to fetch the workbook.",
+  sheet_data_rows: "rows",
+  sheet_data_search: "Search all columns...",
+  sheet_data_empty: "This sheet has no rows.",
+  sheet_data_row_col: "Row",
+  sheet_data_load_failed: "Could not load sheet data",
 
   // ── Archives ───────────────────────────────────────────────────────────────
   archives_title: "Archives",

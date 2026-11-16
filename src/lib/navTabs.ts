@@ -9,6 +9,12 @@ import type { TranslationKey } from "@/translations";
 export interface ManageableTab {
   href: string;
   labelKey: TranslationKey;
+  /**
+   * Hidden from everyone but admins until an admin explicitly lists it in a
+   * Member's allowedTabs. Unlike normal tabs, a `null` (unrestricted) Member
+   * does NOT get it — it needs a deliberate grant.
+   */
+  grantOnly?: boolean;
 }
 
 export const MANAGEABLE_TABS: ManageableTab[] = [
@@ -24,12 +30,34 @@ export const MANAGEABLE_TABS: ManageableTab[] = [
   { href: "/reports",         labelKey: "nav_reports" },
   { href: "/config",          labelKey: "nav_config" },
   { href: "/feedback",        labelKey: "nav_feedback" },
+  { href: "/sheet-data",      labelKey: "nav_sheet_data", grantOnly: true },
 ];
 
-/** `null` allowedTabs means unrestricted — every tab is visible. */
+const GRANT_ONLY_HREFS = new Set(MANAGEABLE_TABS.filter((t) => t.grantOnly).map((t) => t.href));
+
+/** Tabs a Member sees by default when unrestricted (everything except grant-only tabs). */
+export const REGULAR_TABS: ManageableTab[] = MANAGEABLE_TABS.filter((t) => !t.grantOnly);
+
+/**
+ * `null` allowedTabs means unrestricted — every regular tab is visible.
+ * Grant-only tabs are visible to admins, or to Members who list them explicitly.
+ */
 export function canSeeTab(href: string, allowedTabs: string[] | null, isAdmin: boolean): boolean {
-  if (isAdmin || allowedTabs === null) return true;
+  if (isAdmin) return true;
+  if (GRANT_ONLY_HREFS.has(href)) return allowedTabs?.includes(href) ?? false;
+  if (allowedTabs === null) return true;
   return allowedTabs.includes(href);
+}
+
+/**
+ * Turn the Users-page tick boxes into the value stored in allowedTabs: null
+ * (unrestricted) only when every regular tab is ticked and no grant-only tab is,
+ * otherwise the explicit list (so a grant-only tab is never granted implicitly).
+ */
+export function tabsToStore(selected: ReadonlySet<string>): string[] | null {
+  const allRegular = REGULAR_TABS.every((t) => selected.has(t.href));
+  const anyGrantOnly = Array.from(GRANT_ONLY_HREFS).some((h) => selected.has(h));
+  return allRegular && !anyGrantOnly ? null : Array.from(selected);
 }
 
 const MANAGEABLE_HREFS = new Set(MANAGEABLE_TABS.map((t) => t.href));

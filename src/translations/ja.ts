@@ -9,6 +9,7 @@ const ja = {
   language_toggle: "EN",
   nav_dashboard: "ダッシュボード",
   nav_feedback: "フィードバック",
+  nav_sheet_data: "シートデータ",
   nav_proposals: "提案",
   nav_budget: "予算",
   nav_invoices: "請求書一覧",
@@ -1466,7 +1467,8 @@ const ja = {
 
   // ── Feedback ────────────────────────────────────────────────────────────────
   feedback_title: "フィードバック",
-  feedback_subtitle: "うまくいっていること、改善してほしいこと、要望などをお聞かせください。",
+  feedback_subtitle: "製品の使い方、不具合、改善や新機能のご要望をお聞かせください。内容を確認のうえ、必要に応じてご連絡いたします。",
+  feedback_sensitive_notice: "※ APIキー、パスワード、アクセストークンなどの機密情報は入力しないでください。",
   feedback_field_rating: "これまでの使い心地は？（1〜5）",
   feedback_field_category: "カテゴリ",
   feedback_field_message: "メッセージ",
@@ -1486,6 +1488,21 @@ const ja = {
   feedback_col_category: "カテゴリ",
   feedback_col_message: "メッセージ",
   feedback_col_submitted_at: "送信日時",
+
+  // ── Sheet Data (SharePoint Excel sync) ───────────────────────────────────────
+  sheet_data_title: "シートデータ",
+  sheet_data_subtitle: "SharePointのExcelブックをそのまま取り込んだデータです。現在は閲覧専用です。",
+  sheet_data_sync: "今すぐ同期",
+  sheet_data_syncing: "同期中...",
+  sheet_data_sync_done: "シートデータを同期しました",
+  sheet_data_sync_failed: "シートの同期に失敗しました",
+  sheet_data_last_synced: "最終同期",
+  sheet_data_never_synced: "まだ同期されていません。「今すぐ同期」を押してブックを取得してください。",
+  sheet_data_rows: "行",
+  sheet_data_search: "全列を検索...",
+  sheet_data_empty: "このシートには行がありません。",
+  sheet_data_row_col: "行",
+  sheet_data_load_failed: "シートデータを読み込めませんでした",
 
   // ── Archives ───────────────────────────────────────────────────────────────
   archives_title: "アーカイブ",
