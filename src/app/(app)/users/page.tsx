@@ -8,7 +8,7 @@ import { useLanguage } from "@/translations";
 import { useNotifications } from "@/lib/notifications";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { formatTimestamp } from "@/lib/utils";
-import { MANAGEABLE_TABS } from "@/lib/navTabs";
+import { MANAGEABLE_TABS, REGULAR_TABS, tabsToStore } from "@/lib/navTabs";
 import { useTableControls, byId } from "@/lib/hooks/useTableControls";
 import { TableFooter, SelectAllCheckbox, RowCheckbox } from "@/components/ui/TableControls";
 
@@ -37,6 +37,7 @@ export default function UsersPage() {
   const [roleChangingId, setRoleChangingId] = useState<string | null>(null);
   const [managingTabsFor, setManagingTabsFor] = useState<AppUser | null>(null);
   const [tabsDraft, setTabsDraft] = useState<Set<string>>(new Set());
+  const allRegularSelected = REGULAR_TABS.every((tab) => tabsDraft.has(tab.href));
   const [savingTabs, setSavingTabs] = useState(false);
   // The tabs modal doubles as the approve dialog for pending sign-ups.
   const [approving, setApproving] = useState(false);
@@ -132,7 +133,7 @@ export default function UsersPage() {
   function openManageTabs(u: AppUser) {
     setApproving(false);
     setManagingTabsFor(u);
-    setTabsDraft(new Set(u.allowedTabs ?? MANAGEABLE_TABS.map((tab) => tab.href)));
+    setTabsDraft(new Set(u.allowedTabs ?? REGULAR_TABS.map((tab) => tab.href)));
   }
 
   // Nothing pre-ticked: new users get no tabs unless you choose them.
@@ -154,8 +155,7 @@ export default function UsersPage() {
     if (!managingTabsFor) return;
     setSavingTabs(true);
     try {
-      const allSelected = tabsDraft.size === MANAGEABLE_TABS.length;
-      const tabs = allSelected ? null : Array.from(tabsDraft);
+      const tabs = tabsToStore(tabsDraft);
       const action = approving ? "approve" : "set-tabs";
       const res = await fetch(`/api/users/${managingTabsFor.id}/${action}`, {
         method: "POST",
@@ -356,11 +356,17 @@ export default function UsersPage() {
                 <p className="text-xs text-stone-500">{t(approving ? "users_approve_subtitle" : "users_manage_tabs_subtitle")}</p>
                 <button
                   className="text-xs text-[#1a3d2b] font-medium hover:underline"
-                  onClick={() => setTabsDraft(
-                    tabsDraft.size === MANAGEABLE_TABS.length ? new Set() : new Set(MANAGEABLE_TABS.map((tab) => tab.href))
-                  )}
+                  // Select all / none only touches regular tabs — grant-only tabs
+                  // (e.g. Sheet Data) must be ticked deliberately, one by one.
+                  onClick={() => setTabsDraft((prev) => {
+                    const next = new Set(prev);
+                    for (const tab of REGULAR_TABS) {
+                      if (allRegularSelected) next.delete(tab.href); else next.add(tab.href);
+                    }
+                    return next;
+                  })}
                 >
-                  {tabsDraft.size === MANAGEABLE_TABS.length ? t("users_manage_tabs_select_none") : t("users_manage_tabs_select_all")}
+                  {allRegularSelected ? t("users_manage_tabs_select_none") : t("users_manage_tabs_select_all")}
                 </button>
               </div>
               <div className="space-y-1 max-h-72 overflow-y-auto">

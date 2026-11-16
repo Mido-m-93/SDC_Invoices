@@ -72,6 +72,8 @@ export default function FeedbackPage() {
     <>
       <PageHeader title={t("feedback_title")} subtitle={t("feedback_subtitle")} />
 
+      <p className="mb-4 max-w-xl text-sm font-medium text-stone-700">{t("feedback_sensitive_notice")}</p>
+
       <div className="max-w-xl bg-white rounded-xl border border-stone-200 p-6 space-y-5">
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-2">{t("feedback_field_rating")}</label>
